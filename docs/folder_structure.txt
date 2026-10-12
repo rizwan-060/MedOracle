@@ -1,0 +1,194 @@
+Folder PATH listing for volume New Volume
+Volume serial number is 36D7-6B06
+D:.
+³   .gitignore
+³   API_CONTRACT.md
+³   DATASET_REGISTER.md
+³   IMPLEMENTATION_PLAN.md
+³   MODEL_REGISTER.md
+³   PROJECT_STATUS.md
+³   README.md
+³   
+ÃÄÄÄbackend
+³   ³   .env.example
+³   ³   .gitignore
+³   ³   alembic.ini
+³   ³   README.md
+³   ³   requirements.txt
+³   ³   
+³   ÃÄÄÄapp
+³   ³   ³   main.py
+³   ³   ³   __init__.py
+³   ³   ³   
+³   ³   ÃÄÄÄagents
+³   ³   ³       consensus_agent.py
+³   ³   ³       counterfactual_agent.py
+³   ³   ³       disease_trajectory_agent.py
+³   ³   ³       doctor_recommendation_agent.py
+³   ³   ³       explainability_agent.py
+³   ³   ³       laboratory_agent.py
+³   ³   ³       medical_history_agent.py
+³   ³   ³       risk_prediction_agent.py
+³   ³   ³       symptom_agent.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄapi
+³   ³   ³   ³   router.py
+³   ³   ³   ³   __init__.py
+³   ³   ³   ³   
+³   ³   ³   ÀÄÄÄv1
+³   ³   ³           analysis.py
+³   ³   ³           auth.py
+³   ³   ³           doctors.py
+³   ³   ³           laboratory.py
+³   ³   ³           medical_history.py
+³   ³   ³           risk.py
+³   ³   ³           symptoms.py
+³   ³   ³           __init__.py
+³   ³   ³           
+³   ³   ÃÄÄÄclinical
+³   ³   ³       cardiovascular.py
+³   ³   ³       diabetes.py
+³   ³   ³       kidney.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄcore
+³   ³   ³       config.py
+³   ³   ³       security.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄcounterfactual
+³   ³   ³       simulator.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄdatabase
+³   ³   ³       models.py
+³   ³   ³       repositories.py
+³   ³   ³       session.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄdoctors
+³   ³   ³       recommendations.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄforecasting
+³   ³   ³       trajectory.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄgraph
+³   ³   ³       nodes.py
+³   ³   ³       state.py
+³   ³   ³       workflow.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄml
+³   ³   ³   ³   model_registry.py
+³   ³   ³   ³   __init__.py
+³   ³   ³   ³   
+³   ³   ³   ÃÄÄÄevaluation
+³   ³   ³   ³       __init__.py
+³   ³   ³   ³       
+³   ³   ³   ÃÄÄÄinference
+³   ³   ³   ³       __init__.py
+³   ³   ³   ³       
+³   ³   ³   ÃÄÄÄpreprocessing
+³   ³   ³   ³       __init__.py
+³   ³   ³   ³       
+³   ³   ³   ÀÄÄÄtraining
+³   ³   ³           __init__.py
+³   ³   ³           
+³   ³   ÃÄÄÄschemas
+³   ³   ³       analysis.py
+³   ³   ³       auth.py
+³   ³   ³       laboratory.py
+³   ³   ³       patient.py
+³   ³   ³       risk.py
+³   ³   ³       symptoms.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÃÄÄÄservices
+³   ³   ³       analysis_service.py
+³   ³   ³       llm_service.py
+³   ³   ³       prediction_service.py
+³   ³   ³       __init__.py
+³   ³   ³       
+³   ³   ÀÄÄÄutils
+³   ³           __init__.py
+³   ³           
+³   ÃÄÄÄmigrations
+³   ÃÄÄÄscripts
+³   ÀÄÄÄtests
+³       ÃÄÄÄintegration
+³       ³       __init__.py
+³       ³       
+³       ÃÄÄÄml
+³       ÀÄÄÄunit
+³               __init__.py
+³               
+ÃÄÄÄdatasets
+³   ÃÄÄÄexternal
+³   ÃÄÄÄmetadata
+³   ÃÄÄÄprocessed
+³   ÀÄÄÄraw
+ÃÄÄÄdocs
+³   ³   folder_structure.txt
+³   ³   
+³   ÃÄÄÄarchitecture
+³   ÃÄÄÄdatasets
+³   ÃÄÄÄmodels
+³   ÃÄÄÄreports
+³   ÀÄÄÄtesting
+ÃÄÄÄfrontend
+³   ÃÄÄÄassets
+³   ³   ÃÄÄÄfonts
+³   ³   ÃÄÄÄicons
+³   ³   ÀÄÄÄimages
+³   ÃÄÄÄlib
+³   ³   ÃÄÄÄcore
+³   ³   ³   ÃÄÄÄconfig
+³   ³   ³   ÃÄÄÄconstants
+³   ³   ³   ÃÄÄÄrouting
+³   ³   ³   ÃÄÄÄtheme
+³   ³   ³   ÀÄÄÄwidgets
+³   ³   ÃÄÄÄdata
+³   ³   ³   ÃÄÄÄmodels
+³   ³   ³   ÃÄÄÄrepositories
+³   ³   ³   ÀÄÄÄservices
+³   ³   ÀÄÄÄfeatures
+³   ³       ÃÄÄÄauth
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÃÄÄÄcounterfactual
+³   ³       ³   ÀÄÄÄscreens
+³   ³       ÃÄÄÄdashboard
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÃÄÄÄdoctors
+³   ³       ³   ÀÄÄÄscreens
+³   ³       ÃÄÄÄlaboratory
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÃÄÄÄmedical_history
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÃÄÄÄreasoning
+³   ³       ³   ÀÄÄÄscreens
+³   ³       ÃÄÄÄrisk
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÃÄÄÄsymptoms
+³   ³       ³   ÃÄÄÄscreens
+³   ³       ³   ÀÄÄÄwidgets
+³   ³       ÀÄÄÄtrajectory
+³   ³           ÀÄÄÄscreens
+³   ÀÄÄÄtest
+ÃÄÄÄmodels
+³   ÃÄÄÄcheckpoints
+³   ÃÄÄÄexperiments
+³   ÀÄÄÄsaved
+ÃÄÄÄscripts
+³       run_backend.bat
+³       setup_backend.bat
+³       verify_structure.bat
+³       
+ÀÄÄÄtests
