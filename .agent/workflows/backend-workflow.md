@@ -1,5 +1,4 @@
 ---
-name: backend-workflow
 description: Runs one step of the MedOracle backend roadmap (FastAPI, database, auth, clinical models, LLM layer, agents, LangGraph, consensus, API). Use whenever the user asks to start, continue, or do the next backend step, or invokes /backend-workflow.
 ---
 
