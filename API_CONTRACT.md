@@ -140,76 +140,132 @@ All error responses return a standardized JSON structure with appropriate HTTP s
 
 ## 4. Patient Data APIs
 
+All patient endpoints require a valid Bearer JWT access token and strictly enforce multi-user tenant isolation: callers can only access, modify, or delete their own health data.
+
 ### `GET /api/v1/patient/profile`
-- **Auth:** Bearer Token
+- **Auth:** Bearer Token (`Authorization: Bearer <access_token>`)
 - **Response `200 OK`**:
 ```json
 {
-  "user_id": "usr_9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "id": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "user_id": "a1b2c3d4-e5f6-4a1b-8c2d-111111111111",
   "date_of_birth": "1981-05-14",
   "gender": "male",
   "height_cm": 178.0,
   "weight_kg": 84.5,
   "waist_circumference_cm": 94.0,
   "smoking_status": "current_smoker",
-  "activity_level": "low"
+  "activity_level": "low",
+  "blood_group": "O+",
+  "created_at": "2026-10-14T20:00:00Z",
+  "updated_at": "2026-10-14T20:00:00Z"
 }
 ```
 
 ### `PUT /api/v1/patient/profile`
 - **Auth:** Bearer Token
-- **Request Body**: JSON fields matching profile schema.
-- **Response `200 OK`**: Updated profile.
+- **Request Body**:
+```json
+{
+  "gender": "male",
+  "height_cm": 178.0,
+  "weight_kg": 82.0,
+  "smoking_status": "former",
+  "activity_level": "moderate"
+}
+```
+- **Response `200 OK`**: Updated profile object.
 
-### `POST /api/v1/symptoms`
+---
+
+### `GET /api/v1/medical-history/`
+- **Auth:** Bearer Token
+- **Response `200 OK`**:
+```json
+{
+  "id": "m1h2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "user_id": "a1b2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "chronic_conditions": ["hypertension"],
+  "past_surgeries": ["appendectomy"],
+  "current_medications": [{"name": "Amlodipine", "dosage": "5mg", "frequency": "daily"}],
+  "allergies": ["penicillin"],
+  "family_history": [
+    {"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 52},
+    {"relative": "mother", "condition": "type_2_diabetes", "age_at_onset": 60}
+  ],
+  "notes": "Patient reports family history of early CVD.",
+  "created_at": "2026-10-14T20:00:00Z",
+  "updated_at": "2026-10-14T20:00:00Z"
+}
+```
+- **Error Codes:** `404 Not Found` (No medical history recorded yet).
+
+### `POST /api/v1/medical-history/`
+- **Auth:** Bearer Token
+- **Request Body**: JSON fields matching medical history base schema.
+- **Response `201 Created`**: Newly created history object.
+
+### `PUT /api/v1/medical-history/`
+- **Auth:** Bearer Token
+- **Request Body**: Partial or full fields to update.
+- **Response `200 OK`**: Updated history object (auto-creates if none exists).
+
+---
+
+### `POST /api/v1/symptoms/`
 - **Auth:** Bearer Token
 - **Request Body**:
 ```json
 {
   "reported_text": "Severe chest tightness radiating to left arm when climbing stairs, shortness of breath for past 3 days.",
   "duration_days": 3,
-  "severity_self_rating": 8
+  "severity_self_rating": 8,
+  "body_locations": ["chest", "left arm"],
+  "triggers": ["exertion"],
+  "structured_symptoms": ["chest_pain", "dyspnea"]
 }
 ```
 - **Response `201 Created`**:
 ```json
 {
-  "id": "sym_01h7x8...",
-  "user_id": "usr_9b1deb4d...",
-  "reported_text": "Severe chest tightness...",
+  "id": "s1h2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "user_id": "a1b2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "reported_text": "Severe chest tightness radiating to left arm...",
   "duration_days": 3,
   "severity_self_rating": 8,
-  "created_at": "2026-10-13T23:50:00Z"
+  "body_locations": ["chest", "left arm"],
+  "triggers": ["exertion"],
+  "structured_symptoms": ["chest_pain", "dyspnea"],
+  "created_at": "2026-10-14T20:00:00Z",
+  "updated_at": "2026-10-14T20:00:00Z"
 }
 ```
 
-### `GET /api/v1/symptoms`
+### `GET /api/v1/symptoms/`
 - **Auth:** Bearer Token
-- **Response `200 OK`**: List of recorded symptom reports for the current user.
+- **Query Params:** `limit` (default: 50, max: 100)
+- **Response `200 OK`**: List of recorded symptom reports for the caller.
 
-### `POST /api/v1/medical-history`
+### `GET /api/v1/symptoms/{report_id}`
 - **Auth:** Bearer Token
-- **Request Body**:
-```json
-{
-  "conditions": ["hypertension"],
-  "medications": ["amlodipine 5mg"],
-  "family_history": [
-    {"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 52},
-    {"relative": "mother", "condition": "type_2_diabetes", "age_at_onset": 60}
-  ],
-  "allergies": []
-}
-```
-- **Response `201 Created`**: Saved medical history object.
+- **Response `200 OK`**: Symptom report object.
+- **Error Codes:** `404 Not Found` (If report doesn't exist or belongs to another user).
 
-### `POST /api/v1/laboratory`
+### `DELETE /api/v1/symptoms/{report_id}`
+- **Auth:** Bearer Token
+- **Response `204 No Content`**
+- **Error Codes:** `404 Not Found`.
+
+---
+
+### `POST /api/v1/laboratory/`
 - **Auth:** Bearer Token
 - **Request Body**:
 ```json
 {
   "test_date": "2026-10-10",
-  "values": {
+  "lab_name": "City Diagnostic Center",
+  "biomarkers": {
     "systolic_bp": 145,
     "diastolic_bp": 92,
     "total_cholesterol_mg_dl": 240,
@@ -217,10 +273,51 @@ All error responses return a standardized JSON structure with appropriate HTTP s
     "fasting_blood_glucose_mg_dl": 115,
     "serum_creatinine_mg_dl": 1.1,
     "hba1c_percent": 6.1
-  }
+  },
+  "notes": "Fasting sample confirmed."
 }
 ```
-- **Response `201 Created`**: Saved laboratory record.
+- **Response `201 Created`**:
+```json
+{
+  "id": "l1h2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "user_id": "a1b2c3d4-e5f6-4a1b-8c2d-111111111111",
+  "test_date": "2026-10-10",
+  "lab_name": "City Diagnostic Center",
+  "biomarkers": {
+    "systolic_bp": 145,
+    "diastolic_bp": 92,
+    "total_cholesterol_mg_dl": 240,
+    "hdl_cholesterol_mg_dl": 38,
+    "fasting_blood_glucose_mg_dl": 115,
+    "serum_creatinine_mg_dl": 1.1,
+    "hba1c_percent": 6.1
+  },
+  "notes": "Fasting sample confirmed.",
+  "created_at": "2026-10-14T20:00:00Z",
+  "updated_at": "2026-10-14T20:00:00Z"
+}
+```
+
+### `GET /api/v1/laboratory/`
+- **Auth:** Bearer Token
+- **Query Params:** `limit` (default: 50, max: 100)
+- **Response `200 OK`**: List of historical lab reports for caller.
+
+### `GET /api/v1/laboratory/latest`
+- **Auth:** Bearer Token
+- **Response `200 OK`**: Most recent lab record for caller.
+- **Error Codes:** `404 Not Found` (No lab results on file).
+
+### `GET /api/v1/laboratory/{lab_id}`
+- **Auth:** Bearer Token
+- **Response `200 OK`**: Lab report object.
+- **Error Codes:** `404 Not Found`.
+
+### `DELETE /api/v1/laboratory/{lab_id}`
+- **Auth:** Bearer Token
+- **Response `204 No Content`**
+- **Error Codes:** `404 Not Found`.
 
 ---
 
