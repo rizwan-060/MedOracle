@@ -2,8 +2,15 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.core.config import Settings
+from app.database.session import Base, get_db
 from app.main import create_app
-from app.core.config import Settings, get_settings
+# Ensure all models are loaded
+import app.database.models  # noqa: F401
 
 
 @pytest.fixture
@@ -20,10 +27,33 @@ def test_settings() -> Settings:
 
 
 @pytest.fixture
-def client(monkeypatch, test_settings: Settings) -> TestClient:
-    """Fixture returning a TestClient bound to a test app instance."""
-    # Override get_settings with test settings
+def client(monkeypatch, test_settings: Settings):
+    """Fixture returning a TestClient with an in-memory SQLite database."""
+    # Create SQLite engine with StaticPool so all connections share the memory DB
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=test_engine)
+    TestingSessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False
+    )
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
     monkeypatch.setattr("app.core.config.get_settings", lambda: test_settings)
     monkeypatch.setattr("app.main.get_settings", lambda: test_settings)
+
     app = create_app()
-    return TestClient(app)
+    app.dependency_overrides[get_db] = override_get_db
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    Base.metadata.drop_all(bind=test_engine)

@@ -1,208 +1,215 @@
 # MedOracle Backend: Implementation Plan & Roadmap
 
-This document outlines the step-by-step engineering roadmap for the MedOracle backend service, adapted from the project brief (`docs/architecture/PROJECT_BRIEF.md`) and project rules (`.agent/rules/medoracle-backend.md`).
+This document outlines the step-by-step engineering roadmap for the MedOracle backend service, adapted from the project brief (`docs/architecture/PROJECT_BRIEF.md`), project rules (`.agent/rules/medoracle-backend.md`), and updated architecture directives.
 
 ---
 
 ## Architectural Principles & Locked Decisions
 
-1. **Pure Python Clinical Foundations**:
-   - Validated clinical formulas (Framingham 10-year CVD risk, FINDRISC diabetes risk, CKD-EPI 2021 eGFR) serve as the deterministic mathematical backbone.
-   - LLM agents build explanatory, contextual, and debate layers on top of clinical scores.
-2. **Multi-Agent Consensus & Debate (Core Research Contribution)**:
-   - Specialised agents: Symptom, Medical History, Laboratory, and Risk Prediction.
-   - Governed by a 5-step consensus protocol: (1) Evidence submission, (2) Contradiction detection, (3) Challenge round, (4) Confidence adjustment, (5) Consensus resolution.
-   - Structured JSON output contract for every agent: `role`, `findings`, `confidence` (0–100), `reasoning_chain`, `evidence`, `challenges`.
-   - Agents never see each other's prompts, only outputs and confidence scores (anti-sycophancy).
-3. **LLM Routing & Resilience**:
-   - Primary: Groq (`llama-3.3-70b-versatile` for complex reasoning/debate, `llama-3.1-8b-instant` for structured extraction).
-   - Fallback: Google Gemini Flash (`gemini-2.5-flash` or current stable flash endpoint).
-   - Mock provider for all unit/integration tests (zero external network calls during CI/testing).
-4. **Data & Persistence**:
-   - SQLAlchemy 2.0 with sync engine and `psycopg` 3 for PostgreSQL (Supabase in production).
-   - Generic `JSON` column types to allow test execution on in-memory SQLite without dialect incompatibility.
-   - Repository pattern: all database queries encapsulated in `app/database/repositories.py`.
-5. **Asynchronous Execution**:
-   - Native FastAPI `BackgroundTasks` with polling status on `analysis_sessions` (Celery & Redis deferred to Step 13 hardening due to native Windows constraints).
-6. **Security & Auth**:
-   - Custom JWT auth (`python-jose`) with direct `bcrypt` password hashing (no `passlib`).
+1. **Schema-First Foundation (Step 2 Priority)**:
+   - Complete data model definition precedes downstream API and agent logic.
+   - All relational entities (Users, PatientProfiles, MedicalHistories, SymptomReports, LabResults, AnalysisSessions, AgentOutputs, RiskResults, Doctors, TrainedModels) are mapped to SQLAlchemy 2.0 ORM models and Pydantic v2 domain schemas.
+   - Generic `JSON` column types allow SQLite test execution while supporting PostgreSQL/Supabase in production.
+   - **Schema Documentation Artifact**: A dedicated specification (`docs/architecture/DATABASE_SCHEMA.md`) documents all tables, column types, constraints, entity relationships in tabular form, and concrete example data rows.
+2. **Dual Quantitative Backbone: Clinical Equations + Supervised ML Models**:
+   - **Deterministic Clinical Formulas**: Framingham 10-year CVD risk, FINDRISC diabetes risk, CKD-EPI 2021 eGFR serve as cited, transparent clinical formulas.
+   - **Supervised ML Models**: Models trained on public benchmark datasets (UCI Heart Disease, PIMA Indians Diabetes, Kaggle Disease-Symptom dataset) provide data-driven probability estimates and feature importance scores.
+   - Both quantitative streams feed directly into the Risk Prediction Agent.
+3. **Multi-Agent Consensus & Debate (Core Research Contribution)**:
+   - Specialized agents: Symptom, Medical History, Laboratory, and Risk Prediction.
+   - 5-step debate protocol: (1) Evidence submission, (2) Contradiction detection, (3) Challenge round, (4) Confidence adjustment, (5) Consensus resolution.
+   - Standardized structured JSON output contract: `role`, `findings`, `confidence` (0–100), `reasoning_chain`, `evidence`, `challenges`.
+   - Agents never see each other's prompts, only outputs and confidence scores.
+4. **LLM Routing & Resilience**:
+   - Primary: Groq (`llama-3.3-70b-versatile` for debate, `llama-3.1-8b-instant` for structured extraction).
+   - Fallback: Google Gemini Flash (`gemini-2.5-flash`).
+   - Mock provider for deterministic, network-free unit and integration testing.
+5. **Security & Authentication**:
+   - Custom JWT (`python-jose`) with direct `bcrypt` password hashing (no `passlib`).
+6. **Asynchronous Execution**:
+   - FastAPI `BackgroundTasks` with status polling on `analysis_sessions`.
 
 ---
 
-## Detailed Step-by-Step Roadmap
+## Step-by-Step Roadmap
 
-### Step 0: Audit & Plan (Current Step)
-- **Goal**: Audit existing repository structure, reconcile requirements vs virtual environment, write skeleton contracts, and establish project baseline.
-- **Artifacts**: `IMPLEMENTATION_PLAN.md`, `PROJECT_STATUS.md`, `API_CONTRACT.md`.
-- **Definition of Done**: All planning documents populated; environment differences catalogued; ready for Step 1.
+### Step 0: Audit & Plan (Done - 2026-10-13)
+- Baseline audit of repository, requirements reconciliation, skeleton API contract, and roadmap design.
 
 ---
 
-### Step 1: App Foundation
-- **Goal**: Initialize the FastAPI application shell, configuration management, CORS, structured error handlers, and health probe.
+### Step 1: App Foundation (Done - 2026-10-13)
+- Application factory `create_app()`, `Settings` management with `pydantic-settings`, CORS middleware, request latency logging, consistent exception handling (422, 404, 500), `/health`, `/api/v1/`, runner script `scripts\run_backend.bat`, and 8 passing unit/integration tests.
+
+---
+
+### Step 2: Complete Database, Schemas, Migrations & Schema Documentation (Next Step)
+- **Goal**: Establish the complete database schema, migrations, Pydantic domain models, data access repositories, and exhaustive markdown schema documentation.
 - **Target Files**:
-  - `backend/app/core/config.py` (Pydantic Settings reading `.env`)
-  - `backend/app/main.py` (FastAPI application factory, middleware, routers)
-  - `backend/app/api/router.py` (Top-level API router aggregator)
-  - `backend/app/api/v1/__init__.py` (V1 prefix router mounting)
-  - `backend/.env.example` (Updated with standardized variable keys)
-  - `scripts/run_backend.bat` & `scripts/setup_backend.bat` (Verified runnable commands)
-- **Dependencies**: `fastapi`, `uvicorn[standard]`, `pydantic-settings`.
+  - `backend/app/database/session.py` (Engine, session factory, `get_db` FastAPI dependency)
+  - `backend/app/database/models.py` (SQLAlchemy 2.0 ORM models for Users, PatientProfile, MedicalHistory, SymptomReport, LabResult, AnalysisSession, AgentOutput, RiskResult, Doctor, TrainedModel)
+  - `backend/app/database/repositories.py` (Repository classes with clean CRUD abstractions)
+  - `backend/app/schemas/` (`auth.py`, `patient.py`, `symptoms.py`, `laboratory.py`, `analysis.py`, `risk.py`, `doctor.py`)
+  - `backend/alembic.ini`, `backend/migrations/env.py`, `backend/migrations/script.py.mako`, `backend/migrations/versions/` (Baseline migration)
+  - `docs/architecture/DATABASE_SCHEMA.md` (Mandatory documentation artifact)
+- **Mandatory Documentation Requirement (`DATABASE_SCHEMA.md`)**:
+  1. Complete inventory of database tables.
+  2. Tabular Entity-Relationship (ER) map showing primary keys, foreign keys, cardinality (1:1, 1:N, N:M), and cascade behavior.
+  3. Column-by-column schema tables (field name, type, constraints, default, description).
+  4. Tabular mock/example data rows for every table illustrating real-world data shapes.
 - **Testing**:
-  - `backend/tests/unit/test_config.py`: Configuration loading, default values, env overrides.
-  - `backend/tests/integration/test_health.py`: HTTP GET `/health` and root endpoints.
-- **Definition of Done**: `pytest` passes; `uvicorn app.main:app` boots cleanly; `scripts\run_backend.bat` starts the service.
-
----
-
-### Step 2: Database & Migrations
-- **Goal**: Implement SQLAlchemy ORM models, session management, migration environment via Alembic, and database repositories.
-- **Target Files**:
-  - `backend/app/database/session.py` (Engine, sessionmaker, `get_db` dependency)
-  - `backend/app/database/models.py` (Users, PatientProfile, MedicalHistory, SymptomReport, LabResult, AnalysisSession, AgentOutput, RiskResult, Doctor)
-  - `backend/app/database/repositories.py` (Data access layer wrapping all queries)
-  - `backend/alembic.ini`, `backend/migrations/env.py`, `backend/migrations/script.py.mako`, `backend/migrations/versions/`
-- **Dependencies**: `sqlalchemy`, `psycopg[binary]`, `alembic`.
-- **Testing**:
-  - `backend/tests/unit/test_database.py`: In-memory SQLite table creation, CRUD repository operations.
-- **Definition of Done**: Alembic migration generated and executable; repositories tested with clean rollbacks on SQLite.
+  - `backend/tests/unit/test_database.py`: In-memory SQLite table generation, repository CRUD operations, constraint enforcement.
+- **Definition of Done**: Alembic migration executes without error; repository tests pass on SQLite; `docs/architecture/DATABASE_SCHEMA.md` is generated and verified.
 
 ---
 
 ### Step 3: Authentication & Security
 - **Goal**: Implement secure user registration, credential verification, JWT access/refresh token generation, and FastAPI security dependencies.
 - **Target Files**:
-  - `backend/app/core/security.py` (Password hashing using `bcrypt`, JWT encoding/decoding)
-  - `backend/app/schemas/auth.py` (Token schemas, UserRegister, UserLogin, UserResponse)
+  - `backend/app/core/security.py` (Direct `bcrypt` hashing, JWT encoding/decoding)
+  - `backend/app/schemas/auth.py`
   - `backend/app/api/v1/auth.py` (`/register`, `/login`, `/refresh`, `/me`)
-- **Dependencies**: `python-jose[cryptography]`, `bcrypt`.
 - **Testing**:
-  - `backend/tests/unit/test_security.py`: Password hashing/verifying, token expiration, tamper rejection.
-  - `backend/tests/integration/test_auth_api.py`: Registration, login, token refresh, `/me` authenticated round-trip.
-- **Definition of Done**: Happy path and failure cases (expired token, wrong password, duplicate email) thoroughly tested and passing.
+  - `backend/tests/unit/test_security.py` and `backend/tests/integration/test_auth_api.py`.
+- **Definition of Done**: Registration, login, token refresh, and `/me` authentication flow verified with unit tests.
 
 ---
 
 ### Step 4: Patient Data APIs
-- **Goal**: Provide CRUD endpoints for patient profiles, medical/family history, symptom reports, and lab results, enforcing strict user tenant isolation.
+- **Goal**: CRUD endpoints for profiles, medical history, symptom reports, and lab results, enforcing strict user tenant isolation.
 - **Target Files**:
-  - `backend/app/schemas/patient.py`, `backend/app/schemas/symptoms.py`, `backend/app/schemas/laboratory.py`
-  - `backend/app/api/v1/symptoms.py`, `backend/app/api/v1/medical_history.py`, `backend/app/api/v1/laboratory.py`
-  - `backend/app/database/repositories.py` (Extended with patient queries)
+  - `backend/app/api/v1/symptoms.py`, `medical_history.py`, `laboratory.py`
+  - `backend/app/database/repositories.py`
 - **Testing**:
-  - `backend/tests/integration/test_patient_data.py`: Multi-user isolation test (User A cannot read or modify User B's records), validation errors on invalid ranges.
-- **Definition of Done**: All patient data endpoints protected and isolated per user; full validation tests pass.
+  - `backend/tests/integration/test_patient_data.py`: Tenant isolation tests (User A cannot access User B's records).
 
 ---
 
 ### Step 5: Clinical Risk Models (Deterministic Core)
 - **Goal**: Implement exact published clinical equations in pure Python with complete academic citations and no LLM dependencies.
 - **Target Files**:
-  - `backend/app/clinical/cardiovascular.py` (Framingham 10-Year General Cardiovascular Risk Profile, D'Agostino et al., 2008)
-  - `backend/app/clinical/diabetes.py` (FINDRISC - Finnish Diabetes Risk Score, Lindström & Tuomilehto, 2003)
-  - `backend/app/clinical/kidney.py` (CKD-EPI 2021 Creatinine Equation, Inker et al., 2021)
-- **Outputs**: Quantified numerical score, risk category/stratification, list of missing/assumed parameters, and clinical disclaimer.
+  - `backend/app/clinical/cardiovascular.py` (Framingham 10-Year General CVD Risk, D'Agostino 2008)
+  - `backend/app/clinical/diabetes.py` (FINDRISC - Finnish Diabetes Risk Score, Lindström 2003)
+  - `backend/app/clinical/kidney.py` (CKD-EPI 2021 eGFR, Inker 2021)
 - **Testing**:
-  - `backend/tests/unit/test_clinical_models.py`: Unit tests validating output against worked examples from original published papers and clinical calculators.
-- **Definition of Done**: Worked test cases match published figures to within rounding precision.
+  - `backend/tests/unit/test_clinical_models.py`: Worked examples from original published papers.
 
 ---
 
-### Step 6: LLM Service & Fallback Routing
-- **Goal**: Build unified LLM interface with structured Pydantic JSON output, automatic retry with exponential backoff, Groq -> Gemini fallback, and a deterministic Mock provider.
+### Step 6: ML Dataset Acquisition & Preprocessing Pipeline
+- **Goal**: Ingest benchmark datasets and build automated preprocessing pipelines.
 - **Target Files**:
-  - `backend/app/services/llm_service.py` (LLMProvider interface, GroqProvider, GeminiProvider, MockLLMProvider)
-  - `backend/app/core/config.py` (API keys, model IDs, temperature, timeouts)
-  - `backend/.env.example`
-- **Dependencies**: `groq`, `google-genai` (pinned).
+  - `backend/scripts/download_datasets.py` (Automated downloader / verification script for UCI Heart Disease, PIMA Indians Diabetes, and Kaggle Disease-Symptom dataset)
+  - `backend/app/ml/preprocessing/cleaning.py`, `encoding.py`, `split.py`
+  - `DATASET_REGISTER.md`
 - **Testing**:
-  - `backend/tests/unit/test_llm_service.py`: Schema validation, mock responses, fallback triggering on simulated network failure.
-- **Definition of Done**: Fallback and JSON schema enforcement pass unit tests with 0 network calls.
+  - `backend/tests/ml/test_preprocessing.py`: Verify missing-value handling, scaling transforms, and split reproducibility.
+- **Definition of Done**: Datasets ingested in `datasets/raw/`, preprocessing pipelines functional, `DATASET_REGISTER.md` updated.
 
 ---
 
-### Step 7: Agent Base & Domain Agents
-- **Goal**: Define unified Agent base class and domain agents (Symptom, Medical History, Laboratory, Risk Prediction) producing standardized structured outputs.
+### Step 7: ML Model Training & Model Registry
+- **Goal**: Train supervised classification models, serialize artifacts, and track versions.
 - **Target Files**:
-  - `backend/app/agents/base.py` (Shared agent output contract: role, findings, confidence 0-100, reasoning chain, evidence, challenges)
+  - `backend/app/ml/training/trainer.py`
+  - `backend/scripts/train_models.py` (CLI training script)
+  - `backend/app/ml/model_registry.py` (Registry metadata manager)
+  - `MODEL_REGISTER.md`
+- **Models Trained**:
+  1. Cardiovascular Disease Risk Classifier (UCI Heart Disease)
+  2. Type 2 Diabetes Classifier (PIMA Indians Diabetes)
+  3. Symptom-to-Disease Category Classifier (Disease-Symptom dataset)
+- **Testing**:
+  - `backend/tests/ml/test_training.py`: Artifact creation, model serialization, registry integration.
+- **Definition of Done**: Trained models serialized in `backend/app/ml/models/`, metadata recorded in `MODEL_REGISTER.md`.
+
+---
+
+### Step 8: ML Model Evaluation & Real-Time Inference Service
+- **Goal**: Compute rigorous validation metrics and build real-time inference service.
+- **Target Files**:
+  - `backend/app/ml/evaluation/metrics.py` (ROC-AUC, F1, precision, recall, confusion matrix)
+  - `backend/scripts/evaluate_models.py`
+  - `backend/app/ml/inference/predictor.py`
+- **Testing**:
+  - `backend/tests/ml/test_inference.py`: Real-time prediction latency, probability output calibration.
+- **Definition of Done**: Evaluation reports generated; inference predictor ready for consumption by agents.
+
+---
+
+### Step 9: LLM Service & Fallback Routing
+- **Goal**: Unified LLM interface with Groq primary, Gemini Flash fallback, Mock provider for testing, and structured JSON output validation.
+- **Target Files**:
+  - `backend/app/services/llm_service.py`
+  - `backend/app/core/config.py`
+- **Testing**:
+  - `backend/tests/unit/test_llm_service.py`: Schema enforcement, mock responses, fallback switching.
+
+---
+
+### Step 10: Multi-Agent Base & Domain Agents
+- **Goal**: Unified agent contract and domain agents combining quantitative formulas, ML inference, and LLM reasoning.
+- **Target Files**:
+  - `backend/app/agents/base.py`
   - `backend/app/agents/symptom_agent.py`
   - `backend/app/agents/medical_history_agent.py`
   - `backend/app/agents/laboratory_agent.py`
-  - `backend/app/agents/risk_prediction_agent.py` (integrates Step 5 clinical calculators with agent findings)
+  - `backend/app/agents/risk_prediction_agent.py` (ensembles Step 5 clinical scores + Step 8 ML predictions + LLM reasoning)
 - **Testing**:
-  - `backend/tests/unit/test_agents.py`: Deterministic fallback operation (when LLM is disabled) and mock LLM reasoning.
-- **Definition of Done**: All 4 agents return valid structured output schemas conforming to project rules.
+  - `backend/tests/unit/test_agents.py`: Deterministic fallback operation and mock LLM reasoning.
 
 ---
 
-### Step 8: LangGraph Pipeline Orchestration
-- **Goal**: Wire domain agents into a directed LangGraph workflow executing data extraction agents in parallel before aggregating into risk prediction.
+### Step 11: LangGraph Multi-Agent Pipeline
+- **Goal**: Wire domain agents into a directed LangGraph workflow executing data agents in parallel before aggregating into risk prediction.
 - **Target Files**:
-  - `backend/app/graph/state.py` (Typed shared state representation)
-  - `backend/app/graph/nodes.py` (Node execution wrappers with error boundaries)
-  - `backend/app/graph/workflow.py` (Graph builder, parallel fan-out / fan-in)
-- **Dependencies**: `langgraph`, `langchain-core`.
+  - `backend/app/graph/state.py`, `nodes.py`, `workflow.py`
 - **Testing**:
-  - `backend/tests/unit/test_graph_workflow.py`: Execution of full graph with mock agents; verification that failure in one agent does not crash pipeline.
-- **Definition of Done**: State transitions verify proper parallel execution and clean aggregation.
+  - `backend/tests/unit/test_graph_workflow.py`: Parallel fan-out and fan-in execution with error boundaries.
 
 ---
 
-### Step 9: Consensus & Debate Framework (Core Research Contribution)
-- **Goal**: Implement the 5-step consensus debate protocol to identify contradictions, exchange challenges, adjust confidences, and formulate an explainable consensus verdict.
+### Step 12: Consensus & Debate Framework (Core Research Contribution)
+- **Goal**: Implement 5-step consensus debate protocol with contradiction detection, challenge round, and confidence adjustment.
 - **Target Files**:
-  - `backend/app/agents/consensus_agent.py`
-  - `backend/app/graph/debate_nodes.py`
-  - `backend/app/graph/workflow.py` (Integration of debate loop)
+  - `backend/app/agents/consensus_agent.py`, `backend/app/graph/debate_nodes.py`
 - **Testing**:
-  - `backend/tests/unit/test_consensus_debate.py`: Hand-built contradictory agent outputs (e.g. high lab markers vs low symptom severity); verification of contradiction detection, confidence adjustment bounded within rounds, and full debate transcript capture.
-- **Definition of Done**: Deterministic contradiction detection and multi-turn debate successfully produce resolution without infinite looping.
+  - `backend/tests/unit/test_consensus_debate.py`: Contradictory agent inputs, bounded debate rounds, full transcript capture.
 
 ---
 
-### Step 10: Explainability, Forecasting, Counterfactuals & Doctors
-- **Goal**: Build reasoning graph export for Flutter (`graphview`), 30-day/6-month/1-year trajectory forecast, counterfactual lifestyle simulator, and specialty-based doctor matching.
+### Step 13: Explainability, Disease Trajectory & Counterfactual Simulator
+- **Goal**: Reasoning graph JSON for Flutter `graphview`, 30d/6m/1y trajectory forecast, counterfactual lifestyle simulator, and doctor matching.
 - **Target Files**:
-  - `backend/app/agents/explainability_agent.py` (Node-and-edge JSON graph builder)
-  - `backend/app/forecasting/trajectory.py` & `backend/app/agents/disease_trajectory_agent.py`
-  - `backend/app/counterfactual/simulator.py` & `backend/app/agents/counterfactual_agent.py` (Walking, diet change, smoking cessation)
-  - `backend/app/doctors/recommendations.py` & `backend/app/agents/doctor_recommendation_agent.py` (Specialty and proximity ranking)
+  - `backend/app/agents/explainability_agent.py`
+  - `backend/app/forecasting/trajectory.py`
+  - `backend/app/counterfactual/simulator.py`
+  - `backend/app/doctors/recommendations.py`
 - **Testing**:
   - `backend/tests/unit/test_forecasting.py`, `test_counterfactual.py`, `test_doctor_recommendations.py`.
-- **Definition of Done**: Valid JSON graph structure generated; 3 counterfactual interventions calculated; doctor ranking tested with sample directory.
 
 ---
 
-### Step 11: Analysis Orchestration API
+### Step 14: Analysis Orchestration API
 - **Goal**: Expose end-to-end analysis endpoints with async job dispatching, polling status, and comprehensive results retrieval.
 - **Target Files**:
-  - `backend/app/services/analysis_service.py`, `backend/app/services/prediction_service.py`
-  - `backend/app/schemas/analysis.py`, `backend/app/schemas/risk.py`
-  - `backend/app/api/v1/analysis.py`, `backend/app/api/v1/risk.py`, `backend/app/api/v1/doctors.py`
-  - `API_CONTRACT.md` (Finalized specification for Flutter team)
+  - `backend/app/services/analysis_service.py`, `app/schemas/analysis.py`
+  - `backend/app/api/v1/analysis.py`, `risk.py`, `doctors.py`
 - **Testing**:
-  - `backend/tests/integration/test_analysis_pipeline.py`: Start analysis -> Poll pending/complete -> Retrieve full structured payload.
-- **Definition of Done**: End-to-end analysis lifecycle executes asynchronously without blocking the web event loop.
+  - `backend/tests/integration/test_analysis_pipeline.py`.
 
 ---
 
-### Step 12: Public Dataset Validation
-- **Goal**: Validate clinical formulas and agent pipeline outputs against standard medical benchmark datasets.
+### Step 15: End-to-End System Benchmark & Validation
+- **Goal**: Validate end-to-end system outputs against held-out benchmark patient records.
 - **Target Files**:
-  - `backend/app/ml/preprocessing/`, `backend/app/ml/evaluation/`, `backend/app/ml/model_registry.py`
-  - `backend/scripts/evaluate_models.py`
-  - `DATASET_REGISTER.md`, `MODEL_REGISTER.md`
-- **Datasets**: UCI Heart Disease, PIMA Indians Diabetes, Framingham Heart Study.
+  - `backend/tests/integration/test_end_to_end.py`, `backend/scripts/evaluate_models.py`
 - **Testing**:
-  - `backend/tests/ml/`: Automated validation test verifying clinical sensitivity, specificity, and calibration.
-- **Definition of Done**: Transparent metrics recorded in registers, highlighting exact performance bounds.
+  - Automated benchmark suite comparing clinical scores, ML predictions, and multi-agent consensus verdicts.
 
 ---
 
-### Step 13: Hardening & Production Readiness
-- **Goal**: Production configuration, security hardening, rate limiting, request size limits, Docker packaging, and CI workflows.
+### Step 16: Hardening & Production Deployment
+- **Goal**: Security review, rate limiting, Docker containerization, CI/CD pipeline, and deployment guide.
 - **Target Files**:
-  - `backend/Dockerfile`, `backend/docker-compose.yml`
-  - `.github/workflows/backend-ci.yml`
-  - Security review, structured logging, Render deployment configuration, final documentation.
-- **Definition of Done**: App container builds; automated CI passes linting and test suites.
+  - `backend/Dockerfile`, `docker-compose.yml`, `.github/workflows/backend-ci.yml`, final documentation.

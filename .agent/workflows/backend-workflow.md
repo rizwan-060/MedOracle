@@ -1,5 +1,5 @@
 ---
-description: Runs one step of the MedOracle backend roadmap (FastAPI, database, auth, clinical models, LLM layer, agents, LangGraph, consensus, API). Use whenever the user asks to start, continue, or do the next backend step, or invokes /backend-workflow.
+description: Runs one step of the MedOracle backend roadmap (FastAPI, database, auth, clinical models, ML datasets & training, LLM layer, agents, LangGraph, consensus, API). Use whenever the user asks to start, continue, or do the next backend step, or invokes /backend-workflow.
 ---
 
 # MedOracle backend workflow
@@ -16,71 +16,85 @@ Build the backend one step at a time. Each run of this skill completes exactly o
    - Update `PROJECT_STATUS.md`: step status, date, what works, known gaps.
    - Update `API_CONTRACT.md` with every endpoint added or changed (method, path, auth, request and response JSON examples, error codes).
    - Update `.env.example`, `requirements.txt`, and `MODEL_REGISTER.md` or `DATASET_REGISTER.md` if the step touched models or datasets.
+   - If Step 2, generate `docs/architecture/DATABASE_SCHEMA.md` documenting all tables, relations in tabular form, and sample data.
 6. **Report and stop.** Reply with: what was built, how to run and test it (exact CMD commands), test results, decisions you made, what you need from the user, and a suggested git commit message. Then wait. Do not start the next step.
 
 ## Definition of done for every step
 - `pytest` passes, with new tests for the new behaviour.
 - `uvicorn app.main:app` starts without errors and `/health` responds.
 - No secrets in the repo. New settings are in `.env.example`.
-- Status and API docs are updated.
+- Status, schema specifications, and API docs are updated.
 
 ## Roadmap
 
 Statuses live in `PROJECT_STATUS.md`. The step numbers below are stable. Use them when talking to the user.
 
-### Step 0. Audit and plan (no application code)
-Inspect `backend/` and the root docs. Fill `IMPLEMENTATION_PLAN.md` with this roadmap, adapted to what you find, and create the status table in `PROJECT_STATUS.md`. Write a skeleton `API_CONTRACT.md`. Check `requirements.txt` against what `.venv` has installed and list what is missing for later steps. Report any conflict between the proposal and the repo.
+### Step 0. Audit and plan (Done)
+Inspect `backend/` and root docs. Align architecture, dependency audit, skeleton contracts.
 
-### Step 1. App foundation
+### Step 1. App foundation (Done)
 Files: `app/core/config.py`, `app/main.py`, `app/api/router.py`, `app/api/v1/__init__.py`, `.env.example`.
-Settings class, app factory, CORS, request logging, consistent error responses, `/health`, versioned router mounted at `/api/v1`. Tests: `tests/unit` for config, `tests/integration` for `/health`. Confirm `scripts\run_backend.bat` works.
+Settings class, app factory, CORS, request logging, consistent error responses, `/health`, versioned router mounted at `/api/v1`. Tests: `tests/unit` for config, `tests/integration` for `/health`. Verified `scripts\run_backend.bat`.
 
-### Step 2. Database and migrations
-Files: `app/database/session.py`, `models.py`, `repositories.py`, `migrations/` (Alembic), `alembic.ini`.
-Tables for users, patient profiles, medical history entries, symptom reports, lab results, analysis sessions, agent outputs, risk results, doctors. Use the generic `JSON` type for flexible payloads. `migrations/` is empty apart from a `.gitkeep`: create `env.py`, `script.py.mako` and `versions/` there by hand or by running `alembic init` into a temporary folder and copying the files in. Generate the first migration and apply it. Repository classes wrap all queries. Tests run on in-memory SQLite.
+### Step 2. Complete Database, Schemas, Migrations & Schema Documentation
+Files: `app/database/session.py`, `app/database/models.py`, `app/database/repositories.py`, `app/schemas/` (auth, patient, symptoms, laboratory, analysis, risk), `migrations/` (Alembic), `alembic.ini`, and `docs/architecture/DATABASE_SCHEMA.md`.
+Implement all SQLAlchemy 2.0 ORM tables (Users, PatientProfiles, MedicalHistories, SymptomReports, LabResults, AnalysisSessions, AgentOutputs, RiskResults, Doctors, TrainedModels). Setup Alembic migration environment and generate the initial baseline migration. Write corresponding Pydantic v2 schemas and repository CRUD wrappers. Tests run on in-memory SQLite.
+**Mandatory Requirement**: Generate `docs/architecture/DATABASE_SCHEMA.md` with the full table list, entity relationships in tabular form, column types/constraints, and realistic example data for every table.
 
-### Step 3. Authentication
+### Step 3. Authentication & User Security
 Files: `app/core/security.py`, `app/schemas/auth.py`, `app/api/v1/auth.py`.
-Register, login, refresh, current user, access and refresh JWTs, bcrypt hashing, a reusable `get_current_user` dependency. Tests for the happy path, wrong password, duplicate email, expired and tampered tokens.
+Register, login, token refresh, `/me` profile check, access and refresh JWTs (`python-jose`), direct `bcrypt` password hashing, reusable `get_current_user` FastAPI dependency. Tests for happy path, wrong password, duplicate email, expired and tampered tokens.
 
-### Step 4. Patient data APIs
+### Step 4. Patient Data APIs
 Files: `app/schemas/patient.py`, `symptoms.py`, `laboratory.py`, `app/api/v1/symptoms.py`, `medical_history.py`, `laboratory.py`.
-Create, read, update and list endpoints for profile, medical and family history, symptom reports, and lab results. Every record belongs to the logged-in user and one user can never read another's data (test this explicitly).
+Create, read, update, and list endpoints for patient profile, medical and family history, symptom reports, and lab results. Multi-user tenant isolation: each record strictly belongs to the authenticated user and cannot be accessed by other users.
 
-### Step 5. Clinical risk models (pure Python, no LLM)
+### Step 5. Clinical Risk Models (Deterministic Core)
 Files: `app/clinical/cardiovascular.py`, `diabetes.py`, `kidney.py`.
-Framingham 10-year cardiovascular risk, FINDRISC diabetes score, CKD-EPI eGFR. Follow the clinical correctness rules: cited equations, worked-example tests, ask when unsure. Each returns the value, the category, and the inputs that were missing or assumed.
+Pure Python implementations of Framingham 10-year CVD risk (D'Agostino 2008), FINDRISC diabetes score (Lindström 2003), and CKD-EPI 2021 eGFR equation. Complete academic citations, zero LLM reliance, worked-example unit tests, stratified categories, and clinical disclaimer.
 
-### Step 6. LLM service
+### Step 6. ML Dataset Acquisition & Preprocessing Pipeline
+Files: `backend/app/ml/preprocessing/`, `backend/scripts/download_datasets.py`, `DATASET_REGISTER.md`.
+Download and ingest benchmark datasets: UCI Heart Disease, PIMA Indians Diabetes, and Kaggle Disease-to-Symptom dataset into `datasets/raw/`. Implement preprocessing, missing-value imputation, feature encoding, scaling, and train/val/test split pipelines in `app/ml/preprocessing/`. Update `DATASET_REGISTER.md` with schema, sources, and data distributions.
+
+### Step 7. ML Model Training & Model Registry
+Files: `backend/app/ml/training/`, `backend/app/ml/model_registry.py`, `backend/scripts/train_models.py`, `MODEL_REGISTER.md`.
+Implement training pipelines in `app/ml/training/` and runnable CLI training script `scripts/train_models.py`. Train supervised classification models (e.g. Random Forest, Logistic Regression, LightGBM/XGBoost) for cardiovascular disease, diabetes risk, and symptom-disease mapping. Serialize artifacts into `backend/app/ml/models/`. Save model metadata and versioning in `model_registry.py` and `MODEL_REGISTER.md`.
+
+### Step 8. ML Model Evaluation & Real-Time Inference Service
+Files: `backend/app/ml/evaluation/`, `backend/app/ml/inference/`, `backend/scripts/evaluate_models.py`, `tests/ml/`.
+Implement model evaluation metrics (ROC-AUC, F1, precision, recall, confusion matrix) in `scripts/evaluate_models.py`. Build real-time inference service in `app/ml/inference/` that loads serialized models, transforms incoming patient data, and returns probabilities, confidence intervals, and feature attributions. Unit tests for inference outputs.
+
+### Step 9. LLM Service & Fallback Routing
 Files: `app/services/llm_service.py`, `app/core/config.py` (LLM settings).
-One interface with Groq primary, Gemini fallback, and a mock provider for tests. Structured JSON output validated against a Pydantic schema, retry with backoff, timeout, automatic fallback on provider failure, token and latency logging. Keys come from `.env`. Ask the user for their keys when you reach the manual smoke test.
+Unified LLM interface with Groq primary (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`), Gemini Flash fallback, and Mock provider for testing. Pydantic-validated structured JSON output, exponential backoff retries, provider fallback logic, and latency logging.
 
-### Step 7. Agent base and the first agents
-Files: `app/agents/` (shared agent output model and base class, then `symptom_agent.py`, `medical_history_agent.py`, `laboratory_agent.py`, `risk_prediction_agent.py`).
-Every agent follows the output contract in the rules. Each works deterministically when the LLM is unavailable (rules and clinical models) and adds LLM reasoning when it is. Risk Prediction combines the other agents' outputs with the clinical models for 30-day, 6-month and 1-year horizons.
+### Step 10. Agent Base & Domain Agents
+Files: `app/agents/` (`base.py`, `symptom_agent.py`, `medical_history_agent.py`, `laboratory_agent.py`, `risk_prediction_agent.py`).
+Standard agent output contract: `role`, `findings`, `confidence` (0-100), `reasoning_chain`, `evidence`, `challenges`. Risk prediction agent ensembles deterministic clinical formulas (Step 5) with trained ML model probabilities (Step 8) and contextual LLM reasoning.
 
-### Step 8. LangGraph pipeline
+### Step 11. LangGraph Multi-Agent Pipeline
 Files: `app/graph/state.py`, `nodes.py`, `workflow.py`.
-Symptom, history and lab agents run in parallel, then risk prediction, then a placeholder consensus node, then output. Typed shared state, per-node error handling so one failed agent does not kill the run, and a recorded trace of every node's output.
+Directed workflow graph: parallel execution of Symptom, History, and Lab agents, flowing into the Risk Prediction agent and consensus aggregator. Typed shared state and per-node error resilience.
 
-### Step 9. Consensus and debate agent (core research contribution)
-Files: `app/agents/consensus_agent.py`, `app/graph/` (debate nodes).
-The five-step protocol from the brief: evidence submission, contradiction detection, challenge round, confidence adjustment, consensus resolution. Contradiction detection must be deterministic and testable. Bound the number of rounds. Keep the full debate transcript, because the app and the report both need it. Test with hand-built contradictory agent outputs.
+### Step 12. Consensus & Debate Agent Framework
+Files: `app/agents/consensus_agent.py`, `app/graph/debate_nodes.py`.
+5-step multi-agent debate protocol: (1) evidence submission, (2) contradiction detection, (3) challenge round, (4) confidence adjustment, (5) consensus resolution. Captures full audit debate transcript for frontend and FYP evaluation.
 
-### Step 10. Explainability, forecasting, counterfactuals, doctors
-Files: `app/agents/explainability_agent.py`, `app/forecasting/trajectory.py`, `app/counterfactual/simulator.py`, `app/agents/counterfactual_agent.py`, `app/agents/disease_trajectory_agent.py`, `app/agents/doctor_recommendation_agent.py`, `app/doctors/recommendations.py`.
-Reasoning graph as JSON nodes and edges the Flutter `graphview` package can draw. Trajectory over 30 days, 6 months and 1 year. A counterfactual simulator with at least three interventions (daily walking, diet change, smoking cessation). Doctor matching from the consensus verdict to a specialty, ranked by specialty match and distance, over a small sample dataset until the real one exists.
+### Step 13. Explainability, Disease Trajectory & Counterfactual Simulator
+Files: `app/agents/explainability_agent.py`, `app/forecasting/trajectory.py`, `app/counterfactual/simulator.py`, `app/doctors/recommendations.py`.
+Reasoning graph JSON generation for Flutter `graphview`. 30-day, 6-month, 1-year disease trajectory projection. Counterfactual simulation for lifestyle interventions (walking, diet, smoking cessation). Doctor recommendation matching by specialty and proximity.
 
-### Step 11. Analysis API and orchestration
-Files: `app/services/analysis_service.py`, `prediction_service.py`, `app/schemas/analysis.py`, `risk.py`, `app/api/v1/analysis.py`, `risk.py`, `doctors.py`.
-Start an analysis (returns a session id immediately), poll its status, fetch the full result (agent outputs, debate, risk, trajectory, counterfactuals, reasoning graph, doctors, disclaimer). Finalize `API_CONTRACT.md` so the Flutter developers can build against it.
+### Step 14. Analysis Orchestration API
+Files: `app/services/analysis_service.py`, `app/schemas/analysis.py`, `app/api/v1/analysis.py`, `risk.py`, `doctors.py`.
+Asynchronous analysis dispatch, polling endpoint (`/status`), and full results retrieval (`/result`, `/debate`, `/reasoning-graph`). Finalizes `API_CONTRACT.md`.
 
-### Step 12. Validation against public datasets
-Files: `app/ml/evaluation/`, `app/ml/preprocessing/`, `app/ml/model_registry.py`, `scripts/`, `tests/ml/`.
-Validate the clinical models and the pipeline against UCI Heart Disease, PIMA Indians Diabetes and Framingham. The user must download the datasets into `datasets/raw/` first (ask for them). Report honest metrics, including where the system performs badly. Update `DATASET_REGISTER.md` and `MODEL_REGISTER.md`.
+### Step 15. End-to-End System Benchmark & Validation
+Files: `backend/tests/integration/test_end_to_end.py`, `scripts/evaluate_models.py`.
+Validate end-to-end multi-agent pipeline performance on held-out benchmark splits. Report clinical concordance, debate resolution efficacy, and honest metric boundaries.
 
-### Step 13. Hardening and deployment
-Rate limiting, input size limits, security review, structured logging, optional Celery and Redis, Dockerfile, Render deployment config, GitHub Actions running the tests, final README.
+### Step 16. Hardening, Security & Deployment
+Files: `backend/Dockerfile`, `docker-compose.yml`, `.github/workflows/`, rate limiting, input sanitization, security review, Render deployment guide, final README.
 
 ## Stop-and-ask list
 Stop and ask the user instead of continuing when:
