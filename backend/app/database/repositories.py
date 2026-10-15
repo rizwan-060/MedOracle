@@ -107,6 +107,19 @@ class MedicalHistoryRepository:
         self.db.refresh(history)
         return history
 
+    def create_or_update(self, user_id: str, **kwargs) -> MedicalHistory:
+        history = self.get_latest_by_user_id(user_id)
+        if not history:
+            history = MedicalHistory(user_id=user_id, **kwargs)
+            self.db.add(history)
+        else:
+            for key, val in kwargs.items():
+                if val is not None and hasattr(history, key):
+                    setattr(history, key, val)
+        self.db.commit()
+        self.db.refresh(history)
+        return history
+
 
 class SymptomReportRepository:
     """Data access repository for patient symptom reporting."""
@@ -135,6 +148,14 @@ class SymptomReportRepository:
         self.db.commit()
         self.db.refresh(report)
         return report
+
+    def delete(self, report_id: str, user_id: str) -> bool:
+        report = self.get_by_id(report_id, user_id=user_id)
+        if not report:
+            return False
+        self.db.delete(report)
+        self.db.commit()
+        return True
 
 
 class LabResultRepository:
@@ -172,6 +193,14 @@ class LabResultRepository:
         self.db.commit()
         self.db.refresh(lab)
         return lab
+
+    def delete(self, lab_id: str, user_id: str) -> bool:
+        lab = self.get_by_id(lab_id, user_id=user_id)
+        if not lab:
+            return False
+        self.db.delete(lab)
+        self.db.commit()
+        return True
 
 
 class AnalysisSessionRepository:
