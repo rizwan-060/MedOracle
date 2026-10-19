@@ -7,28 +7,36 @@
 
 ---
 
+## Hierarchical Branch Architecture
+
+All MedOracle development adheres to a structured, 2-tier Git hierarchy:
+- **Milestone Parent Branch (`MOv1/<MilestoneName>`)**: Targets `main`. Serves as the stable parent branch for each major milestone step.
+- **Sub-step Child Branches (`MOv1/<SubTaskName>`)**: Target their respective Milestone Parent Branch. Individual tasks are developed, tested, and reviewed here before merging into the milestone branch.
+- **Approval Protocol**: No branch is pushed without explicit user sign-off. Milestone branches merge to `main` only after complete validation.
+
+---
+
 ## Roadmap Execution Status
 
-| Step | Milestone Name | Status | Completion Date | Key Outputs / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **0** | **Audit and Plan** | **Done** | **2026-10-13** | Architecture audit, roadmap defined, skeleton API contract, dependency comparison complete. |
-| **1** | **App Foundation** | **Done** | **2026-10-13** | Config class, app factory, CORS, request logging, standard error handlers, `/health`, `/api/v1/`, runner script verified. |
-| **2** | **Complete Database, Schemas & Schema Docs** | **Done** | **2026-10-14** | 10 SQLAlchemy 2.0 ORM models, Alembic baseline migration, Pydantic v2 schemas, database repositories, unit test suite (17 passed), and `docs/architecture/DATABASE_SCHEMA.md`. |
-| **3** | **Authentication & Security** | **Done** | **2026-10-14** | Custom JWT (`python-jose`) + `bcrypt` 5.x directly (rounds=12), `/register`, `/login`, `/refresh`, `/me`, `get_current_user` dependency, 32 passed tests. |
-| **4** | **Patient Data APIs** | **Done** | **2026-10-14** | Profiles, medical/family history, symptom reports, and lab results APIs with strict multi-user tenant isolation. 39 passed tests. |
-| **5** | **Clinical Risk Models** | **Done** | **2026-10-19** | Pure Python: Framingham 10-year CVD (D'Agostino 2008), FINDRISC (Lindström 2003), CKD-EPI 2021 race-free eGFR (Inker 2021). Endpoints mounted at `/api/v1/risk/`. 54 passed tests. |
-| **6.1**| **ML Dataset Acquisition & Registry** | **Done** | **2026-10-19** | Downloaded & validated UCI Heart (303 rows), PIMA Diabetes (768 rows), and Disease-Symptom matrix (4,920 rows). `DATASET_REGISTER.md` published. |
-| **6.2**| **ML Preprocessing & Splitting Pipelines** | **Done** | **2026-10-19** | Imputation, z-score scaling, multi-class label encoding, and stratified 70/15/15 splits in `datasets/processed/`. 60 passed tests. |
-| **7** | ML Model Training & Registry | Pending (Next) | — | Training classification models (RF, LightGBM, Logistic Regression); artifact serialization; `MODEL_REGISTER.md`; active learning feedback update. |
-| **8** | ML Evaluation & Inference Service | Pending | — | Evaluation metrics (ROC-AUC, F1); real-time feature transformation and prediction service in `app/ml/inference/`. |
-| **9** | LLM Service & Fallback Routing | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider, structured JSON validation. |
-| **10**| Agent Base & Domain Agents | Pending | — | Standard agent contract: Symptom, History, Lab, and Risk agents (ensembling clinical formulas + ML inference). |
-| **11**| LangGraph Pipeline | Pending | — | Graph state, parallel data agent execution, fault-tolerant aggregation. |
-| **12**| Consensus & Debate Framework | Pending | — | 5-step consensus debate protocol (core FYP research contribution). |
-| **13**| Explainability, Forecasting & Doctors | Pending | — | Flutter `graphview` export, 30d/6m/1y trajectory, counterfactual simulator, doctor matcher. |
-| **14**| Analysis Orchestration API | Pending | — | Async analysis dispatch, polling, end-to-end result aggregation. |
-| **15**| End-to-End System Benchmark | Pending | — | Benchmark validation on held-out test splits; clinical accuracy vs agent reasoning. |
-| **16**| Hardening and Deployment | Pending | — | Rate limiting, Dockerfile, Render config, CI pipeline, final docs. |
+| Step | Milestone Parent Branch (➔ `main`) | Sub-Step Child Branch (➔ Parent) | Status | Completion Date | Key Outputs / Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **0** | `MOv1/AuditAndPlan` | — | **Done** | **2026-10-13** | Architecture audit, roadmap defined, skeleton API contract. |
+| **1** | `MOv1/AppFoundation` | — | **Done** | **2026-10-13** | App factory, config, CORS, logging, error handlers, `/health`, `/api/v1/`. |
+| **2** | `MOv1/AuthAndDb` | `MOv1/DbModelsAndSession`<br>`MOv1/RepositoriesAndSchemas`<br>`MOv1/AlembicAndSchemaDocs` | **Done** | **2026-10-14** | 10 SQLAlchemy ORM models, Alembic baseline, Pydantic v2 schemas, repositories, `docs/architecture/DATABASE_SCHEMA.md`. |
+| **3** | `MOv1/AuthAndDb` | `MOv1/SecurityCoreBcryptJwt`<br>`MOv1/AuthEndpointsAndDeps` | **Done** | **2026-10-14** | JWT (`python-jose`) + `bcrypt` 5.x, `/register`, `/login`, `/refresh`, `/me`, route security deps. |
+| **4** | `MOv1/PatientDataApis` | `MOv1/PatientProfileAndHistoryApi`<br>`MOv1/SymptomsAndLabsApi` | **Done** | **2026-10-14** | Patient profile, medical history, symptom reports, and lab results APIs with tenant isolation. |
+| **5** | `MOv1/ClinicalRiskModels` | `MOv1/ClinicalEquationsPurePython`<br>`MOv1/RiskCalculationEndpoints` | **Done** | **2026-10-19** | Deterministic formulas: Framingham (CVD), FINDRISC (Diabetes), CKD-EPI (Kidney). Endpoints at `/api/v1/risk/`. |
+| **6** | `MOv1/MLdatasetandpreprocessing` | `MOv1/MLDatasetAcquisition`<br>`MOv1/MLDatasetPreprocessing` | **Done** | **2026-10-19** | **6.1**: UCI Heart, PIMA, Disease-Symptom ingestion & `DATASET_REGISTER.md`.<br>**6.2**: Imputation, scaling, stratified 70/15/15 splits. 60 passed tests. |
+| **7** | `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLCardioAndDiabetesTraining`<br>`MOv1/MLSymptomDiseaseTraining`<br>`MOv1/MLActiveLearningFeedbackLoop` | Pending (Next) | — | Supervised classifiers (Cardio, Diabetes, 41-class Symptoms); `MODEL_REGISTER.md`; Continuous learning feedback loop & model audit tracking. |
+| **8** | `MOv1/MLInferenceAndEvaluation` | `MOv1/MLEvaluationMetrics`<br>`MOv1/MLRealtimePredictorService` | Pending | — | Validation metrics (ROC-AUC, PR-AUC, F1); real-time feature transformation & inference predictor in `app/ml/inference/`. |
+| **9** | `MOv1/LLMServiceRouting` | `MOv1/LLMProviderCore`<br>`MOv1/LLMStructuredOutputEngine` | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider; strict Pydantic JSON schema validation. |
+| **10**| `MOv1/MultiAgentDomainAgents` | `MOv1/AgentBaseContract`<br>`MOv1/SymptomAndHistoryAgents`<br>`MOv1/LabAndRiskPredictionAgents` | Pending | — | Unified agent contract (findings, confidence 0-100, reasoning, evidence, challenges); domain agents ensembling clinical + ML + LLM. |
+| **11**| `MOv1/LangGraphPipeline` | `MOv1/GraphStateAndNodes`<br>`MOv1/GraphWorkflowExecution` | Pending | — | LangGraph directed workflow: parallel data agent fan-out and fan-in aggregation. |
+| **12**| `MOv1/ConsensusDebateFramework` | `MOv1/ContradictionDetection`<br>`MOv1/DebateProtocolEngine`<br>`MOv1/ConsensusResolution` | Pending | — | 5-step consensus debate protocol with contradiction detection & dynamic confidence recalibration (Core FYP Research). |
+| **13**| `MOv1/ExplainabilityAndForecasting` | `MOv1/ExplainabilityGraphExporter`<br>`MOv1/TrajectoryAndCounterfactual`<br>`MOv1/DoctorMatcherEngine` | Pending | — | Flutter `graphview` JSON export; 30d/6m/1y trajectory; "What-If" lifestyle counterfactual simulator; doctor recommendations. |
+| **14**| `MOv1/AnalysisOrchestrationApi` | `MOv1/AsyncJobDispatcher`<br>`MOv1/AnalysisResultsEndpoints` | Pending | — | Async analysis dispatch (`BackgroundTasks`), polling `/status/{id}`, and comprehensive report retrieval. |
+| **15**| `MOv1/SystemBenchmarkValidation` | `MOv1/BenchmarkEvaluationSuite`<br>`MOv1/PerformanceStressTesting` | Pending | — | Automated benchmark validation across held-out splits; concurrency & latency stress testing. |
+| **16**| `MOv1/ProductionHardeningAndDeploy` | `MOv1/SecurityRateLimiting`<br>`MOv1/DockerAndCiPipeline`<br>`MOv1/ProductionDocsAndDeployment` | Pending | — | Rate limiting, Docker containerization, CI/CD with automated retraining triggers, cloud deployment. |
 
 ---
 
