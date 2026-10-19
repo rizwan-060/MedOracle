@@ -20,8 +20,11 @@ from app.schemas.symptoms import SymptomReportCreate, SymptomReportResponse
 from app.schemas.laboratory import LabResultCreate, LabResultResponse
 from app.schemas.risk import (
     CkdEpiRequest,
+    CkdEpiResponse,
     FindriscRequest,
+    FindriscResponse,
     FraminghamRiskRequest,
+    FraminghamRiskResponse,
     RiskCalculationResponse,
     RiskResultResponse,
 )

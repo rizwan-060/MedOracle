@@ -1,8 +1,8 @@
 # MedOracle Backend: Project Status
 
-**Current Milestone:** Step 4 Complete (Patient Data APIs)  
-**Next Milestone:** Step 5 (Clinical Risk Models)  
-**Last Updated:** 2026-10-14  
+**Current Milestone:** Step 5 Complete (Clinical Risk Models)  
+**Next Milestone:** Step 6 (ML Dataset Acquisition & Preprocessing)  
+**Last Updated:** 2026-10-19  
 **Active Environment:** Windows 10, Python 3.14.0 (`backend\.venv`), FastAPI  
 
 ---
@@ -16,8 +16,8 @@
 | **2** | **Complete Database, Schemas & Schema Docs** | **Done** | **2026-10-14** | 10 SQLAlchemy 2.0 ORM models, Alembic baseline migration, Pydantic v2 schemas, database repositories, unit test suite (17 passed), and `docs/architecture/DATABASE_SCHEMA.md`. |
 | **3** | **Authentication & Security** | **Done** | **2026-10-14** | Custom JWT (`python-jose`) + `bcrypt` 5.x directly (rounds=12), `/register`, `/login`, `/refresh`, `/me`, `get_current_user` dependency, 32 passed tests. |
 | **4** | **Patient Data APIs** | **Done** | **2026-10-14** | Profiles, medical/family history, symptom reports, and lab results APIs with strict multi-user tenant isolation. 39 passed tests. |
-| **5** | Clinical Risk Models | Pending (Next) | — | Pure Python: Framingham 10-year CVD, FINDRISC, CKD-EPI 2021 with citations. |
-| **6** | ML Dataset Acquisition & Preprocessing | Pending | — | Download UCI Heart, PIMA Diabetes, Disease-Symptom datasets; cleaning, scaling, and splitting pipelines. |
+| **5** | **Clinical Risk Models** | **Done** | **2026-10-19** | Pure Python: Framingham 10-year CVD (D'Agostino 2008), FINDRISC (Lindström 2003), CKD-EPI 2021 race-free eGFR (Inker 2021). Endpoints mounted at `/api/v1/risk/`. 54 passed tests. |
+| **6** | ML Dataset Acquisition & Preprocessing | Pending (Next) | — | Download UCI Heart, PIMA Diabetes, Disease-Symptom datasets; cleaning, scaling, and splitting pipelines. |
 | **7** | ML Model Training & Registry | Pending | — | Training classification models (RF, LightGBM, Logistic Regression); artifact serialization; `MODEL_REGISTER.md`. |
 | **8** | ML Evaluation & Inference Service | Pending | — | Evaluation metrics (ROC-AUC, F1); real-time feature transformation and prediction service in `app/ml/inference/`. |
 | **9** | LLM Service & Fallback Routing | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider, structured JSON validation. |
@@ -45,7 +45,7 @@
   - Full data access repositories in `app/database/repositories.py` preventing SQL injection through parameterized expression queries.
   - Alembic migrations environment initialized (`alembic.ini`, `migrations/env.py`, `migrations/script.py.mako`, and baseline migration `001_initial_schema.py`).
   - Comprehensive Markdown specification artifact published at `docs/architecture/DATABASE_SCHEMA.md` with full table inventory, ER table, column specifications, and realistic sample data rows.
-- Test suite: **39 passed** across unit configuration tests, health integration tests, database/repository tests, security tests, auth integration tests, and patient data API integration tests.
+- Test suite: **54 passed** across unit configuration tests, health integration tests, database/repository tests, security tests, auth integration tests, patient data API integration tests, and clinical risk model tests.
 - **Authentication & Security (Step 3)**:
   - Custom JWT authentication using `python-jose` with HS256 algorithm and standard claims (`sub`, `exp`, `type`, `iat`).
   - Direct `bcrypt` password hashing (rounds=12) avoiding incompatible legacy wrappers.
@@ -56,13 +56,16 @@
   - Symptom Reports (`POST /api/v1/symptoms/`, `GET /api/v1/symptoms/`, `GET /api/v1/symptoms/{id}`, `DELETE /api/v1/symptoms/{id}`): Natural language complaint text, duration, severity rating, body locations, triggers.
   - Laboratory Results (`POST /api/v1/laboratory/`, `GET /api/v1/laboratory/`, `GET /api/v1/laboratory/latest`, `GET /api/v1/laboratory/{id}`, `DELETE /api/v1/laboratory/{id}`): Structured biomarkers (BP, cholesterol panels, glucose, HbA1c, creatinine, eGFR).
   - Strict tenant isolation: All queries enforce `current_user.id`, returning 404 on cross-tenant access attempts.
+- **Clinical Risk Models (Step 5)**:
+  - Pure Python mathematical implementations of Framingham General CVD 10-year risk (D'Agostino 2008 Cox proportional hazards regression), FINDRISC diabetes score (Lindström 2003 point-scoring system), and CKD-EPI 2021 race-free eGFR formula (Inker 2021).
+  - Endpoints mounted under `/api/v1/risk`: `POST /api/v1/risk/cardiovascular`, `POST /api/v1/risk/diabetes`, `POST /api/v1/risk/kidney`.
+  - Academic citations embedded in docstrings; mandatory non-diagnostic clinical disclaimer returned in every calculation response.
+  - Interactive Postman documentation updated in `POSTMAN_API_TESTING_GUIDE.md`.
 
-### Security Audit (Step 4 Verification)
-- **Strict Tenant Isolation**: All endpoints require `get_current_user`; repository queries filter by `user_id == current_user.id`. Cross-user access returns 404 Not Found to prevent resource enumeration.
-- **Unauthorized Endpoint Protection**: All patient endpoints reject unauthenticated or expired requests with 401 Unauthorized.
-- **Input Validation**: Pydantic v2 schemas strictly validate ranges (e.g. blood pressures, cholesterol values, minimum symptom text lengths, valid gender/smoking enum patterns).
-- **SQL Injection Prevention**: Only SQLAlchemy 2.0 ORM expressions used; zero raw SQL.
-- **Cascade Safety**: Foreign keys have `ondelete="CASCADE"`.
+### Security Audit (Step 5 Verification)
+- **Strict Authentication**: All risk calculation endpoints require `get_current_user`; unauthenticated requests return 401 Unauthorized.
+- **Pydantic Validation**: Biological parameters strictly bounded (e.g., age 18-120, serum creatinine > 0, cholesterol 50-600 mg/dL, systolic BP 60-260 mmHg) with 422 Unprocessable Entity returned on out-of-range inputs.
+- **Medical Safety Disclaimer**: Every response carries a legally compliant clinical decision-support disclaimer.
 
 ### Next Action
-- Awaiting user instruction to begin **Step 5: Clinical Risk Models (Deterministic Core)**.
+- Awaiting user instruction to begin **Step 6: ML Dataset Acquisition & Preprocessing Pipeline**.
