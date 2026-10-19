@@ -17,7 +17,8 @@
 | **3** | **Authentication & Security** | **Done** | **2026-10-14** | Custom JWT (`python-jose`) + `bcrypt` 5.x directly (rounds=12), `/register`, `/login`, `/refresh`, `/me`, `get_current_user` dependency, 32 passed tests. |
 | **4** | **Patient Data APIs** | **Done** | **2026-10-14** | Profiles, medical/family history, symptom reports, and lab results APIs with strict multi-user tenant isolation. 39 passed tests. |
 | **5** | **Clinical Risk Models** | **Done** | **2026-10-19** | Pure Python: Framingham 10-year CVD (D'Agostino 2008), FINDRISC (Lindström 2003), CKD-EPI 2021 race-free eGFR (Inker 2021). Endpoints mounted at `/api/v1/risk/`. 54 passed tests. |
-| **6** | ML Dataset Acquisition & Preprocessing | Pending (Next) | — | Download UCI Heart, PIMA Diabetes, Disease-Symptom datasets; cleaning, scaling, and splitting pipelines. |
+| **6.1**| **ML Dataset Acquisition & Registry** | **Done** | **2026-10-19** | Downloaded & validated UCI Heart (303 rows), PIMA Diabetes (768 rows), and Disease-Symptom matrix (4,920 rows). `DATASET_REGISTER.md` published. 57 passed tests. |
+| **6.2**| ML Dataset Preprocessing Pipelines | Pending (Next) | — | Imputation, feature encoding, scaling, and train/val/test split pipelines in `app/ml/preprocessing/`. |
 | **7** | ML Model Training & Registry | Pending | — | Training classification models (RF, LightGBM, Logistic Regression); artifact serialization; `MODEL_REGISTER.md`. |
 | **8** | ML Evaluation & Inference Service | Pending | — | Evaluation metrics (ROC-AUC, F1); real-time feature transformation and prediction service in `app/ml/inference/`. |
 | **9** | LLM Service & Fallback Routing | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider, structured JSON validation. |
@@ -61,11 +62,19 @@
   - Endpoints mounted under `/api/v1/risk`: `POST /api/v1/risk/cardiovascular`, `POST /api/v1/risk/diabetes`, `POST /api/v1/risk/kidney`.
   - Academic citations embedded in docstrings; mandatory non-diagnostic clinical disclaimer returned in every calculation response.
   - Interactive Postman documentation updated in `POSTMAN_API_TESTING_GUIDE.md`.
+- **ML Dataset Acquisition & Registry (Sub-Step 6.1)**:
+  - Acquisition runner implemented in `backend/scripts/download_datasets.py`.
+  - Canonical raw benchmark datasets ingested in `datasets/raw/`:
+    - `heart_disease_uci.csv` (Cleveland cohort, 303 instances, 14 features)
+    - `diabetes_pima.csv` (NIDDK cohort, 768 instances, 9 features)
+    - `symptoms_disease.csv` (Columbia diagnostic matrix, 4,920 instances, 132 symptom features across 41 disease targets)
+  - Comprehensive metadata registry published in `DATASET_REGISTER.md`.
+  - Unit tests verified: **57 passed** across all test suites.
 
-### Security Audit (Step 5 Verification)
-- **Strict Authentication**: All risk calculation endpoints require `get_current_user`; unauthenticated requests return 401 Unauthorized.
-- **Pydantic Validation**: Biological parameters strictly bounded (e.g., age 18-120, serum creatinine > 0, cholesterol 50-600 mg/dL, systolic BP 60-260 mmHg) with 422 Unprocessable Entity returned on out-of-range inputs.
-- **Medical Safety Disclaimer**: Every response carries a legally compliant clinical decision-support disclaimer.
+### Security & Data Audit (Sub-Step 6.1 Verification)
+- **Data Integrity**: All raw CSV files verified for minimum row counts, column schemas, and non-empty values.
+- **Strict Authentication**: All active API endpoints require `get_current_user`; unauthenticated requests return 401 Unauthorized.
+- **Pydantic Validation**: Biological parameters strictly bounded with 422 Unprocessable Entity returned on out-of-range inputs.
 
 ### Next Action
-- Awaiting user instruction to begin **Step 6: ML Dataset Acquisition & Preprocessing Pipeline**.
+- Awaiting user instruction to begin **Sub-Step 6.2: ML Preprocessing, Imputation & Splitting Pipelines** (Branch `MOv1/MLDatasetPreprocessing`).
