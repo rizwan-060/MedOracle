@@ -1,7 +1,7 @@
 # MedOracle Backend: Project Status
 
-**Current Milestone:** Step 5 Complete (Clinical Risk Models)  
-**Next Milestone:** Step 6 (ML Dataset Acquisition & Preprocessing)  
+**Current Milestone:** Step 6 Complete (ML Datasets & Preprocessing Pipelines)  
+**Next Milestone:** Step 7 (ML Model Training & Registry)  
 **Last Updated:** 2026-10-19  
 **Active Environment:** Windows 10, Python 3.14.0 (`backend\.venv`), FastAPI  
 
@@ -17,9 +17,9 @@
 | **3** | **Authentication & Security** | **Done** | **2026-10-14** | Custom JWT (`python-jose`) + `bcrypt` 5.x directly (rounds=12), `/register`, `/login`, `/refresh`, `/me`, `get_current_user` dependency, 32 passed tests. |
 | **4** | **Patient Data APIs** | **Done** | **2026-10-14** | Profiles, medical/family history, symptom reports, and lab results APIs with strict multi-user tenant isolation. 39 passed tests. |
 | **5** | **Clinical Risk Models** | **Done** | **2026-10-19** | Pure Python: Framingham 10-year CVD (D'Agostino 2008), FINDRISC (Lindström 2003), CKD-EPI 2021 race-free eGFR (Inker 2021). Endpoints mounted at `/api/v1/risk/`. 54 passed tests. |
-| **6.1**| **ML Dataset Acquisition & Registry** | **Done** | **2026-10-19** | Downloaded & validated UCI Heart (303 rows), PIMA Diabetes (768 rows), and Disease-Symptom matrix (4,920 rows). `DATASET_REGISTER.md` published. 57 passed tests. |
-| **6.2**| ML Dataset Preprocessing Pipelines | Pending (Next) | — | Imputation, feature encoding, scaling, and train/val/test split pipelines in `app/ml/preprocessing/`. |
-| **7** | ML Model Training & Registry | Pending | — | Training classification models (RF, LightGBM, Logistic Regression); artifact serialization; `MODEL_REGISTER.md`. |
+| **6.1**| **ML Dataset Acquisition & Registry** | **Done** | **2026-10-19** | Downloaded & validated UCI Heart (303 rows), PIMA Diabetes (768 rows), and Disease-Symptom matrix (4,920 rows). `DATASET_REGISTER.md` published. |
+| **6.2**| **ML Preprocessing & Splitting Pipelines** | **Done** | **2026-10-19** | Imputation, z-score scaling, multi-class label encoding, and stratified 70/15/15 splits in `datasets/processed/`. 60 passed tests. |
+| **7** | ML Model Training & Registry | Pending (Next) | — | Training classification models (RF, LightGBM, Logistic Regression); artifact serialization; `MODEL_REGISTER.md`; active learning feedback update. |
 | **8** | ML Evaluation & Inference Service | Pending | — | Evaluation metrics (ROC-AUC, F1); real-time feature transformation and prediction service in `app/ml/inference/`. |
 | **9** | LLM Service & Fallback Routing | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider, structured JSON validation. |
 | **10**| Agent Base & Domain Agents | Pending | — | Standard agent contract: Symptom, History, Lab, and Risk agents (ensembling clinical formulas + ML inference). |
@@ -69,12 +69,18 @@
     - `diabetes_pima.csv` (NIDDK cohort, 768 instances, 9 features)
     - `symptoms_disease.csv` (Columbia diagnostic matrix, 4,920 instances, 132 symptom features across 41 disease targets)
   - Comprehensive metadata registry published in `DATASET_REGISTER.md`.
-  - Unit tests verified: **57 passed** across all test suites.
+- **ML Preprocessing & Splitting Pipelines (Sub-Step 6.2)**:
+  - Preprocessing pipelines implemented in `backend/app/ml/preprocessing/`:
+    - `heart.py`: Mode imputation for `ca`/`thal`, target binarization, z-score scaling, stratified 70/15/15 splits.
+    - `diabetes.py`: Median imputation for physiologically impossible zeroes (Glucose, BP, SkinThickness, Insulin, BMI), z-score scaling, stratified 70/15/15 splits.
+    - `symptoms.py`: 41-class label encoding with reversible mapping, stratified 70/15/15 splits.
+  - Processed datasets and metadata exported to `datasets/processed/` (`heart`, `diabetes`, `symptoms`).
+  - Unit tests verified: **60 passed** across all test suites.
 
-### Security & Data Audit (Sub-Step 6.1 Verification)
-- **Data Integrity**: All raw CSV files verified for minimum row counts, column schemas, and non-empty values.
+### Security & Data Audit (Step 6 Verification)
+- **Data Integrity**: All raw and processed splits verified for row balance, no missing values / NaNs, and class stratification.
 - **Strict Authentication**: All active API endpoints require `get_current_user`; unauthenticated requests return 401 Unauthorized.
-- **Pydantic Validation**: Biological parameters strictly bounded with 422 Unprocessable Entity returned on out-of-range inputs.
+- **Continuous Learning Architecture**: Roadmap updated to incorporate continuous model retraining / active learning feedback loop in Step 7 & 8 using the database `TrainedModel` audit table.
 
 ### Next Action
-- Awaiting user instruction to begin **Sub-Step 6.2: ML Preprocessing, Imputation & Splitting Pipelines** (Branch `MOv1/MLDatasetPreprocessing`).
+- Step 6 fully completed. Ready for **Step 7: ML Model Training & Registry** (Branch `MOv1/MLModelTraining`).
