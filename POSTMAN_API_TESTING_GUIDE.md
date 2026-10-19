@@ -1,0 +1,635 @@
+# MedOracle Postman API Testing Guide & Specification
+
+> **Base URL:** `http://127.0.0.1:8000`  
+> **API Version Prefix:** `/api/v1`  
+> **Documentation Rule:** Whenever a new endpoint is created or updated in the backend, its request specification, example JSON payloads, expected status codes, and Postman test script **must** be added to this file.
+
+---
+
+## Table of Contents
+1. [Postman Environment Configuration](#1-postman-environment-configuration)
+2. [Testing Sequence & Workflow](#2-testing-sequence--workflow)
+3. [System Endpoints](#3-system-endpoints)
+4. [Authentication APIs (`/api/v1/auth`)](#4-authentication-apis-apiv1auth)
+5. [Patient Profile APIs (`/api/v1/patient`)](#5-patient-profile-apis-apiv1patient)
+6. [Medical History APIs (`/api/v1/medical-history`)](#6-medical-history-apis-apiv1medical-history)
+7. [Symptom Reporting APIs (`/api/v1/symptoms`)](#7-symptom-reporting-apis-apiv1symptoms)
+8. [Laboratory Biomarker APIs (`/api/v1/laboratory`)](#8-laboratory-biomarker-apis-apiv1laboratory)
+9. [Clinical Risk Prediction APIs (`/api/v1/risk`)](#9-clinical-risk-prediction-apis-apiv1risk)
+10. [Future Endpoints Checklist](#10-future-endpoints-checklist)
+
+---
+
+## 1. Postman Environment Configuration
+
+To make testing seamless, set up a Postman Environment named **`MedOracle Local`** with the following variables:
+
+| Variable Name | Initial Value | Current Value | Description |
+| :--- | :--- | :--- | :--- |
+| `baseUrl` | `http://127.0.0.1:8000` | `http://127.0.0.1:8000` | Local FastAPI server URL |
+| `accessToken` | *(leave empty)* | *(auto-set by Login/Refresh)* | Bearer JWT access token (expires in 30 mins) |
+| `refreshToken` | *(leave empty)* | *(auto-set by Login/Refresh)* | Long-lived JWT refresh token (expires in 7 days) |
+| `userId` | *(leave empty)* | *(auto-set by Register/Login)* | Authenticated User UUID |
+| `symptomReportId`| *(leave empty)* | *(auto-set by Create Symptom)*| ID of newly created symptom report |
+| `labResultId` | *(leave empty)* | *(auto-set by Create Lab)* | ID of newly created lab record |
+
+### Common Headers
+For all authenticated requests, configure the following header:
+```http
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+```
+
+---
+
+## 2. Testing Sequence & Workflow
+
+For an end-to-end regression pass, execute requests in this order:
+
+```
+[System Health]
+   ├── 1. GET /health
+   └── 2. GET /api/v1/
+        │
+[Authentication]
+   ├── 3. POST /api/v1/auth/register (Create patient account)
+   ├── 4. POST /api/v1/auth/login    (Stores {{accessToken}} & {{refreshToken}})
+   ├── 5. GET  /api/v1/auth/me       (Verify token identity)
+   └── 6. POST /api/v1/auth/refresh  (Test token renewal)
+        │
+[Patient Profile]
+   ├── 7. GET  /api/v1/patient/profile (Initial auto-provisioned profile)
+   └── 8. PUT  /api/v1/patient/profile (Update biometrics & vitals)
+        │
+[Medical History]
+   ├── 9. GET  /api/v1/medical-history/ (Initial 404 check)
+   ├── 10. POST /api/v1/medical-history/ (Record chronic diseases, meds, family history)
+   └── 11. PUT  /api/v1/medical-history/ (Update history records)
+        │
+[Symptoms]
+   ├── 12. POST   /api/v1/symptoms/ (Submit exertional angina symptoms)
+   ├── 13. GET    /api/v1/symptoms/ (List symptoms with pagination)
+   ├── 14. GET    /api/v1/symptoms/{{symptomReportId}} (Retrieve single symptom)
+   └── 15. DELETE /api/v1/symptoms/{{symptomReportId}} (Clean up symptom report)
+        │
+[Laboratory Results]
+   ├── 16. POST   /api/v1/laboratory/ (Submit lipid panel & biomarkers)
+   ├── 17. GET    /api/v1/laboratory/latest (Verify latest lab record)
+   ├── 18. GET    /api/v1/laboratory/ (List historical lab reports)
+   ├── 19. GET    /api/v1/laboratory/{{labResultId}} (Retrieve single lab report)
+   └── 20. DELETE /api/v1/laboratory/{{labResultId}} (Clean up lab report)
+        │
+[Clinical Risk Prediction]
+   ├── 21. POST   /api/v1/risk/cardiovascular (Framingham 10-Yr CVD score)
+   ├── 22. POST   /api/v1/risk/diabetes       (FINDRISC Type 2 score)
+   └── 23. POST   /api/v1/risk/kidney         (CKD-EPI 2021 race-free eGFR)
+```
+
+---
+
+## 3. System Endpoints
+
+### 3.1. Health Check
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/health`
+- **Auth:** None
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "status": "healthy",
+  "service": "medoracle-backend",
+  "version": "0.1.0",
+  "environment": "development"
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+pm.test("Service is healthy", () => {
+    const json = pm.response.json();
+    pm.expect(json.status).to.eql("healthy");
+});
+```
+
+### 3.2. API V1 Root Check
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/`
+- **Auth:** None
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "version": "v1",
+  "status": "active",
+  "description": "MedOracle API v1 root"
+}
+```
+
+---
+
+## 4. Authentication APIs (`/api/v1/auth`)
+
+### 4.1. Register New Patient
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/auth/register`
+- **Headers:** `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "email": "test.patient@medoracle.org",
+  "password": "Password123!",
+  "full_name": "Tariq Mahmood"
+}
+```
+- **Expected Status:** `201 Created`
+- **Response Example:**
+```json
+{
+  "id": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "email": "test.patient@medoracle.org",
+  "full_name": "Tariq Mahmood",
+  "is_active": true,
+  "created_at": "2026-10-19T14:30:00Z"
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 201", () => pm.response.to.have.status(201));
+const json = pm.response.json();
+if (json.id) {
+    pm.environment.set("userId", json.id);
+}
+```
+
+### 4.2. Login Patient
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/auth/login`
+- **Headers:** `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "email": "test.patient@medoracle.org",
+  "password": "Password123!"
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 1800
+}
+```
+- **Postman Tests Script (Auto-Saves Tokens):**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.access_token).to.not.be.empty;
+pm.expect(json.refresh_token).to.not.be.empty;
+pm.environment.set("accessToken", json.access_token);
+pm.environment.set("refreshToken", json.refresh_token);
+```
+
+### 4.3. Get Current User Profile (`/me`)
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/auth/me`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "id": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "email": "test.patient@medoracle.org",
+  "full_name": "Tariq Mahmood",
+  "is_active": true,
+  "created_at": "2026-10-19T14:30:00Z"
+}
+```
+
+### 4.4. Refresh Access Token
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/auth/refresh`
+- **Headers:** `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "refresh_token": "{{refreshToken}}"
+}
+```
+- **Expected Status:** `200 OK`
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.environment.set("accessToken", json.access_token);
+pm.environment.set("refreshToken", json.refresh_token);
+```
+
+---
+
+## 5. Patient Profile APIs (`/api/v1/patient`)
+
+### 5.1. Get Biometric Profile
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/patient/profile`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+- **Note:** If profile does not exist yet, the system auto-provisions a blank profile container for the user.
+
+### 5.2. Update Biometric Profile
+- **Method:** `PUT`
+- **URL:** `{{baseUrl}}/api/v1/patient/profile`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "date_of_birth": "1975-06-15",
+  "gender": "male",
+  "height_cm": 176.5,
+  "weight_kg": 84.0,
+  "waist_circumference_cm": 96.0,
+  "smoking_status": "current_smoker",
+  "activity_level": "low",
+  "blood_group": "B+"
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "id": "b47c945b-7b2f-4e08-9da4-984eb813eb98",
+  "user_id": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "date_of_birth": "1975-06-15",
+  "gender": "male",
+  "height_cm": 176.5,
+  "weight_kg": 84.0,
+  "waist_circumference_cm": 96.0,
+  "smoking_status": "current_smoker",
+  "activity_level": "low",
+  "blood_group": "B+",
+  "created_at": "2026-10-19T14:35:00Z",
+  "updated_at": "2026-10-19T14:35:00Z"
+}
+```
+
+---
+
+## 6. Medical History APIs (`/api/v1/medical-history`)
+
+### 6.1. Get Medical History
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/medical-history/`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK` (or `404 Not Found` if no history has been submitted yet)
+
+### 6.2. Create Medical History
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/medical-history/`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "chronic_conditions": ["hypertension", "dyslipidemia"],
+  "past_surgeries": ["appendectomy"],
+  "current_medications": [
+    {
+      "name": "Amlodipine",
+      "dosage": "5mg",
+      "frequency": "daily"
+    },
+    {
+      "name": "Atorvastatin",
+      "dosage": "20mg",
+      "frequency": "nightly"
+    }
+  ],
+  "allergies": ["penicillin"],
+  "family_history": [
+    {
+      "relative": "father",
+      "condition": "myocardial_infarction",
+      "age_at_onset": 52
+    },
+    {
+      "relative": "mother",
+      "condition": "type_2_diabetes",
+      "age_at_onset": 58
+    }
+  ],
+  "notes": "Patient has strong paternal family history of premature CAD."
+}
+```
+- **Expected Status:** `201 Created`
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 201", () => pm.response.to.have.status(201));
+```
+
+### 6.3. Update Medical History
+- **Method:** `PUT`
+- **URL:** `{{baseUrl}}/api/v1/medical-history/`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):** Partial or full update payload
+- **Expected Status:** `200 OK`
+
+---
+
+## 7. Symptom Reporting APIs (`/api/v1/symptoms`)
+
+### 7.1. Submit Symptom Report
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/symptoms/`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "reported_text": "Severe pressure and tightness across central chest radiating to the left jaw and shoulder during stairs climbing, lasting 10 minutes with mild breathlessness.",
+  "duration_days": 4,
+  "severity_self_rating": 8,
+  "body_locations": ["chest", "left shoulder", "jaw"],
+  "triggers": ["physical exertion", "climbing stairs"],
+  "structured_symptoms": ["chest_pain", "angina", "dyspnea"]
+}
+```
+- **Expected Status:** `201 Created`
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 201", () => pm.response.to.have.status(201));
+const json = pm.response.json();
+pm.expect(json.id).to.not.be.empty;
+pm.environment.set("symptomReportId", json.id);
+```
+
+### 7.2. List Symptom Reports
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/symptoms/?limit=50`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+
+### 7.3. Get Specific Symptom Report
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/symptoms/{{symptomReportId}}`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+
+### 7.4. Delete Symptom Report
+- **Method:** `DELETE`
+- **URL:** `{{baseUrl}}/api/v1/symptoms/{{symptomReportId}}`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `204 No Content`
+
+---
+
+## 8. Laboratory Biomarker APIs (`/api/v1/laboratory`)
+
+### 8.1. Record Laboratory Test Panel
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/laboratory/`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "test_date": "2026-10-18",
+  "lab_name": "Chughtai Lab - Main Boulevard Branch",
+  "biomarkers": {
+    "systolic_bp": 142.0,
+    "diastolic_bp": 92.0,
+    "total_cholesterol_mg_dl": 235.0,
+    "hdl_cholesterol_mg_dl": 38.0,
+    "ldl_cholesterol_mg_dl": 154.0,
+    "triglycerides_mg_dl": 215.0,
+    "fasting_blood_glucose_mg_dl": 118.0,
+    "hba1c_percent": 6.2,
+    "serum_creatinine_mg_dl": 1.15
+  },
+  "notes": "12-hour fasting confirmed by technician."
+}
+```
+- **Expected Status:** `201 Created`
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 201", () => pm.response.to.have.status(201));
+const json = pm.response.json();
+pm.expect(json.id).to.not.be.empty;
+pm.environment.set("labResultId", json.id);
+```
+
+### 8.2. Get Latest Laboratory Report
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/laboratory/latest`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+
+### 8.3. List Laboratory Reports
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/laboratory/?limit=50`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+
+### 8.4. Get Specific Laboratory Report
+- **Method:** `GET`
+- **URL:** `{{baseUrl}}/api/v1/laboratory/{{labResultId}}`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `200 OK`
+
+### 8.5. Delete Laboratory Report
+- **Method:** `DELETE`
+- **URL:** `{{baseUrl}}/api/v1/laboratory/{{labResultId}}`
+- **Headers:** `Authorization: Bearer {{accessToken}}`
+- **Expected Status:** `204 No Content`
+
+---
+
+## 9. Clinical Risk Prediction APIs (`/api/v1/risk`)
+
+All clinical risk endpoints require a valid Bearer JWT access token and return deterministic risk calculations grounded in published medical algorithms, complete with mandatory clinical decision-support disclaimers.
+
+### 9.1. Framingham 10-Year Cardiovascular Disease Risk
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/risk/cardiovascular`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "age": 55,
+  "gender": "male",
+  "total_cholesterol_mg_dl": 220.0,
+  "hdl_cholesterol_mg_dl": 42.0,
+  "systolic_bp": 140.0,
+  "is_treated_for_hypertension": true,
+  "is_smoker": true,
+  "has_diabetes": false
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model": "Framingham 10-Year General Cardiovascular Risk (D'Agostino 2008)",
+  "risk_score_percent": 21.41,
+  "risk_category": "high",
+  "missing_or_assumed": [],
+  "parameters": {
+    "age": 55,
+    "gender": "male",
+    "total_cholesterol_mg_dl": 220.0,
+    "hdl_cholesterol_mg_dl": 42.0,
+    "systolic_bp": 140.0,
+    "is_treated_for_hypertension": true,
+    "is_smoker": true,
+    "has_diabetes": false
+  },
+  "disclaimer": "MedOracle is a decision-support assistant and does not provide clinical diagnosis. Consult a qualified healthcare professional."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.risk_score_percent).to.be.a("number");
+pm.expect(["low", "moderate", "high"]).to.include(json.risk_category);
+pm.expect(json.disclaimer).to.include("MedOracle is a decision-support assistant");
+```
+
+---
+
+### 9.2. FINDRISC Type 2 Diabetes 10-Year Risk
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/risk/diabetes`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "age": 52,
+  "gender": "female",
+  "bmi": 28.4,
+  "waist_circumference_cm": 86.0,
+  "daily_physical_activity_30min": false,
+  "daily_vegetable_fruit_intake": true,
+  "takes_antihypertensive_meds": true,
+  "history_of_high_blood_glucose": false,
+  "family_history_of_diabetes": "second_degree"
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model": "FINDRISC Type 2 Diabetes 10-Year Risk (Lindström 2003)",
+  "total_score": 11,
+  "max_score": 26,
+  "risk_category": "slightly_elevated",
+  "ten_year_risk_percent_approx": 4.0,
+  "missing_or_assumed": [],
+  "points_breakdown": {
+    "age": 2,
+    "bmi": 1,
+    "waist_circumference": 3,
+    "physical_activity": 2,
+    "vegetables_fruit": 0,
+    "hypertension_meds": 2,
+    "high_blood_glucose_history": 0,
+    "family_history": 3
+  },
+  "parameters": {
+    "age": 52,
+    "gender": "female",
+    "bmi": 28.4,
+    "waist_circumference_cm": 86.0,
+    "physical_activity_30min_daily": false,
+    "daily_fruit_veg_intake": true,
+    "takes_hypertension_meds": true,
+    "history_high_blood_glucose": false,
+    "family_history_diabetes": "second_degree"
+  },
+  "disclaimer": "MedOracle is a decision-support assistant and does not provide clinical diagnosis. Consult a qualified healthcare professional."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.total_score).to.be.within(0, 26);
+pm.expect(json.points_breakdown).to.be.an("object");
+pm.expect(json.disclaimer).to.include("MedOracle is a decision-support assistant");
+```
+
+---
+
+### 9.3. CKD-EPI 2021 Race-Free Kidney Function & eGFR
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/risk/kidney`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "serum_creatinine_mg_dl": 1.25,
+  "age": 58,
+  "gender": "male"
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model": "CKD-EPI 2021 Race-Free Creatinine eGFR (Inker 2021)",
+  "egfr_ml_min_1_73m2": 66.4,
+  "kdigo_stage": "G2",
+  "stage_description": "Mildly decreased kidney function",
+  "clinical_severity": "mild",
+  "parameters": {
+    "serum_creatinine_mg_dl": 1.25,
+    "age": 58,
+    "gender": "male"
+  },
+  "disclaimer": "MedOracle is a decision-support assistant and does not provide clinical diagnosis. Consult a qualified healthcare professional."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.egfr_ml_min_1_73m2).to.be.above(0);
+pm.expect(["G1", "G2", "G3a", "G3b", "G4", "G5"]).to.include(json.kdigo_stage);
+pm.expect(json.disclaimer).to.include("MedOracle is a decision-support assistant");
+```
+
+---
+
+## 10. Future Endpoints Checklist
+
+As subsequent roadmap steps are implemented, their specifications **must** be appended below:
+
+- [x] **Step 5: Clinical Risk Models (`/api/v1/risk`)**
+  - [x] `POST /api/v1/risk/cardiovascular` (Framingham 10-Yr CVD risk score)
+  - [x] `POST /api/v1/risk/diabetes` (FINDRISC 10-Yr Type 2 diabetes score)
+  - [x] `POST /api/v1/risk/kidney` (CKD-EPI 2021 eGFR & stage calculator)
+- [ ] **Step 14: Analysis Orchestration (`/api/v1/analysis`)**
+  - [ ] `POST /api/v1/analysis/start` (Trigger async LangGraph multi-agent analysis)
+  - [ ] `GET /api/v1/analysis/{session_id}/status` (Polling progress bar status)
+  - [ ] `GET /api/v1/analysis/{session_id}/result` (Full multi-agent consensus results)
+  - [ ] `GET /api/v1/analysis/{session_id}/debate` (Audit debate transcript)
+  - [ ] `GET /api/v1/analysis/{session_id}/reasoning-graph` (GraphView node-edge payload)
+- [ ] **Step 14: Doctor Recommendations (`/api/v1/doctors`)**
+  - [ ] `GET /api/v1/doctors/recommendations` (Specialty referral matches)
+
