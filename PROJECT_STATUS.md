@@ -28,7 +28,7 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
 | **5** | `MOv1/ClinicalRiskModels` | `MOv1/ClinicalEquationsPurePython`<br>`MOv1/RiskCalculationEndpoints` | **Done** | **2026-10-19** | Deterministic formulas: Framingham (CVD), FINDRISC (Diabetes), CKD-EPI (Kidney). Endpoints at `/api/v1/risk/`. |
 | **6** | `MOv1/MLdatasetandpreprocessing` | `MOv1/MLDatasetAcquisition`<br>`MOv1/MLDatasetPreprocessing` | **Done** | **2026-10-19** | **6.1**: UCI Heart, PIMA, Disease-Symptom ingestion & `DATASET_REGISTER.md`.<br>**6.2**: Imputation, scaling, stratified 70/15/15 splits. 60 passed tests. |
 | **7.1**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLCardioAndDiabetesTraining` | **Done** | **2026-10-20** | Trained & validated Cardio (`GradientBoosting`, ROC-AUC 0.8864, Acc 83.33%) & Diabetes (`RandomForest`, ROC-AUC 0.8605, Acc 78.45%) models in `models/saved/`; `MODEL_REGISTER.md` updated. 64 passed tests. |
-| **7.2**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLSymptomDiseaseTraining` | Pending (Next) | — | 41-class Disease-Symptom Classifier training, top-N probability distributions, `MODEL_REGISTER.md` expansion. |
+| **7.2**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLSymptomDiseaseTraining` | **Done** | **2026-10-20** | Trained 41-class Disease-Symptom Classifier (`MultinomialNB`, 100.0% test accuracy, 100.0% top-3 differential diagnosis accuracy, 1.0000 macro F1). Exported `models/saved/symptoms_disease_v1.joblib`. 65 passed tests. |
 | **7.3**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLActiveLearningFeedbackLoop` | Pending | — | Continuous retraining pipeline: active learning feedback queue, automated retraining triggers, versioned database audit in `TrainedModel`. |
 | **8** | `MOv1/MLInferenceAndEvaluation` | `MOv1/MLEvaluationMetrics`<br>`MOv1/MLRealtimePredictorService` | Pending | — | Validation metrics (ROC-AUC, PR-AUC, F1); real-time feature transformation & inference predictor in `app/ml/inference/`. |
 | **9** | `MOv1/LLMServiceRouting` | `MOv1/LLMProviderCore`<br>`MOv1/LLMStructuredOutputEngine` | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider; strict Pydantic JSON schema validation. |
@@ -96,11 +96,20 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
   - Comprehensive documentation artifact published in `MODEL_REGISTER.md`.
   - Unit tests verified: **64 passed** across all test suites.
 
-### Security & Data Audit (Sub-step 7.1 Verification)
+- **41-Class Symptom-Disease Classifier Training (Sub-Step 7.2)**:
+  - Model training pipeline implemented in `backend/app/ml/training/symptoms.py` mapping 132 binary symptom indicators to 41 disease entities.
+  - Compared Multinomial Naive Bayes, Random Forest, and Multinomial Logistic Regression. Selected champion: `MultinomialNB` (Test Accuracy 100.0%, Top-3 Differential Diagnosis Accuracy 100.0%, Top-5 Accuracy 100.0%, Macro F1 1.0000).
+  - Built differential diagnosis ranking helper `predict_top_candidates()` returning calibrated probability distributions and top-k candidate pathologies.
+  - Serialized model bundle exported to `models/saved/symptoms_disease_v1.joblib` and metadata JSON registered.
+  - `MODEL_REGISTER.md` expanded with comprehensive 41-class benchmarks.
+  - Unit tests verified: **65 passed** across all test suites.
+
+### Security & Data Audit (Sub-step 7.2 Verification)
 - **Data Integrity**: Training strictly executed on preprocessed stratified splits (`datasets/processed/`); zero leakage between train, validation, and test sets.
 - **Model Deserialization Safety**: Deterministic reproduction tested via `test_model_registry_save_load_lifecycle`.
 - **Artifact Protection**: Binary `.joblib` files safely stored in `models/saved/` and protected by `.gitignore` rules while metadata is published in `MODEL_REGISTER.md`.
 
 ### Next Action
-- Sub-step 7.1 completed. Ready for **Sub-step 7.2: 41-Class Symptom-Disease Classifier Training** (Branch `MOv1/MLSymptomDiseaseTraining`).
+- Sub-step 7.2 completed. Ready for **Sub-step 7.3: Continuous Active Learning Retraining Feedback Loop** (Branch `MOv1/MLActiveLearningFeedbackLoop`).
+
 
