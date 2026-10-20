@@ -28,6 +28,9 @@ build/
 coverage/
 *.iml
 
+# Design references (large exported HTML bundles, not source)
+frontend/design_refs/
+
 # IDE
 .idea/
 .vscode/
