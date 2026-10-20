@@ -85,6 +85,33 @@ def test_model_registry_save_load_lifecycle(tmp_path: Path):
     assert all_models[0].model_id == "cardiovascular_risk_v1"
 
 
+def test_train_symptoms_model():
+    """Verify training 41-class symptom disease model produces champion and valid metrics."""
+    from app.ml.training.symptoms import load_symptoms_data, predict_top_candidates, train_symptoms_model
+
+    model, metadata = train_symptoms_model(save=False)
+
+    assert metadata.model_id == "symptoms_disease_v1"
+    assert len(metadata.feature_columns) == 132
+    assert metadata.target_column == "target"
+    assert metadata.version == "1.0.0"
+
+    # Multiclass diagnostic boundaries
+    assert metadata.metrics["accuracy"] >= 0.90
+    assert metadata.metrics["macro_f1"] >= 0.90
+    assert metadata.metrics["top_3_accuracy"] >= 0.95
+    assert metadata.metrics["top_5_accuracy"] >= 0.98
+
+    # Test top candidate prediction
+    data = load_symptoms_data()
+    sample = data["X_test"][0]
+    candidates = predict_top_candidates(model, sample, data["index_to_disease"], k=5)
+    assert len(candidates) == 5
+    assert candidates[0]["probability"] >= candidates[1]["probability"]
+    assert "disease_name" in candidates[0]
+    assert "confidence_percentage" in candidates[0]
+
+
 def test_saved_model_registry_artifacts():
     """Verify actual trained artifacts in models/saved/ can be loaded and executed."""
     # Cardio model
@@ -97,6 +124,11 @@ def test_saved_model_registry_artifacts():
     assert diab_meta.model_id == "diabetes_risk_v1"
     assert len(diab_meta.feature_columns) == 8
 
+    # Symptoms model
+    symp_model, symp_meta = load_model_bundle("symptoms_disease_v1")
+    assert symp_meta.model_id == "symptoms_disease_v1"
+    assert len(symp_meta.feature_columns) == 132
+
     # Run inference test on dummy patient inputs
     dummy_cardio = np.zeros((1, 13), dtype=np.float64)
     cardio_prob = cardio_model.predict_proba(dummy_cardio)[0, 1]
@@ -105,3 +137,9 @@ def test_saved_model_registry_artifacts():
     dummy_diab = np.zeros((1, 8), dtype=np.float64)
     diab_prob = diab_model.predict_proba(dummy_diab)[0, 1]
     assert 0.0 <= diab_prob <= 1.0
+
+    dummy_symp = np.zeros((1, 132), dtype=np.float64)
+    symp_probs = symp_model.predict_proba(dummy_symp)[0]
+    assert len(symp_probs) == 41
+    assert np.isclose(symp_probs.sum(), 1.0)
+

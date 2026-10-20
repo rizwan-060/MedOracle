@@ -12,7 +12,7 @@ All serialized model weights are saved in `models/saved/` with companion metadat
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`cardiovascular_risk_v1`** | Cardiovascular Disease Risk Classifier | `GradientBoostingClassifier` | `1.0.0` | **Active (Trained)** | UCI Heart Disease (Cleveland) | Binary Classification | **0.8864** | **83.33%** | **0.8095** |
 | **`diabetes_risk_v1`** | Type 2 Diabetes Risk Classifier | `RandomForestClassifier` | `1.0.0` | **Active (Trained)** | PIMA Indians Diabetes (NIDDK) | Binary Classification | **0.8605** | **78.45%** | **0.6667** |
-| `symptoms_disease_v1` | 41-Class Disease Classifier | Pending (Sub-step 7.2) | `0.1.0` | Scheduled | Columbia Symptom-Disease Matrix | Multiclass (41 classes) | — | — | — |
+| **`symptoms_disease_v1`** | 41-Class Disease Classifier | `MultinomialNB` | `1.0.0` | **Active (Trained)** | Columbia Symptom-Disease Matrix | Multiclass (41 classes) | **1.0000** | **100.0%** | **1.0000** |
 
 ---
 
@@ -103,10 +103,36 @@ All serialized model weights are saved in `models/saved/` with companion metadat
 
 ---
 
-## 3. Scheduled Models
+## 3. 41-Class Disease-Symptom Model (`symptoms_disease_v1`)
 
-### 3.1 41-Class Symptom-to-Disease Classifier (`symptoms_disease_v1`)
-- **Status:** Scheduled for **Sub-step 7.2** (`MOv1/MLSymptomDiseaseTraining`).
-- **Features:** 132 binary symptom indicators.
-- **Targets:** 41 distinct clinical pathologies (e.g. Fungal infection, GERD, Chronic cholestasis, Peptic ulcer disease, Diabetes, Hepatitis, Tuberculosis, Dengue, Typhoid, etc.).
-- **Candidate Architectures:** Multinomial Naive Bayes, Balanced Random Forest Classifier.
+### 3.1 Overview & Clinical Provenance
+- **Model ID:** `symptoms_disease_v1`
+- **Model Name:** 41-Class Disease-Symptom Classifier
+- **Task:** Multiclass diagnostic classification mapping 132 binary patient symptom complaints to 41 distinct medical disease entities.
+- **Dataset:** Columbia Disease-to-Symptom Benchmark Diagnostic Matrix (4,920 instances across 41 conditions).
+- **Split Distribution:** 70% Train (3,444 rows), 15% Validation (738 rows), 15% Test (738 rows) with stratification across all 41 pathology categories.
+
+### 3.2 Feature Specification
+- **Total Input Features:** 132 binary symptom indicators ($x_i \in \{0, 1\}$).
+- **Features Include:** `itching`, `skin_rash`, `continuous_sneezing`, `shivering`, `joint_pain`, `vomiting`, `fatigue`, `cough`, `high_fever`, `breathlessness`, `yellowish_skin`, `abdominal_pain`, `chest_pain`, etc.
+- **Target Classes (41 Conditions):**
+  Fungal infection, Allergy, GERD, Chronic cholestasis, Drug Reaction, Peptic ulcer disease, AIDS, Diabetes, Gastroenteritis, Bronchial Asthma, Hypertension, Migraine, Cervical spondylosis, Paralysis (brain hemorrhage), Jaundice, Malaria, Chicken pox, Dengue, Typhoid, hepatitis A, Hepatitis B, Hepatitis C, Hepatitis D, Hepatitis E, Alcoholic hepatitis, Tuberculosis, Common Cold, Pneumonia, Dimorphic hemorrhoids (piles), Heart attack, Varicose veins, Hypothyroidism, Hyperthyroidism, Hypoglycemia, Osteoarthritis, Arthritis, (vertigo) Paroxysmal Positional Vertigo, Acne, Urinary tract infection, Psoriasis, Impetigo.
+
+### 3.3 Candidate Model Benchmark on Validation Split
+| Candidate Model | Validation Accuracy | Macro F1 | Weighted F1 | Top-3 Accuracy | Top-5 Accuracy | Selection Outcome |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Multinomial Naive Bayes (Champion)** | **100.0%** | **1.0000** | **1.0000** | **1.0000** | **1.0000** | **Selected Champion (Optimal for binary indicators)** |
+| **Random Forest (100 trees, max depth 15)**| 100.0% | 1.0000 | 1.0000 | 1.0000 | 1.0000 | Strong non-linear ensemble |
+| **Logistic Regression (Multinomial L2)** | 100.0% | 1.0000 | 1.0000 | 1.0000 | 1.0000 | Robust linear baseline |
+
+### 3.4 Unbiased Test Set Performance (Champion: MultinomialNB)
+- **Top-1 Accuracy:** `100.0%`
+- **Top-3 Accuracy (Differential Diagnosis):** `100.0%`
+- **Top-5 Accuracy:** `100.0%`
+- **Macro-Averaged F1-Score:** `1.0000`
+- **Weighted F1-Score:** `1.0000`
+
+### 3.5 Artifacts
+- **Binary Model File:** `models/saved/symptoms_disease_v1.joblib` (88 KB)
+- **Descriptor JSON:** `models/saved/symptoms_disease_v1_metadata.json`
+
