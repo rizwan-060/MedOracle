@@ -136,3 +136,21 @@ All serialized model weights are saved in `models/saved/` with companion metadat
 - **Binary Model File:** `models/saved/symptoms_disease_v1.joblib` (88 KB)
 - **Descriptor JSON:** `models/saved/symptoms_disease_v1_metadata.json`
 
+---
+
+## 4. Continuous Active Learning & Feedback Loop
+
+### 4.1 Architecture & Feedback Pipeline
+To ensure MedOracle models evolve continuously as new clinical outcome observations and ground-truth labels are acquired:
+- **Feedback Ingestion Buffer:** Clinical confirmations and high-uncertainty samples are collected into JSONL stream buffers in `datasets/feedback/{target}/feedback_records.jsonl`.
+- **Threshold Trigger & Concatenation:** Once buffer size reaches or exceeds the retraining threshold (default $N \ge 20$), an automated retraining cycle can be triggered. Feedback samples are aligned with feature schemas and stacked with base training data.
+- **Champion Promotion Gate:** Candidates are retrained and evaluated strictly on the pristine held-out test split. If the retrained model's test ROC-AUC / Top-3 accuracy satisfies the non-regression threshold ($\ge \text{current} - 0.03$), it is promoted to a new minor version (e.g. `1.1.0`), serialized, and updated in the database `trained_models` table while older versions are set to `is_active = False`. If it fails the gate, it is rejected and logged without polluting active inference.
+- **Relational Model Registry Sync:** Relational persistence in `app/database/models.py` (`TrainedModel`) synchronizes serialized disk metadata with PostgreSQL/SQLite.
+
+### 4.2 Module Components
+- **`FeedbackBuffer`** (`app/ml/feedback/buffer.py`): Ingestion, counting, loading, and timestamped archiving.
+- **`ContinuousRetrainer`** (`app/ml/feedback/retrainer.py`): Automated retraining orchestrator with performance gate protection.
+- **`sync_all_models_to_db`** (`app/ml/feedback/sync.py`): Relational database parity synchronizer for `trained_models` table.
+- **CLI Runner**: `python backend/scripts/retrain_feedback.py --target all|cardio|diabetes|symptoms --min-samples <N> [--force] [--sync-db]`
+
+
