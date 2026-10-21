@@ -9,8 +9,8 @@ import '../../features/intake_wizard/screens/medications_family_screen.dart';
 import '../../features/intake_wizard/screens/review_confirm_screen.dart';
 import '../../features/intake_wizard/screens/risk_trajectory_screen.dart';
 import '../../features/intake_wizard/screens/symptoms_screen.dart';
+import '../../features/assessment/screens/assessment_main_finding_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
-import '../../features/risk/screens/risk_analysis_screen.dart';
 import 'route_names.dart';
 
 /// Application router.
@@ -79,8 +79,7 @@ GoRouter createAppRouter() {
       GoRoute(
         path: RouteNames.resultsReports,
         builder: (BuildContext context, GoRouterState state) =>
-            RiskAnalysisScreen(
-          onReasoningAction: () => context.push(RouteNames.resultsReasoning),
+            AssessmentMainFindingScreen(
           onTrajectoryAction: () => context.push(RouteNames.resultsTrajectory),
           onClose: () => context.go(RouteNames.step5Review),
         ),
