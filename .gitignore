@@ -28,6 +28,9 @@ build/
 coverage/
 *.iml
 
+# Design references (large exported HTML bundles, not source)
+frontend/design_refs/
+
 # IDE
 .idea/
 .vscode/
@@ -57,3 +60,11 @@ models/experiments/*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Agent workflows and rules (local knowledge only, not for GitHub)
+.agent/
+.agents/
+
+# Local changelog documents (not pushed to GitHub)
+FRONTEND_CHANGES.md
+
