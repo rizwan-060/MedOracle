@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medoracle/core/routing/app_router.dart';
 import 'package:medoracle/core/routing/route_names.dart';
+import 'package:medoracle/features/assessment/screens/assessment_main_finding_screen.dart';
 import 'package:medoracle/features/doctors/screens/doctor_recommendation_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/clinical_status_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/first_assessment_screen.dart';
@@ -73,10 +74,11 @@ void main() {
         RouteNames.step5Review);
     await tapAndSettle(tester, find.text('Submit Assessment'));
 
-    // Submission lands on the results hub.
+    // Submission lands on Screen 6A, the main finding.
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.resultsReports);
-    expect(find.text('YOUR RESULT'), findsOneWidget);
+    expect(find.text('Main finding'), findsOneWidget);
+    expect(find.text('View risk trajectory'), findsOneWidget);
   });
 
   testWidgets('results flow is fully navigable', (WidgetTester tester) async {
@@ -90,26 +92,10 @@ void main() {
     );
     await tester.pumpAndSettle(const Duration(milliseconds: 600));
 
-    // Hub -> reasoning screen. Pushed screens are asserted by type: an
-    // imperative `push` does not rewrite the router's reported location.
+    // Screen 6A (main finding) -> risk trajectory.
     router.go(RouteNames.resultsReports);
     await tester.pumpAndSettle();
-    await tapAndSettle(tester, find.text('How we reached this result'));
-    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
-    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
-
-    // Primary CTA -> risk trajectory (pushed on top of the reasoning screen).
-    await tapAndSettle(tester, find.text('View risk trajectory'));
-    expect(find.byType(RiskTrajectoryScreen), findsOneWidget);
-    expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
-
-    // The pushed page keeps the reasoning screen on the stack.
-    router.pop();
-    await tester.pumpAndSettle();
-    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
-    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
-
-    // Primary CTA -> risk trajectory again.
+    expect(find.byType(AssessmentMainFindingScreen), findsOneWidget);
     await tapAndSettle(tester, find.text('View risk trajectory'));
     expect(find.byType(RiskTrajectoryScreen), findsOneWidget);
     expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
@@ -123,9 +109,10 @@ void main() {
     await tapAndSettle(tester, find.text('Back to risk trajectory'));
     expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
 
-    // Back to the results hub.
+    // Secondary CTA -> back to Screen 6A.
     await tapAndSettle(tester, find.text('Back to results'));
-    expect(find.text('YOUR RESULT'), findsOneWidget);
+    expect(find.byType(AssessmentMainFindingScreen), findsOneWidget);
+    expect(find.text('Main finding'), findsOneWidget);
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.resultsReports);
 
@@ -133,6 +120,22 @@ void main() {
     await tapAndSettle(tester, find.text('Close'));
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.step5Review);
+
+    // The explainable AI screen stays reachable on its own route.
+    router.go(RouteNames.resultsReasoning);
+    await tester.pumpAndSettle();
+    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
+    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
+
+    // Primary CTA -> risk trajectory, pushed on top of the reasoning screen.
+    await tapAndSettle(tester, find.text('View risk trajectory'));
+    expect(find.byType(RiskTrajectoryScreen), findsOneWidget);
+    expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
+
+    // The pushed page keeps the reasoning screen on the stack.
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
   });
 
   testWidgets('first assessment screen renders', (WidgetTester tester) async {
@@ -150,6 +153,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Your heart risk is rising'), findsOneWidget);
     expect(find.text('WHAT HELPS MOST'), findsOneWidget);
+  });
+
+  testWidgets('main finding screen renders', (WidgetTester tester) async {
+    await setPhone(tester, phone);
+    await tester.pumpWidget(withScope(const AssessmentMainFindingScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Main finding'), findsOneWidget);
+    expect(find.text('Coronary Artery Disease Risk'), findsOneWidget);
+    expect(find.text('How sure we are'), findsOneWidget);
+    expect(find.text('Doctor to see'), findsOneWidget);
+    expect(find.text('Cardiology'), findsOneWidget);
+    expect(find.text('View risk trajectory'), findsOneWidget);
   });
 
   testWidgets('results hub renders', (WidgetTester tester) async {
@@ -190,6 +205,7 @@ void main() {
       const ReviewConfirmScreen(),
       const FirstAssessmentScreen(),
       const RiskTrajectoryScreen(),
+      const AssessmentMainFindingScreen(),
       const RiskAnalysisScreen(),
       const DoctorRecommendationScreen(),
     ]) {
