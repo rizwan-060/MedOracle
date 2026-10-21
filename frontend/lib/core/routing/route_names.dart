@@ -1,5 +1,8 @@
 /// Route paths and names for the MedOracle router.
 abstract final class RouteNames {
+  // --- Home ------------------------------------------------------------------
+  static const String home = '/home';
+
   // --- Intake (data entry) flow --------------------------------------------
   static const String intakeRoot = '/intake';
   static const String step1Profile = '$intakeRoot/step-1';
