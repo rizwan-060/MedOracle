@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/intake/screens/pending_step_screen.dart';
+import '../../features/intake_wizard/screens/clinical_status_screen.dart';
+import '../../features/intake_wizard/screens/labs_vitals_screen.dart';
+import '../../features/intake_wizard/screens/medications_family_screen.dart';
+import '../../features/intake_wizard/screens/review_confirm_screen.dart';
+import '../../features/intake_wizard/screens/symptoms_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import 'route_names.dart';
 
@@ -26,50 +31,36 @@ GoRouter createAppRouter() {
       GoRoute(
         path: RouteNames.step2Clinical,
         builder: (BuildContext context, GoRouterState state) =>
-            const PendingStepScreen(
-          stepNumber: 2,
-          stepTitle: 'Clinical Status',
-          ctaLabel: 'Next: Medications & Family',
-          nextRoute: RouteNames.step2Medications,
-        ),
+            const ClinicalStatusScreen(),
       ),
       GoRoute(
         path: RouteNames.step2Medications,
         builder: (BuildContext context, GoRouterState state) =>
-            const PendingStepScreen(
-          stepNumber: 3,
-          stepTitle: 'Medications & Family',
-          ctaLabel: 'Next: Symptoms',
-          nextRoute: RouteNames.step3Symptoms,
-        ),
+            const MedicationsFamilyScreen(),
       ),
       GoRoute(
         path: RouteNames.step3Symptoms,
         builder: (BuildContext context, GoRouterState state) =>
-            const PendingStepScreen(
-          stepNumber: 3,
-          stepTitle: 'Symptoms',
-          ctaLabel: 'Next: Labs & Vitals',
-          nextRoute: RouteNames.step4Labs,
-        ),
+            const SymptomsScreen(),
       ),
       GoRoute(
         path: RouteNames.step4Labs,
         builder: (BuildContext context, GoRouterState state) =>
-            const PendingStepScreen(
-          stepNumber: 4,
-          stepTitle: 'Labs & Vitals',
-          ctaLabel: 'Next: Review & Confirm',
-          nextRoute: RouteNames.step5Review,
-        ),
+            const LabsVitalsScreen(),
       ),
       GoRoute(
         path: RouteNames.step5Review,
         builder: (BuildContext context, GoRouterState state) =>
+            const ReviewConfirmScreen(),
+      ),
+      // Post-submission results flow — placeholder until Step 6A is built.
+      GoRoute(
+        path: RouteNames.resultsReports,
+        builder: (BuildContext context, GoRouterState state) =>
             const PendingStepScreen(
-          stepNumber: 5,
-          stepTitle: 'Review & Confirm',
-          ctaLabel: 'Submit Assessment',
+          stepNumber: 6,
+          stepTitle: 'Your Reports',
+          ctaLabel: 'Reports coming soon',
           nextRoute: null,
         ),
       ),
