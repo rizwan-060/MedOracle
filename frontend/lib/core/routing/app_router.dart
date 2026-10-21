@@ -90,7 +90,7 @@ GoRouter createAppRouter() {
         builder: (BuildContext context, GoRouterState state) =>
             AssessmentMainFindingScreen(
           onTrajectoryAction: () => context.push(RouteNames.resultsTrajectory),
-          onClose: () => context.go(RouteNames.step5Review),
+          onClose: () => context.go(RouteNames.home),
         ),
       ),
       GoRoute(

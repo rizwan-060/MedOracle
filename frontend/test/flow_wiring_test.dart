@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:medoracle/core/routing/app_router.dart';
 import 'package:medoracle/core/routing/route_names.dart';
 import 'package:medoracle/features/assessment/screens/assessment_main_finding_screen.dart';
+import 'package:medoracle/features/dashboard/screens/home_dashboard_screen.dart';
 import 'package:medoracle/features/doctors/screens/doctor_recommendation_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/clinical_status_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/first_assessment_screen.dart';
@@ -116,10 +117,11 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.resultsReports);
 
-    // Close returns to Step 5 of the wizard.
+    // Close returns to the home dashboard.
     await tapAndSettle(tester, find.text('Close'));
     expect(router.routeInformationProvider.value.uri.path,
-        RouteNames.step5Review);
+        RouteNames.home);
+    expect(find.byType(HomeDashboardScreen), findsOneWidget);
 
     // The explainable AI screen stays reachable on its own route.
     router.go(RouteNames.resultsReasoning);
