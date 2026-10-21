@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/glass_pill_button.dart';
 import '../../../core/widgets/step_scaffold.dart';
@@ -35,7 +36,7 @@ class PendingStepScreen extends StatelessWidget {
         margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: AppColors.cardSurface,
           borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
         child: Column(

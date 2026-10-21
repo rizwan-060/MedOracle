@@ -72,7 +72,7 @@ class _SegmentOption extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               gradient: selected ? AppColors.segmentSelectedGradient : null,
-              color: selected ? null : const Color(0x9EFFFFFF),
+              color: selected ? null : AppColors.segmentIdleFill,
               border: Border.all(
                 color: selected ? AppColors.refPlum : AppColors.refFieldBorder,
                 width: 1.5,
@@ -81,14 +81,14 @@ class _SegmentOption extends StatelessWidget {
               boxShadow: <BoxShadow>[
                 if (selected)
                   const BoxShadow(
-                    color: Color(0xA6614051),
+                    color: AppColors.segmentShadowSelected,
                     offset: Offset(0, 6),
                     blurRadius: 14,
                     spreadRadius: -6,
                   )
                 else
                   const BoxShadow(
-                    color: Color(0x4D614051),
+                    color: AppColors.segmentShadowIdle,
                     offset: Offset(0, 3),
                     blurRadius: 10,
                     spreadRadius: -4,

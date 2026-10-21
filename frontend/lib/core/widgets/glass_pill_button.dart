@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
 /// Frosted "glass" pill used for secondary actions
@@ -26,7 +27,7 @@ class GlassPillButton extends StatelessWidget {
   })  : _topColor = const Color(0xE6FFFFFF),
         _bottomColor = const Color(0x8CFFFFFF),
         _borderColor = const Color(0xE6FFFFFF),
-        _dropShadow = const Color(0x61614051),
+        _dropShadow = AppColors.glassPillShadow,
         _textStyle = AppTextStyles.secondaryAction;
 
   final String label;
