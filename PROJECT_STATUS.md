@@ -1,8 +1,8 @@
 # MedOracle Backend: Project Status
 
-**Current Milestone:** Step 6 Complete (ML Datasets & Preprocessing Pipelines)  
-**Next Milestone:** Step 7 (ML Model Training & Registry)  
-**Last Updated:** 2026-10-19  
+**Current Milestone:** Step 7 Complete (ML Model Training, Champion Registry & Continuous Retraining)  
+**Next Milestone:** Step 8 (ML Inference & Quantitative Risk Profiling Endpoints)  
+**Last Updated:** 2026-10-20  
 **Active Environment:** Windows 10, Python 3.14.0 (`backend\.venv`), FastAPI  
 
 ---
@@ -29,7 +29,7 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
 | **6** | `MOv1/MLdatasetandpreprocessing` | `MOv1/MLDatasetAcquisition`<br>`MOv1/MLDatasetPreprocessing` | **Done** | **2026-10-19** | **6.1**: UCI Heart, PIMA, Disease-Symptom ingestion & `DATASET_REGISTER.md`.<br>**6.2**: Imputation, scaling, stratified 70/15/15 splits. 60 passed tests. |
 | **7.1**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLCardioAndDiabetesTraining` | **Done** | **2026-10-20** | Trained & validated Cardio (`GradientBoosting`, ROC-AUC 0.8864, Acc 83.33%) & Diabetes (`RandomForest`, ROC-AUC 0.8605, Acc 78.45%) models in `models/saved/`; `MODEL_REGISTER.md` updated. 64 passed tests. |
 | **7.2**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLSymptomDiseaseTraining` | **Done** | **2026-10-20** | Trained 41-class Disease-Symptom Classifier (`MultinomialNB`, 100.0% test accuracy, 100.0% top-3 differential diagnosis accuracy, 1.0000 macro F1). Exported `models/saved/symptoms_disease_v1.joblib`. 65 passed tests. |
-| **7.3**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLActiveLearningFeedbackLoop` | Pending | — | Continuous retraining pipeline: active learning feedback queue, automated retraining triggers, versioned database audit in `TrainedModel`. |
+| **7.3**| `MOv1/MLModelTrainingAndRegistry` | `MOv1/MLActiveLearningFeedbackLoop` | **Done** | **2026-10-20** | Continuous retraining pipeline: active learning feedback queue, automated retraining triggers, performance gate protection, and relational database audit in `TrainedModel`. 71 passed tests. |
 | **8** | `MOv1/MLInferenceAndEvaluation` | `MOv1/MLEvaluationMetrics`<br>`MOv1/MLRealtimePredictorService` | Pending | — | Validation metrics (ROC-AUC, PR-AUC, F1); real-time feature transformation & inference predictor in `app/ml/inference/`. |
 | **9** | `MOv1/LLMServiceRouting` | `MOv1/LLMProviderCore`<br>`MOv1/LLMStructuredOutputEngine` | Pending | — | Groq (primary) + Gemini (fallback) + Mock provider; strict Pydantic JSON schema validation. |
 | **10**| `MOv1/MultiAgentDomainAgents` | `MOv1/AgentBaseContract`<br>`MOv1/SymptomAndHistoryAgents`<br>`MOv1/LabAndRiskPredictionAgents` | Pending | — | Unified agent contract (findings, confidence 0-100, reasoning, evidence, challenges); domain agents ensembling clinical + ML + LLM. |
@@ -104,12 +104,23 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
   - `MODEL_REGISTER.md` expanded with comprehensive 41-class benchmarks.
   - Unit tests verified: **65 passed** across all test suites.
 
-### Security & Data Audit (Sub-step 7.2 Verification)
-- **Data Integrity**: Training strictly executed on preprocessed stratified splits (`datasets/processed/`); zero leakage between train, validation, and test sets.
+- **Continuous Active Learning Retraining Feedback Loop (Sub-Step 7.3)**:
+  - Feedback ingestion buffer implemented in `backend/app/ml/feedback/buffer.py` (`FeedbackRecord`, `FeedbackBuffer`).
+  - Automated continuous retrainer with performance gate protection implemented in `backend/app/ml/feedback/retrainer.py` (`ContinuousRetrainer`).
+  - Database model synchronization utility implemented in `backend/app/ml/feedback/sync.py` (`sync_all_models_to_db`) syncing serialized models with `trained_models` table.
+  - CLI runner implemented in `backend/scripts/retrain_feedback.py`.
+  - Comprehensive unit test suite in `backend/tests/unit/test_feedback_loop.py`.
+  - Test suite status: **71 passed** (0 failures).
+
+### Security & Data Audit (Step 7 Verification)
+- **Data Integrity**: Training strictly executed on preprocessed stratified splits (`datasets/processed/`); zero leakage between train, validation, and test splits.
+- **Continuous Learning Safety**: Performance promotion gate prevents model degradation and regression; rejected retrained candidates are isolated and cannot overwrite active champion models.
 - **Model Deserialization Safety**: Deterministic reproduction tested via `test_model_registry_save_load_lifecycle`.
-- **Artifact Protection**: Binary `.joblib` files safely stored in `models/saved/` and protected by `.gitignore` rules while metadata is published in `MODEL_REGISTER.md`.
+- **Artifact Protection**: Binary `.joblib` files safely stored in `models/saved/` and tracked by `.gitignore` rules while metadata is published in `MODEL_REGISTER.md`.
 
 ### Next Action
-- Sub-step 7.2 completed. Ready for **Sub-step 7.3: Continuous Active Learning Retraining Feedback Loop** (Branch `MOv1/MLActiveLearningFeedbackLoop`).
+- Step 7 complete! Ready for **Step 8: ML Inference & Real-Time Prediction Endpoints** (`MOv1/MLInferenceAndEvaluation`).
+  - New endpoints to be introduced: `/api/v1/predictions/cardiovascular`, `/api/v1/predictions/diabetes`, `/api/v1/predictions/symptoms`, `/api/v1/predictions/feedback`.
+  - Full documentation & interactive Postman testing guide to be added in `POSTMAN_API_TESTING_GUIDE.md`.
 
 
