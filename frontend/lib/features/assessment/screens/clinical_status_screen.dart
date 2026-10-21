@@ -11,8 +11,8 @@ import '../widgets/dashed_add_button.dart';
 import '../widgets/notes_text_area.dart';
 import '../widgets/section_card.dart';
 import '../widgets/selectable_chips.dart';
-import '../widgets/wizard_header.dart';
-import '../widgets/wizard_next_back_buttons.dart';
+import '../widgets/assessment_header.dart';
+import '../widgets/assessment_nav_buttons.dart';
 
 /// Step 2A of the intake wizard — clinical history:
 /// chronic conditions, past surgeries, allergies, and free-text notes.
@@ -44,7 +44,7 @@ class ClinicalStatusScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            WizardHeader(
+            AssessmentHeader(
               currentStep: 2,
               totalSteps: 5,
               onSaveExit: () {/* persist + leave wizard */},

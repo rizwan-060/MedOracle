@@ -7,13 +7,13 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/medications_family_provider.dart';
 import '../widgets/dashed_add_button.dart';
 import '../widgets/field_label.dart';
-import '../widgets/intake_text_field.dart';
+import '../widgets/assessment_text_field.dart';
 import '../widgets/option_picker_sheet.dart';
 import '../widgets/section_card.dart';
 import '../widgets/selectable_chips.dart';
 import '../widgets/two_column_row.dart';
-import '../widgets/wizard_header.dart';
-import '../widgets/wizard_next_back_buttons.dart';
+import '../widgets/assessment_header.dart';
+import '../widgets/assessment_nav_buttons.dart';
 
 /// Step 2B of the intake wizard — current medications and family history.
 class MedicationsFamilyScreen extends ConsumerWidget {
@@ -42,10 +42,10 @@ class MedicationsFamilyScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final MedicationsFamilyState state =
-        ref.watch(medicationsFamilyProvider);
-    final MedicationsFamilyController controller =
-        ref.read(medicationsFamilyProvider.notifier);
+    final MedicationsFamilyState state = ref.watch(medicationsFamilyProvider);
+    final MedicationsFamilyController controller = ref.read(
+      medicationsFamilyProvider.notifier,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.canvasBackground,
@@ -54,10 +54,7 @@ class MedicationsFamilyScreen extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppColors.dustyTaupe,
-              AppColors.canvasBackground,
-            ],
+            colors: [AppColors.dustyTaupe, AppColors.canvasBackground],
             stops: [0, 0.35],
           ),
         ),
@@ -67,7 +64,9 @@ class MedicationsFamilyScreen extends ConsumerWidget {
             WizardHeader(
               currentStep: 2,
               totalSteps: 5,
-              onSaveExit: () {/* persist + leave wizard */},
+              onSaveExit: () {
+                /* persist + leave wizard */
+              },
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -114,10 +113,10 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                             onTap: () async {
                               final String? picked =
                                   await showOptionPickerSheet(
-                                context,
-                                title: 'Frequency',
-                                options: _frequencies,
-                              );
+                                    context,
+                                    title: 'Frequency',
+                                    options: _frequencies,
+                                  );
                               if (picked != null) {
                                 controller.setFrequencyDraft(picked);
                               }
@@ -162,10 +161,10 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                                   onTap: () async {
                                     final String? picked =
                                         await showOptionPickerSheet(
-                                      context,
-                                      title: 'Relative',
-                                      options: _relatives,
-                                    );
+                                          context,
+                                          title: 'Relative',
+                                          options: _relatives,
+                                        );
                                     if (picked != null) {
                                       controller.setRelativeDraft(picked);
                                     }

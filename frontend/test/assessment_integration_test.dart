@@ -4,7 +4,7 @@ import 'package:medoracle/data/models/lab_result_model.dart';
 import 'package:medoracle/data/models/medical_history_model.dart';
 import 'package:medoracle/data/models/patient_profile_model.dart';
 import 'package:medoracle/data/models/symptom_model.dart';
-import 'package:medoracle/data/repositories/intake_repository.dart';
+import 'package:medoracle/data/repositories/patient_profile_repository.dart';
 import 'package:medoracle/data/services/api_service.dart';
 
 void main() {
@@ -123,9 +123,9 @@ void main() {
       expect(json['biomarkers']['total_cholesterol_mg_dl'], equals(210.0));
     });
 
-    test('RestIntakeRepository falls back gracefully on network errors', () async {
+    test('RestPatientProfileRepository falls back gracefully on network errors', () async {
       final ApiService apiService = ApiService(baseUrl: 'http://invalid-host:9999/api/v1');
-      final RestIntakeRepository repo = RestIntakeRepository(apiService);
+      final RestPatientProfileRepository repo = RestPatientProfileRepository(apiService);
 
       final PatientProfile profile = await repo.fetchProfile();
       expect(profile, isNotNull);

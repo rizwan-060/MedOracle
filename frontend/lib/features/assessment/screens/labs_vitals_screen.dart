@@ -6,12 +6,12 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/labs_vitals_provider.dart';
 import '../widgets/field_label.dart';
-import '../widgets/intake_text_field.dart';
+import '../widgets/assessment_text_field.dart';
 import '../widgets/notes_text_area.dart';
 import '../widgets/section_card.dart';
 import '../widgets/two_column_row.dart';
-import '../widgets/wizard_header.dart';
-import '../widgets/wizard_next_back_buttons.dart';
+import '../widgets/assessment_header.dart';
+import '../widgets/assessment_nav_buttons.dart';
 
 /// Step 4 of the intake wizard — general vitals and recent lab results.
 class LabsVitalsScreen extends ConsumerWidget {
@@ -64,7 +64,7 @@ class LabsVitalsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            WizardHeader(
+            AssessmentHeader(
               currentStep: 4,
               totalSteps: 5,
               onSaveExit: () {/* persist + leave wizard */},

@@ -7,14 +7,14 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/symptoms_provider.dart';
 import '../widgets/combo_input_field.dart';
 import '../widgets/dashed_add_button.dart';
-import '../widgets/intake_text_field.dart';
+import '../widgets/assessment_text_field.dart';
 import '../widgets/notes_text_area.dart';
 import '../widgets/option_picker_sheet.dart';
 import '../widgets/section_card.dart';
 import '../widgets/selectable_chips.dart';
 import '../widgets/severity_slider.dart';
-import '../widgets/wizard_header.dart';
-import '../widgets/wizard_next_back_buttons.dart';
+import '../widgets/assessment_header.dart';
+import '../widgets/assessment_nav_buttons.dart';
 
 /// Step 3 of the intake wizard — symptom capture: what the patient feels,
 /// where, what triggers it, how severe, for how long, plus free notes.
@@ -64,7 +64,7 @@ class _SymptomsScreenState extends ConsumerState<SymptomsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            WizardHeader(
+            AssessmentHeader(
               currentStep: 3,
               totalSteps: 5,
               onSaveExit: () {/* persist + leave wizard */},

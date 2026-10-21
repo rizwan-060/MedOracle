@@ -3,24 +3,7 @@ import 'package:flutter_riverpod/misc.dart';
 
 import 'section_accordion_controller.dart';
 
-/// Accordion state for the step currently on screen.
-///
-/// Riverpod instantiates notifiers through the unnamed constructor, so every
-/// intake screen overrides this provider in a local [ProviderScope] with a
-/// small subclass that passes its own starting section:
-///
-/// ```dart
-/// class _DetailsFirstAccordion extends SectionAccordionController {
-///   _DetailsFirstAccordion() : super(initialSection: 'details');
-/// }
-///
-/// ProviderScope(
-///   overrides: <Override>[
-///     sectionAccordionProvider.overrideWith(_DetailsFirstAccordion.new),
-///   ],
-///   child: const ProfileScreen(),
-/// )
-/// ```
+/// Accordion state for the section currently on screen.
 final NotifierProvider<SectionAccordionController, String>
     sectionAccordionProvider =
     NotifierProvider<SectionAccordionController, String>(

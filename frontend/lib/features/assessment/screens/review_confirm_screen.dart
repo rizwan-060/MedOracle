@@ -16,8 +16,8 @@ import '../widgets/review_sub_header.dart';
 import '../widgets/section_card.dart';
 import '../widgets/selectable_chips.dart';
 import '../widgets/severity_slider.dart';
-import '../widgets/wizard_header.dart';
-import '../widgets/wizard_next_back_buttons.dart';
+import '../widgets/assessment_header.dart';
+import '../widgets/assessment_nav_buttons.dart';
 
 /// Step 5 (final) of the intake wizard — a read-only summary of every
 /// completed step, with per-section edit jumps and the submit CTA.
@@ -53,7 +53,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            WizardHeader(
+            AssessmentHeader(
               currentStep: 5,
               totalSteps: 5,
               onSaveExit: () {/* persist + leave wizard */},

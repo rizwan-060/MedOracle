@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/intake/screens/pending_step_screen.dart';
-import '../../features/intake_wizard/screens/clinical_status_screen.dart';
-import '../../features/intake_wizard/screens/labs_vitals_screen.dart';
-import '../../features/intake_wizard/screens/medications_family_screen.dart';
-import '../../features/intake_wizard/screens/review_confirm_screen.dart';
-import '../../features/intake_wizard/screens/symptoms_screen.dart';
+import '../../features/assessment/screens/clinical_status_screen.dart';
+import '../../features/assessment/screens/labs_vitals_screen.dart';
+import '../../features/assessment/screens/medications_family_screen.dart';
+import '../../features/assessment/screens/review_confirm_screen.dart';
+import '../../features/assessment/screens/symptoms_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../widgets/pending_step_screen.dart';
 import 'route_names.dart';
 
 /// Riverpod provider exposing the application [GoRouter].
@@ -20,56 +20,53 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
   return router;
 });
 
-/// Application router.
-///
-/// The intake flow is a linear 5-step wizard; each step is its own route so the
-/// navigation stack survives back/forward gestures and deep links.
+/// Application router configuring the patient clinical assessment navigation graph.
 GoRouter createAppRouter() {
   return GoRouter(
-    initialLocation: RouteNames.step1Profile,
+    initialLocation: RouteNames.patientProfile,
     routes: <RouteBase>[
       GoRoute(
         path: '/',
         redirect: (BuildContext context, GoRouterState state) =>
-            RouteNames.step1Profile,
+            RouteNames.patientProfile,
       ),
       GoRoute(
-        path: RouteNames.step1Profile,
+        path: RouteNames.patientProfile,
         builder: (BuildContext context, GoRouterState state) =>
             const ProfileScreen(),
       ),
       GoRoute(
-        path: RouteNames.step2Clinical,
+        path: RouteNames.clinicalStatus,
         builder: (BuildContext context, GoRouterState state) =>
             const ClinicalStatusScreen(),
       ),
       GoRoute(
-        path: RouteNames.step2Medications,
+        path: RouteNames.medicationsFamily,
         builder: (BuildContext context, GoRouterState state) =>
             const MedicationsFamilyScreen(),
       ),
       GoRoute(
-        path: RouteNames.step3Symptoms,
+        path: RouteNames.symptoms,
         builder: (BuildContext context, GoRouterState state) =>
             const SymptomsScreen(),
       ),
       GoRoute(
-        path: RouteNames.step4Labs,
+        path: RouteNames.laboratoryVitals,
         builder: (BuildContext context, GoRouterState state) =>
             const LabsVitalsScreen(),
       ),
       GoRoute(
-        path: RouteNames.step5Review,
+        path: RouteNames.assessmentReview,
         builder: (BuildContext context, GoRouterState state) =>
             const ReviewConfirmScreen(),
       ),
-      // Post-submission results flow — placeholder until Step 6A is built.
+      // Post-submission results flow — clinical report view placeholder
       GoRoute(
-        path: RouteNames.resultsReports,
+        path: RouteNames.assessmentReports,
         builder: (BuildContext context, GoRouterState state) =>
             const PendingStepScreen(
           stepNumber: 6,
-          stepTitle: 'Your Reports',
+          stepTitle: 'Clinical Reports',
           ctaLabel: 'Reports coming soon',
           nextRoute: null,
         ),

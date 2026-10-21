@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_text_field.dart';
 
-/// Standard 44px bordered text input used inside intake section cards.
+/// Standard 44px bordered text input used inside assessment section cards.
 /// Delegates directly to the generic [AppTextField] core widget.
-class IntakeTextField extends StatelessWidget {
-  const IntakeTextField({
+class AssessmentTextField extends StatelessWidget {
+  const AssessmentTextField({
     super.key,
     this.controller,
     this.value,
@@ -57,3 +57,6 @@ class IntakeTextField extends StatelessWidget {
     );
   }
 }
+
+/// Backward compatibility typedef alias.
+typedef IntakeTextField = AssessmentTextField;

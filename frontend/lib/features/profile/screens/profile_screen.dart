@@ -7,9 +7,9 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/widgets/expandable_section_card.dart';
 import '../../../core/widgets/step_scaffold.dart';
 import '../../../data/models/patient_profile_model.dart';
-import '../../intake/providers/section_accordion_controller.dart';
-import '../../intake/providers/section_providers.dart';
 import '../providers/profile_controller.dart';
+import '../providers/section_accordion_controller.dart';
+import '../providers/section_providers.dart';
 import '../widgets/body_measurements_section.dart';
 import '../widgets/lifestyle_section.dart';
 import '../widgets/personal_details_section.dart';
@@ -59,9 +59,9 @@ class _ProfileView extends ConsumerWidget {
       totalSteps: 5,
       ctaLabel: 'Next: Clinical Status',
       isSaving: state.isSaving,
-      onCta: () => context.go(RouteNames.step2Clinical),
-      onBack: () => context.go(RouteNames.step1Profile),
-      onSaveExit: () => context.go(RouteNames.step1Profile),
+      onCta: () => context.go(RouteNames.clinicalStatus),
+      onBack: () => context.go(RouteNames.patientProfile),
+      onSaveExit: () => context.go(RouteNames.patientProfile),
       child: _ProfileBody(
         state: state,
         openSection: openSection,

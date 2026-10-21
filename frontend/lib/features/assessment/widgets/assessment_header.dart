@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 
-/// Shared maroon wizard header used on every intake step.
+/// Shared maroon clinical header used across patient assessment sections.
 ///
 /// Shows the "Autosaved" indicator, shield logo + wordmark, a
-/// "Save & exit" glass pill, and the segmented step progress bar.
-class WizardHeader extends StatelessWidget {
-  const WizardHeader({
+/// "Save & exit" glass pill, and the segmented progress bar.
+class AssessmentHeader extends StatelessWidget {
+  const AssessmentHeader({
     super.key,
     required this.currentStep,
     required this.totalSteps,
@@ -232,3 +232,6 @@ class _StepProgress extends StatelessWidget {
     );
   }
 }
+
+/// Backward compatibility typedef alias.
+typedef WizardHeader = AssessmentHeader;

@@ -54,7 +54,7 @@ class ProfileController extends Notifier<ProfileState> {
   Future<void> _load() async {
     try {
       final PatientProfile profile =
-          await ref.read(intakeRepositoryProvider).fetchProfile();
+          await ref.read(patientProfileRepositoryProvider).fetchProfile();
       state = state.copyWith(profile: profile, clearError: true);
     } on Object catch (error) {
       state = state.copyWith(error: error.toString());
@@ -77,7 +77,7 @@ class ProfileController extends Notifier<ProfileState> {
 
     try {
       final PatientProfile saved =
-          await ref.read(intakeRepositoryProvider).saveProfile(next);
+          await ref.read(patientProfileRepositoryProvider).saveProfile(next);
       state = state.copyWith(
         profile: saved,
         isSaving: false,

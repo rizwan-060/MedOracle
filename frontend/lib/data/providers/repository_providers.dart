@@ -1,18 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../repositories/intake_repository.dart';
 import '../repositories/laboratory_repository.dart';
 import '../repositories/medical_history_repository.dart';
+import '../repositories/patient_profile_repository.dart';
 import '../repositories/symptoms_repository.dart';
 import '../services/api_service.dart';
 
-/// Single source of the intake repository for the whole app.
+/// Single source of the patient profile repository for the whole app.
 /// Backed by REST and connects to FastAPI backend with in-memory fallback.
-final Provider<IntakeRepository> intakeRepositoryProvider =
-    Provider<IntakeRepository>((Ref ref) {
+final Provider<PatientProfileRepository> patientProfileRepositoryProvider =
+    Provider<PatientProfileRepository>((Ref ref) {
   final ApiService apiService = ref.watch(apiServiceProvider);
-  return RestIntakeRepository(apiService);
+  return RestPatientProfileRepository(apiService);
 });
+
+/// Backward-compatible alias for existing callers.
+final Provider<PatientProfileRepository> intakeRepositoryProvider =
+    patientProfileRepositoryProvider;
 
 /// Medical and family history repository provider.
 final Provider<MedicalHistoryRepository> medicalHistoryRepositoryProvider =

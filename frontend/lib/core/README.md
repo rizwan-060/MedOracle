@@ -20,17 +20,16 @@ Fonts: `assets/fonts/PlusJakartaSans.ttf` (SIL OFL 1.1), registered in
 `route_names.dart` holds every path; `app_router.dart` builds the `GoRouter`.
 
 ```
-/intake/step-1   -> ProfileScreen          (built)
-/intake/step-2a  -> PendingStepScreen      (Clinical Status)
-/intake/step-2b  -> PendingStepScreen      (Medications & Family)
-/intake/step-3   -> PendingStepScreen      (Symptoms)
-/intake/step-4   -> PendingStepScreen      (Labs & Vitals)
-/intake/step-5   -> PendingStepScreen      (Review & Confirm)
-/results/*       -> assessment screens, next session
+/patient-profile        -> ProfileScreen          (built)
+/clinical-status        -> ClinicalStatusScreen   (built)
+/medications-family     -> MedicationsFamilyScreen(built)
+/symptoms               -> SymptomsScreen         (built)
+/laboratory-vitals      -> LabsVitalsScreen       (built)
+/assessment-review      -> ReviewConfirmScreen    (built)
+/results/reports        -> Clinical Reports       (pending)
 ```
 
-`initialLocation` is `/intake/step-1`. Replace each `PendingStepScreen` route
-with the real screen as it is built.
+`initialLocation` is `/patient-profile`. All assessment sections navigate via `RouteNames`.
 
 ## Reusable widgets (`core/widgets`)
 
