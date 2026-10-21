@@ -20,4 +20,7 @@ abstract final class IntakeRoutes {
 
   /// Step 6C — "How Our AI Reached This Result" (visual reasoning map).
   static const String reasoning = RouteNames.resultsReasoning;
+
+  /// Care finder — specialists near the patient (design "Find a Specialist").
+  static const String careFinder = RouteNames.resultsCareFinder;
 }
