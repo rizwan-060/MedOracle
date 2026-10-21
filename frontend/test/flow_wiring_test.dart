@@ -14,7 +14,6 @@ import 'package:medoracle/features/intake_wizard/screens/medications_family_scre
 import 'package:medoracle/features/intake_wizard/screens/review_confirm_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/risk_trajectory_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/symptoms_screen.dart';
-import 'package:medoracle/features/risk/screens/risk_analysis_screen.dart';
 
 void main() {
   const Size phone = Size(390, 844);
@@ -191,13 +190,6 @@ void main() {
     expect(find.text('View risk trajectory'), findsOneWidget);
   });
 
-  testWidgets('results hub renders', (WidgetTester tester) async {
-    await setPhone(tester, phone);
-    await tester.pumpWidget(withScope(const RiskAnalysisScreen()));
-    await tester.pumpAndSettle();
-    expect(find.text('Your heart risk is high'), findsOneWidget);
-  });
-
   testWidgets('care finder renders', (WidgetTester tester) async {
     await setPhone(tester, phone);
     await tester.pumpWidget(withScope(const DoctorRecommendationScreen()));
@@ -230,7 +222,6 @@ void main() {
       const FirstAssessmentScreen(),
       const RiskTrajectoryScreen(),
       const AssessmentMainFindingScreen(),
-      const RiskAnalysisScreen(),
       const DoctorRecommendationScreen(),
     ]) {
       await tester.pumpWidget(withScope(screen));
