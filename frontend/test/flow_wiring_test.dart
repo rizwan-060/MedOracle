@@ -140,6 +140,28 @@ void main() {
     expect(find.byType(FirstAssessmentScreen), findsOneWidget);
   });
 
+  testWidgets('main finding opens the explainable AI screen',
+      (WidgetTester tester) async {
+    await setPhone(tester, phone);
+
+    final GoRouter router = createAppRouter();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 600));
+
+    // The confidence block on Screen 6A is the way in to 6C.
+    router.go(RouteNames.resultsReports);
+    await tester.pumpAndSettle();
+    expect(find.byType(AssessmentMainFindingScreen), findsOneWidget);
+
+    await tapAndSettle(tester, find.text('How sure we are'));
+    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
+    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
+  });
+
   testWidgets('first assessment screen renders', (WidgetTester tester) async {
     await setPhone(tester, phone);
     await tester.pumpWidget(withScope(const FirstAssessmentScreen()));

@@ -10,6 +10,7 @@ import '../widgets/confidence_ring.dart';
 class MainFindingCard extends StatelessWidget {
   const MainFindingCard({
     super.key,
+    this.onReasoningTap,
     this.condition = 'Coronary Artery Disease Risk',
     this.urgencyLabel = 'High Urgency',
     this.confidence = 88.5,
@@ -18,6 +19,12 @@ class MainFindingCard extends StatelessWidget {
         'cholesterol results together point to an elevated risk of heart '
         'disease. We recommend an in-person check-up with a specialist soon.',
   });
+
+  /// Opens the explainable-AI screen (wired by the router).
+  ///
+  /// The confidence block is the way in to "How our AI reached this result";
+  /// when the callback is null the block renders as plain text.
+  final VoidCallback? onReasoningTap;
 
   final String condition;
   final String urgencyLabel;
@@ -73,37 +80,44 @@ class MainFindingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              ConfidenceRing(percent: confidence),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const <Widget>[
-                    Text(
-                      'How sure we are',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onReasoningTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  ConfidenceRing(percent: confidence),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const <Widget>[
+                        Text(
+                          'How sure we are',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Our AI analysis is 88.5% sure about this result',
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 18 / 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Our AI analysis is 88.5% sure about this result',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 18 / 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           Container(
             margin: const EdgeInsets.only(top: 24),

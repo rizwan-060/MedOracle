@@ -16,11 +16,16 @@ class AssessmentMainFindingScreen extends StatelessWidget {
   const AssessmentMainFindingScreen({
     super.key,
     this.onTrajectoryAction,
+    this.onReasoningAction,
     this.onClose,
   });
 
   /// Routes forward to the risk trajectory screen (wired by the router).
   final VoidCallback? onTrajectoryAction;
+
+  /// Routes to the explainable-AI screen, "How our AI reached this result"
+  /// (wired by the router).
+  final VoidCallback? onReasoningAction;
 
   /// Leaves the results flow back to Step 5 (wired by the router).
   final VoidCallback? onClose;
@@ -53,8 +58,8 @@ class AssessmentMainFindingScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: const <Widget>[
-                      MainFindingCard(),
+                    children: <Widget>[
+                      MainFindingCard(onReasoningTap: onReasoningAction),
                       DoctorToSeeBand(),
                       StackedReportsCard(),
                     ],

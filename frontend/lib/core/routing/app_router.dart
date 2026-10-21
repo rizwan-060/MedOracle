@@ -25,10 +25,12 @@ import 'route_names.dart';
 /// ```text
 /// /home              --Start New Assessment-->  /intake/step-1
 /// /intake/step-5  --Submit Assessment-->  /results/reports
-/// /results/reports --How we reached this result--> /results/reasoning
-/// /results/reasoning --View risk trajectory-->    /results/trajectory
-/// /results/trajectory --Find a cardiologist-->    /results/care-finder
-/// /results/*        --Back to results-->          /results/reports
+/// /results/reports --How sure we are-->      /results/reasoning
+/// /results/reports --View risk trajectory--> /results/trajectory
+/// /results/reasoning --View risk trajectory--> /results/trajectory
+/// /results/trajectory --Find a cardiologist--> /results/care-finder
+/// /results/*        --Back to results-->      /results/reports
+/// /results/reports --Done / Close-->          /home
 /// ```
 GoRouter createAppRouter() {
   return GoRouter(
@@ -90,6 +92,7 @@ GoRouter createAppRouter() {
         builder: (BuildContext context, GoRouterState state) =>
             AssessmentMainFindingScreen(
           onTrajectoryAction: () => context.push(RouteNames.resultsTrajectory),
+          onReasoningAction: () => context.push(RouteNames.resultsReasoning),
           onClose: () => context.go(RouteNames.home),
         ),
       ),
