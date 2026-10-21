@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medoracle/core/routing/app_router.dart';
 import 'package:medoracle/core/routing/route_names.dart';
 import 'package:medoracle/features/doctors/screens/doctor_recommendation_screen.dart';
+import 'package:medoracle/features/intake_wizard/screens/clinical_status_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/first_assessment_screen.dart';
+import 'package:medoracle/features/intake_wizard/screens/labs_vitals_screen.dart';
+import 'package:medoracle/features/intake_wizard/screens/medications_family_screen.dart';
+import 'package:medoracle/features/intake_wizard/screens/review_confirm_screen.dart';
 import 'package:medoracle/features/intake_wizard/screens/risk_trajectory_screen.dart';
+import 'package:medoracle/features/intake_wizard/screens/symptoms_screen.dart';
 import 'package:medoracle/features/risk/screens/risk_analysis_screen.dart';
 
 void main() {
+  const Size phone = Size(390, 844);
+
+  Future<void> setPhone(WidgetTester tester, Size size) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+  }
+
   Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
@@ -16,40 +30,93 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('results flow is fully navigable', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  Widget withScope(Widget child) =>
+      ProviderScope(child: MaterialApp(home: child));
+
+  testWidgets('intake wizard walks Steps 2A-5 and submits into the results',
+      (WidgetTester tester) async {
+    await setPhone(tester, phone);
 
     final GoRouter router = createAppRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
     // Let the mock profile load finish before leaving Step 1.
     await tester.pumpAndSettle(const Duration(milliseconds: 600));
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.step1Profile);
 
-    // Step 5 hands over to the first assessment screen.
-    router.go(RouteNames.resultsReasoning);
+    // Step 2A - Clinical Status
+    router.go(RouteNames.step2Clinical);
     await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.text('Next: Medications & Family'));
+
+    // Step 2B - Medications & Family
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.step2Medications);
+    await tapAndSettle(tester, find.text('Save & Continue'));
+
+    // Step 3 - Symptoms
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.step3Symptoms);
+    await tapAndSettle(tester, find.text('Next: Labs & Vitals'));
+
+    // Step 4 - Labs & Vitals
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.step4Labs);
+    await tapAndSettle(tester, find.text('Next: Review & Confirm'));
+
+    // Step 5 - Review & Confirm
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.step5Review);
+    await tapAndSettle(tester, find.text('Submit Assessment'));
+
+    // Submission lands on the results hub.
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.resultsReports);
+    expect(find.text('YOUR RESULT'), findsOneWidget);
+  });
+
+  testWidgets('results flow is fully navigable', (WidgetTester tester) async {
+    await setPhone(tester, phone);
+
+    final GoRouter router = createAppRouter();
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 600));
+
+    // Hub -> reasoning screen. Pushed screens are asserted by type: an
+    // imperative `push` does not rewrite the router's reported location.
+    router.go(RouteNames.resultsReports);
+    await tester.pumpAndSettle();
+    await tapAndSettle(tester, find.text('How we reached this result'));
+    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
     expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
 
     // Primary CTA -> risk trajectory (pushed on top of the reasoning screen).
     await tapAndSettle(tester, find.text('View risk trajectory'));
+    expect(find.byType(RiskTrajectoryScreen), findsOneWidget);
     expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
 
     // The pushed page keeps the reasoning screen on the stack.
     router.pop();
     await tester.pumpAndSettle();
+    expect(find.byType(FirstAssessmentScreen), findsOneWidget);
     expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
 
     // Primary CTA -> risk trajectory again.
     await tapAndSettle(tester, find.text('View risk trajectory'));
+    expect(find.byType(RiskTrajectoryScreen), findsOneWidget);
     expect(find.text('NEXT 12 MONTHS'), findsOneWidget);
 
     // Primary CTA -> care finder.
     await tapAndSettle(tester, find.text('Find a cardiologist near me'));
+    expect(find.byType(DoctorRecommendationScreen), findsOneWidget);
     expect(find.text('CARE NEAR YOU'), findsOneWidget);
 
     // Back to the trajectory.
@@ -62,54 +129,15 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.resultsReports);
 
-    // Hub -> reasoning again.
-    await tapAndSettle(tester, find.text('How we reached this result'));
-    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
-
-    // Close returns to the hub.
+    // Close returns to Step 5 of the wizard.
     await tapAndSettle(tester, find.text('Close'));
-    expect(find.text('YOUR RESULT'), findsOneWidget);
-  });
-
-  testWidgets('intake wizard advances and hands over to the results',
-      (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-
-    final GoRouter router = createAppRouter();
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle(const Duration(milliseconds: 600));
-
-    router.go(RouteNames.step2Clinical);
-    await tester.pumpAndSettle();
-    expect(find.text('Next: Medications & Family'), findsOneWidget);
-
-    await tapAndSettle(tester, find.text('Next: Medications & Family'));
-    expect(find.text('Next: Symptoms'), findsOneWidget);
-
-    await tapAndSettle(tester, find.text('Next: Symptoms'));
-    expect(find.text('Next: Labs & Vitals'), findsOneWidget);
-
-    await tapAndSettle(tester, find.text('Next: Labs & Vitals'));
-    expect(find.text('Next: Review & Confirm'), findsOneWidget);
-
-    await tapAndSettle(tester, find.text('Next: Review & Confirm'));
-    expect(find.text('Submit Assessment'), findsOneWidget);
-
-    await tapAndSettle(tester, find.text('Submit Assessment'));
-    expect(find.text('HOW OUR AI REACHED THIS RESULT'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path,
+        RouteNames.step5Review);
   });
 
   testWidgets('first assessment screen renders', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      const MaterialApp(home: FirstAssessmentScreen()),
-    );
+    await setPhone(tester, phone);
+    await tester.pumpWidget(withScope(const FirstAssessmentScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Visual reasoning map'), findsOneWidget);
     expect(find.text('The 3 specialist checks'), findsOneWidget);
@@ -117,48 +145,55 @@ void main() {
   });
 
   testWidgets('risk trajectory screen renders', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      const MaterialApp(home: RiskTrajectoryScreen()),
-    );
+    await setPhone(tester, phone);
+    await tester.pumpWidget(withScope(const RiskTrajectoryScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Your heart risk is rising'), findsOneWidget);
     expect(find.text('WHAT HELPS MOST'), findsOneWidget);
   });
 
   testWidgets('results hub renders', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(const MaterialApp(home: RiskAnalysisScreen()));
+    await setPhone(tester, phone);
+    await tester.pumpWidget(withScope(const RiskAnalysisScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Your heart risk is high'), findsOneWidget);
   });
 
   testWidgets('care finder renders', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      const MaterialApp(home: DoctorRecommendationScreen()),
-    );
+    await setPhone(tester, phone);
+    await tester.pumpWidget(withScope(const DoctorRecommendationScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Cardiologists near you'), findsOneWidget);
   });
 
-  testWidgets('screens survive a small viewport', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(360, 640);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets('intake step screens render', (WidgetTester tester) async {
+    await setPhone(tester, phone);
     for (final Widget screen in <Widget>[
+      const ClinicalStatusScreen(),
+      const MedicationsFamilyScreen(),
+      const SymptomsScreen(),
+      const LabsVitalsScreen(),
+      const ReviewConfirmScreen(),
+    ]) {
+      await tester.pumpWidget(withScope(screen));
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets('screens survive a small viewport', (WidgetTester tester) async {
+    await setPhone(tester, const Size(360, 640));
+    for (final Widget screen in <Widget>[
+      const ClinicalStatusScreen(),
+      const MedicationsFamilyScreen(),
+      const SymptomsScreen(),
+      const LabsVitalsScreen(),
+      const ReviewConfirmScreen(),
       const FirstAssessmentScreen(),
       const RiskTrajectoryScreen(),
       const RiskAnalysisScreen(),
       const DoctorRecommendationScreen(),
     ]) {
-      await tester.pumpWidget(MaterialApp(home: screen));
+      await tester.pumpWidget(withScope(screen));
       await tester.pumpAndSettle();
     }
   });
