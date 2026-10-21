@@ -97,27 +97,34 @@ class _MedOracleLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CustomPaint(
-          size: const Size(22, 24),
-          painter: _ShieldCrossPainter(
-            shieldFill: AppColors.cardSurface,
-            crossColor: AppColors.primaryMaroon,
+    // The header row squeezes this slot (Autosaved + Save & exit take the
+    // rest), so scale the whole lockup down instead of overflowing.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CustomPaint(
+            size: const Size(22, 24),
+            painter: _ShieldCrossPainter(
+              shieldFill: AppColors.cardSurface,
+              crossColor: AppColors.primaryMaroon,
+            ),
           ),
-        ),
-        const SizedBox(width: 6),
-        const Text(
-          'MedOracle',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: AppColors.cardSurface,
+          const SizedBox(width: 6),
+          const Text(
+            'MedOracle',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppColors.cardSurface,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
