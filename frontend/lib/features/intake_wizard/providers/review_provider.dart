@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/models/patient_profile_model.dart';
+import '../../profile/providers/profile_controller.dart';
+
 /// Read-only profile facts summarized on the Review & Confirm step.
 ///
-/// TODO: replace the default instance with a combiner over the existing
-/// profile wizard provider (built in an earlier task) once its field names
-/// are wired in — the Review screen only reads this shape.
+/// Dynamically reads from [profileControllerProvider] and reflects user inputs.
 class ReviewProfileSummary {
   const ReviewProfileSummary({
     this.age = '54 years',
@@ -15,6 +16,20 @@ class ReviewProfileSummary {
   final String smokingStatus;
 }
 
-final reviewProfileProvider = Provider<ReviewProfileSummary>(
-  (Ref ref) => const ReviewProfileSummary(),
-);
+final Provider<ReviewProfileSummary> reviewProfileProvider =
+    Provider<ReviewProfileSummary>((Ref ref) {
+  final ProfileState profileState = ref.watch(profileControllerProvider);
+  final PatientProfile? profile = profileState.profile;
+
+  if (profile != null) {
+    final String smokingLabel = profile.smokingStatus.toLowerCase() == 'never'
+        ? 'Non-smoker'
+        : '${profile.smokingStatus} smoker';
+    return ReviewProfileSummary(
+      age: '${profile.age} years',
+      smokingStatus: smokingLabel,
+    );
+  }
+
+  return const ReviewProfileSummary();
+});

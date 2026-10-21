@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/models/medical_history_model.dart';
+import '../../../data/providers/repository_providers.dart';
+import 'clinical_status_provider.dart';
+
 /// A single committed medication entry.
 class MedicationEntry {
   const MedicationEntry({
@@ -33,8 +37,30 @@ class FamilyHistoryRecord {
 /// Immutable form state for the "Medications & Family" wizard step.
 class MedicationsFamilyState {
   const MedicationsFamilyState({
-    this.medications = const [],
-    this.familyRecords = const [],
+    this.medications = const [
+      MedicationEntry(
+        name: 'Amlodipine',
+        dosage: '5mg',
+        frequency: 'Once Daily',
+      ),
+      MedicationEntry(
+        name: 'Atorvastatin',
+        dosage: '20mg',
+        frequency: 'At bedtime',
+      ),
+    ],
+    this.familyRecords = const [
+      FamilyHistoryRecord(
+        relative: 'Father',
+        ageAtDiagnosis: '55',
+        condition: 'Myocardial infarction',
+      ),
+      FamilyHistoryRecord(
+        relative: 'Mother',
+        ageAtDiagnosis: '62',
+        condition: 'Type 2 Diabetes',
+      ),
+    ],
     this.medNameDraft = '',
     this.dosageDraft = '',
     this.frequencyDraft = '',
@@ -97,7 +123,76 @@ class MedicationsFamilyState {
 
 class MedicationsFamilyController extends Notifier<MedicationsFamilyState> {
   @override
-  MedicationsFamilyState build() => const MedicationsFamilyState();
+  MedicationsFamilyState build() {
+    Future<void>.microtask(_load);
+    return const MedicationsFamilyState();
+  }
+
+  Future<void> _load() async {
+    try {
+      final MedicalHistoryModel history = await ref
+          .read(medicalHistoryRepositoryProvider)
+          .fetchMedicalHistory();
+      if (history.currentMedications.isNotEmpty ||
+          history.familyHistory.isNotEmpty) {
+        final List<MedicationEntry> meds = history.currentMedications
+            .map((m) => MedicationEntry(
+                  name: m['name']?.toString() ?? '',
+                  dosage: m['dosage']?.toString() ?? '',
+                  frequency: m['frequency']?.toString() ?? '',
+                ))
+            .where((m) => m.name.isNotEmpty)
+            .toList();
+
+        final List<FamilyHistoryRecord> family = history.familyHistory
+            .map((f) => FamilyHistoryRecord(
+                  relative: f['relative']?.toString() ?? '',
+                  ageAtDiagnosis: f['age_at_onset']?.toString() ?? '',
+                  condition: f['condition']?.toString() ?? '',
+                ))
+            .where((f) => f.relative.isNotEmpty)
+            .toList();
+
+        state = state.copyWith(
+          medications: meds.isNotEmpty ? meds : state.medications,
+          familyRecords: family.isNotEmpty ? family : state.familyRecords,
+        );
+      }
+    } catch (_) {
+      // Retain seeded defaults on network error
+    }
+  }
+
+  Future<void> save() async {
+    try {
+      final ClinicalStatusState clinical = ref.read(clinicalStatusProvider);
+      final MedicalHistoryModel model = MedicalHistoryModel(
+        chronicConditions: clinical.conditions,
+        pastSurgeries: clinical.surgeries,
+        allergies: clinical.allergies,
+        notes: clinical.notes,
+        currentMedications: state.medications
+            .map((m) => <String, dynamic>{
+                  'name': m.name,
+                  'dosage': m.dosage,
+                  'frequency': m.frequency,
+                })
+            .toList(),
+        familyHistory: state.familyRecords
+            .map((f) => <String, dynamic>{
+                  'relative': f.relative,
+                  'age_at_onset': int.tryParse(f.ageAtDiagnosis) ?? 50,
+                  'condition': f.condition,
+                })
+            .toList(),
+      );
+      await ref
+          .read(medicalHistoryRepositoryProvider)
+          .saveMedicalHistory(model);
+    } catch (_) {
+      // Retain state on network error
+    }
+  }
 
   void setMedNameDraft(String value) =>
       state = state.copyWith(medNameDraft: value);
@@ -108,8 +203,7 @@ class MedicationsFamilyController extends Notifier<MedicationsFamilyState> {
   void setFrequencyDraft(String value) =>
       state = state.copyWith(frequencyDraft: value);
 
-  /// Commits the medication draft (or an explicit entry) and clears the
-  /// draft fields.
+  /// Commits the medication draft and clears draft fields.
   void addMedication() {
     if (!state.canAddMedication) return;
     state = state.copyWith(
@@ -125,12 +219,14 @@ class MedicationsFamilyController extends Notifier<MedicationsFamilyState> {
       dosageDraft: '',
       frequencyDraft: '',
     );
+    save();
   }
 
   void removeMedication(String label) {
     state = state.copyWith(
       medications: state.medications.where((m) => m.label != label).toList(),
     );
+    save();
   }
 
   void toggleFamilyExpanded() {
@@ -160,6 +256,7 @@ class MedicationsFamilyController extends Notifier<MedicationsFamilyState> {
       ageDraft: '',
       conditionDraft: '',
     );
+    save();
   }
 
   void removeFamilyRecord(String label) {
@@ -167,10 +264,12 @@ class MedicationsFamilyController extends Notifier<MedicationsFamilyState> {
       familyRecords:
           state.familyRecords.where((r) => r.label != label).toList(),
     );
+    save();
   }
 }
 
-final medicationsFamilyProvider =
+final NotifierProvider<MedicationsFamilyController, MedicationsFamilyState>
+    medicationsFamilyProvider =
     NotifierProvider<MedicationsFamilyController, MedicationsFamilyState>(
   MedicationsFamilyController.new,
 );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/intake/screens/pending_step_screen.dart';
@@ -9,6 +10,15 @@ import '../../features/intake_wizard/screens/review_confirm_screen.dart';
 import '../../features/intake_wizard/screens/symptoms_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import 'route_names.dart';
+
+/// Riverpod provider exposing the application [GoRouter].
+///
+/// Reactive and injectable for auth guard redirects and state-driven routing.
+final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
+  final GoRouter router = createAppRouter();
+  ref.onDispose(router.dispose);
+  return router;
+});
 
 /// Application router.
 ///

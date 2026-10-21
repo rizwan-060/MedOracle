@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
 import '../providers/medications_family_provider.dart';
 import '../widgets/dashed_add_button.dart';
 import '../widgets/field_label.dart';
@@ -19,7 +19,7 @@ import '../widgets/wizard_next_back_buttons.dart';
 class MedicationsFamilyScreen extends ConsumerWidget {
   const MedicationsFamilyScreen({super.key});
 
-  static const String routePath = IntakeRoutes.medicationsFamily;
+  static const String routePath = RouteNames.medicationsFamily;
 
   static const List<String> _frequencies = <String>[
     'Once Daily',
@@ -204,10 +204,10 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Save & Continue',
-                      onTap: () => context.go(IntakeRoutes.symptoms),
+                      onTap: () => context.go(RouteNames.symptoms),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.clinicalStatus),
+                      onTap: () => context.go(RouteNames.clinicalStatus),
                     ),
                   ],
                 ),

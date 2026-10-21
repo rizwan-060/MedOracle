@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
 import '../providers/clinical_status_provider.dart';
 import '../providers/labs_vitals_provider.dart';
 import '../providers/medications_family_provider.dart';
@@ -24,7 +24,7 @@ import '../widgets/wizard_next_back_buttons.dart';
 class ReviewConfirmScreen extends ConsumerWidget {
   const ReviewConfirmScreen({super.key});
 
-  static const String routePath = IntakeRoutes.review;
+  static const String routePath = RouteNames.review;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,7 +69,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Profile & Demographics',
                       trailing: EditIconButton(
                         tooltip: 'Edit Profile & Demographics',
-                        onTap: () => context.go(IntakeRoutes.profile),
+                        onTap: () => context.go(RouteNames.profile),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -100,7 +100,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       trailing: EditIconButton(
                         tooltip: 'Edit Clinical History',
                         onTap: () =>
-                            context.go(IntakeRoutes.clinicalStatus),
+                            context.go(RouteNames.clinicalStatus),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -172,7 +172,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Active Symptoms',
                       trailing: EditIconButton(
                         tooltip: 'Edit Active Symptoms',
-                        onTap: () => context.go(IntakeRoutes.symptoms),
+                        onTap: () => context.go(RouteNames.symptoms),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -217,7 +217,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Lab Values',
                       trailing: EditIconButton(
                         tooltip: 'Edit Lab Values',
-                        onTap: () => context.go(IntakeRoutes.labsVitals),
+                        onTap: () => context.go(RouteNames.labsVitals),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -284,10 +284,22 @@ class ReviewConfirmScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
                     GradientNextButton(
                       label: 'Submit Assessment',
-                      onTap: () => context.go(IntakeRoutes.results),
+                      onTap: () async {
+                        // Synchronize any pending updates from all wizard steps
+                        await ref.read(clinicalStatusProvider.notifier).save();
+                        await ref
+                            .read(medicationsFamilyProvider.notifier)
+                            .save();
+                        await ref.read(symptomsProvider.notifier).save();
+                        await ref.read(labsVitalsProvider.notifier).save();
+
+                        if (context.mounted) {
+                          context.go(RouteNames.results);
+                        }
+                      },
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.labsVitals),
+                      onTap: () => context.go(RouteNames.labsVitals),
                     ),
                   ],
                 ),

@@ -14,29 +14,19 @@ void main() {
 }
 
 /// Root application widget.
-class MedOracleApp extends StatefulWidget {
+class MedOracleApp extends ConsumerWidget {
   const MedOracleApp({super.key});
 
   @override
-  State<MedOracleApp> createState() => _MedOracleAppState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final GoRouter router = ref.watch(routerProvider);
 
-class _MedOracleAppState extends State<MedOracleApp> {
-  late final GoRouter _router = createAppRouter();
-
-  @override
-  void dispose() {
-    _router.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'MedOracle',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      routerConfig: _router,
+      routerConfig: router,
     );
   }
 }
+

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_text_field.dart';
 
-/// Multi-line "Clinical Notes" input matching the design's 80px
-/// bordered textarea with muted placeholder.
+/// Multi-line notes input matching the design's bordered textarea with muted placeholder.
+/// Delegates directly to the generic [AppTextField] core widget.
 class NotesTextArea extends StatelessWidget {
   const NotesTextArea({
     super.key,
@@ -16,45 +17,17 @@ class NotesTextArea extends StatelessWidget {
   final TextEditingController? controller;
   final String? hintText;
   final ValueChanged<String>? onChanged;
-
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppTextField(
+      controller: controller,
+      hintText: hintText,
+      onChanged: onChanged,
+      maxLines: 3,
       height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.dustyTaupe, width: 1.5),
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        maxLines: null,
-        expands: true,
-        textAlignVertical: TextAlignVertical.top,
-        cursorColor: AppColors.primaryMaroon,
-        style: const TextStyle(
-          fontSize: 14,
-          height: 20 / 14,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
-        ),
-        decoration: InputDecoration(
-          isDense: true,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-          hintText: hintText,
-          hintStyle: const TextStyle(
-            fontSize: 14,
-            height: 20 / 14,
-            fontWeight: FontWeight.w400,
-            color: AppColors.textMuted,
-          ),
-        ),
-      ),
+      borderColor: AppColors.dustyTaupe,
     );
   }
 }

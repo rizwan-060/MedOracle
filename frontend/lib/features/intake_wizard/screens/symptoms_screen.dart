@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
 import '../providers/symptoms_provider.dart';
 import '../widgets/combo_input_field.dart';
 import '../widgets/dashed_add_button.dart';
@@ -21,7 +21,7 @@ import '../widgets/wizard_next_back_buttons.dart';
 class SymptomsScreen extends ConsumerStatefulWidget {
   const SymptomsScreen({super.key});
 
-  static const String routePath = IntakeRoutes.symptoms;
+  static const String routePath = RouteNames.symptoms;
 
   @override
   ConsumerState<SymptomsScreen> createState() => _SymptomsScreenState();
@@ -228,10 +228,10 @@ class _SymptomsScreenState extends ConsumerState<SymptomsScreen> {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Next: Labs & Vitals',
-                      onTap: () => context.go(IntakeRoutes.labsVitals),
+                      onTap: () => context.go(RouteNames.labsVitals),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.medicationsFamily),
+                      onTap: () => context.go(RouteNames.medicationsFamily),
                     ),
                   ],
                 ),

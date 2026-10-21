@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
 import '../providers/clinical_status_provider.dart';
 import '../widgets/add_pill_button.dart';
 import '../widgets/combo_input_field.dart';
@@ -19,7 +19,7 @@ import '../widgets/wizard_next_back_buttons.dart';
 class ClinicalStatusScreen extends ConsumerWidget {
   const ClinicalStatusScreen({super.key});
 
-  static const String routePath = IntakeRoutes.clinicalStatus;
+  static const String routePath = RouteNames.clinicalStatus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -115,10 +115,10 @@ class ClinicalStatusScreen extends ConsumerWidget {
                     GradientNextButton(
                       label: 'Next: Medications & Family',
                       onTap: () =>
-                          context.go(IntakeRoutes.medicationsFamily),
+                          context.go(RouteNames.medicationsFamily),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.profile),
+                      onTap: () => context.go(RouteNames.profile),
                     ),
                   ],
                 ),
