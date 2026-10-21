@@ -58,7 +58,7 @@ abstract final class AppTheme {
       ),
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: AppColors.refPlum,
-        selectionColor: Color(0x55614051),
+        selectionColor: Color(0x556C3B43),
         selectionHandleColor: AppColors.refPlum,
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

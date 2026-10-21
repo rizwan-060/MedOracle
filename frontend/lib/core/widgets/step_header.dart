@@ -35,7 +35,7 @@ class StepHeader extends StatelessWidget {
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Color(0xCC321926),
+            color: AppColors.headerShadow,
             offset: Offset(0, 18),
             blurRadius: 32,
             spreadRadius: -20,
@@ -64,7 +64,9 @@ class StepHeader extends StatelessWidget {
               top: 0,
               left: 0,
               right: 0,
-              child: ColoredBox(color: Color(0x24FFFFFF), child: SizedBox(height: 1)),
+              child: ColoredBox(
+                  color: AppColors.headerHighlight,
+                  child: SizedBox(height: 1)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),

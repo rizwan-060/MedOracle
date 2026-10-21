@@ -37,17 +37,17 @@ class GradientCtaButton extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: enabled ? AppColors.ctaGradient : null,
                 color: enabled ? null : AppColors.dustyTaupe,
-                border: Border.all(color: const Color(0x38FFFFFF)),
+                border: Border.all(color: AppColors.ctaBorder),
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: const <BoxShadow>[
                   BoxShadow(
-                    color: Color(0xB3614051),
+                    color: AppColors.controlShadowStrong,
                     offset: Offset(0, 12),
                     blurRadius: 24,
                     spreadRadius: -8,
                   ),
                   BoxShadow(
-                    color: Color(0x4D261B22),
+                    color: AppColors.controlShadowSoft,
                     offset: Offset(0, 1),
                     blurRadius: 3,
                   ),

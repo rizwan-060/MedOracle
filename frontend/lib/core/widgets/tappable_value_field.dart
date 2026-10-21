@@ -82,7 +82,7 @@ class _TappableValueFieldState extends State<TappableValueField> {
               boxShadow: focused
                   ? const <BoxShadow>[
                       BoxShadow(
-                        color: Color(0x47614051),
+                        color: AppColors.focusRing,
                         blurRadius: 0,
                         spreadRadius: 4,
                       ),

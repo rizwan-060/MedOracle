@@ -35,26 +35,36 @@ abstract final class AppColors {
   // ---------------------------------------------------------------------------
   //
 
-  /// Primary ink used for body copy, headings and chevrons (`#261B22`).
-  static const Color refInk = Color(0xFF261B22);
+  /// Primary ink used for body copy, headings and chevrons.
+  ///
+  /// Aliases [textPrimary] so Step 1 matches the palette used by Steps 2-5.
+  static const Color refInk = textPrimary;
 
-  /// Plum-maroon used for the header, primary CTA and selected controls.
-  static const Color refPlum = Color(0xFF614051);
+  /// Maroon used for the header, primary CTA and selected controls.
+  ///
+  /// Aliases [primaryMaroon] so Step 1 matches the palette used by Steps 2-5.
+  static const Color refPlum = primaryMaroon;
 
   /// Top stop of the primary CTA / selected-segment gradient.
-  static const Color refPlumLight = Color(0xFF755062);
+  static const Color refPlumLight = primaryMaroon;
 
   /// Bottom stop of the primary CTA gradient.
-  static const Color refPlumDark = Color(0xFF523543);
+  static const Color refPlumDark = maroonDark;
 
   /// Border colour of resting text fields and segmented options.
-  static const Color refFieldBorder = Color(0xFF7D6E83);
+  ///
+  /// Aliases [dustyTaupe] so Step 1 matches the palette used by Steps 2-5.
+  static const Color refFieldBorder = dustyTaupe;
 
   /// Secondary text: field sub-values, units, card sub-titles.
-  static const Color refSubtitle = Color(0xFF5B4A55);
+  ///
+  /// Aliases [textMuted] so Step 1 matches the palette used by Steps 2-5.
+  static const Color refSubtitle = textMuted;
 
-  /// Mint tint used for "positive" micro-labels.
-  static const Color refMint = Color(0xFFDFF0E6);
+  /// Tint used for "positive" micro-labels.
+  ///
+  /// Aliases [greenSurface] so Step 1 matches the palette used by Steps 2-5.
+  static const Color refMint = greenSurface;
 
   /// Fill of the autosaved check circle.
   static const Color refAutosaveCircle = Color(0xFF8FC4A8);
@@ -65,16 +75,13 @@ abstract final class AppColors {
   /// Progress rail colour for inactive steps (white at 22% opacity).
   static const Color refProgressIdle = Color(0x38FFFFFF);
 
-  /// Left stop of the active progress rail gradient.
-  static const Color refProgressActiveStart = Color(0xFFC5C7D8);
-
-  /// Right stop of the active progress rail gradient.
-  static const Color refProgressActiveEnd = Color(0xFF8C92AC);
+  /// Active progress rail fill (matches Steps 2-5's solid white track).
+  static const Color refProgressActive = onPlum;
 
   /// Canvas gradient stops (top -> mid -> bottom).
-  static const Color refCanvasTop = Color(0xFFDDD5DC);
-  static const Color refCanvasMid = Color(0xFFEAE4EA);
-  static const Color refCanvasBottom = Color(0xFFF5F1F5);
+  static const Color refCanvasTop = dustyTaupe;
+  static const Color refCanvasMid = canvasBackground;
+  static const Color refCanvasBottom = canvasBackground;
 
   /// Glow tints painted behind the expanded (active) card.
   static const Color refGlowA = Color(0xFF8C92AC);
@@ -89,6 +96,36 @@ abstract final class AppColors {
   /// Text colour used on maroon surfaces.
   static const Color onPlum = Color(0xFFFFFFFF);
 
+  /// Drop shadow under the maroon header (maroon dark at 80% opacity).
+  static const Color headerShadow = Color(0xCC4E2831);
+
+  /// 1px light top highlight on the maroon header (white at 14%).
+  static const Color headerHighlight = Color(0x24FFFFFF);
+
+  /// Soft maroon shadow cast by raised controls (maroon at 70%).
+  static const Color controlShadowStrong = Color(0xB36C3B43);
+
+  /// Tighter soft shadow under raised controls (ink at 30%).
+  static const Color controlShadowSoft = Color(0x4D1C1819);
+
+  /// Ring drawn around a focused field (maroon at 28%).
+  static const Color focusRing = Color(0x476C3B43);
+
+  /// Shadow under a selected segmented option (maroon at 65%).
+  static const Color segmentShadowSelected = Color(0xA66C3B43);
+
+  /// Shadow under an unselected segmented option (maroon at 30%).
+  static const Color segmentShadowIdle = Color(0x4D6C3B43);
+
+  /// Drop shadow under the footer glass pill (maroon at 38%).
+  static const Color glassPillShadow = Color(0x616C3B43);
+
+  /// 1px light border on the primary CTA (white at 22%).
+  static const Color ctaBorder = Color(0x38FFFFFF);
+
+  /// Fill of an unselected segmented option (white at 62%).
+  static const Color segmentIdleFill = Color(0x9EFFFFFF);
+
   //
   // ---------------------------------------------------------------------------
   // Gradients
@@ -96,18 +133,21 @@ abstract final class AppColors {
   //
 
   /// Full-screen canvas wash behind scrollable cards.
+  ///
+  /// Matches the Steps 2-5 chrome: dusty taupe fading into the canvas
+  /// background by 35% of the height.
   static const LinearGradient canvasGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [refCanvasTop, refCanvasMid, refCanvasBottom],
-    stops: [0.0, 0.45, 1.0],
+    colors: [dustyTaupe, canvasBackground],
+    stops: [0.0, 0.35],
   );
 
   /// Primary call-to-action background.
   static const LinearGradient ctaGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [refPlumLight, refPlum, refPlumDark],
+    colors: [primaryMaroon, primaryMaroon, maroonDark],
     stops: [0.0, 0.55, 1.0],
   );
 
@@ -125,9 +165,9 @@ abstract final class AppColors {
     colors: [Color(0x3DFFFFFF), Color(0x05FFFFFF)],
   );
 
-  /// Active progress rail.
+  /// Active progress rail (solid white, matching Steps 2-5).
   static const LinearGradient progressActiveGradient = LinearGradient(
-    colors: [refProgressActiveStart, refProgressActiveEnd],
+    colors: [refProgressActive, refProgressActive],
   );
 
   /// Glossy white pill fill used for secondary header/footer actions.
