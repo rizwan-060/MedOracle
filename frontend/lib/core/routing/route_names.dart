@@ -9,10 +9,11 @@ abstract final class RouteNames {
   static const String step4Labs = '$intakeRoot/step-4';
   static const String step5Review = '$intakeRoot/step-5';
 
-  // --- Assessment (results) flow - built in a later session ---------------
+  // --- Assessment (results) flow -------------------------------------------
   static const String resultsRoot = '/results';
   static const String resultsReports = '$resultsRoot/reports';
   static const String resultsTrajectory = '$resultsRoot/trajectory';
   static const String resultsReasoning = '$resultsRoot/reasoning';
+  static const String resultsCareFinder = '$resultsRoot/care-finder';
   static const String resultsSimulate = '$resultsRoot/simulate';
 }

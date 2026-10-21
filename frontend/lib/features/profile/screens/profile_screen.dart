@@ -59,7 +59,7 @@ class _ProfileView extends ConsumerWidget {
       totalSteps: 5,
       ctaLabel: 'Next: Clinical Status',
       isSaving: state.isSaving,
-      onCta: () => context.go(RouteNames.step2Clinical),
+      onCta: () => context.push(RouteNames.step2Clinical),
       onBack: () => context.go(RouteNames.step1Profile),
       onSaveExit: () => context.go(RouteNames.step1Profile),
       child: _ProfileBody(
