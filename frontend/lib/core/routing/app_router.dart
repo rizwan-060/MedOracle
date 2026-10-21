@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/dashboard/screens/home_dashboard_screen.dart';
 import '../../features/doctors/screens/doctor_recommendation_screen.dart';
 import '../../features/intake_wizard/screens/clinical_status_screen.dart';
 import '../../features/intake_wizard/screens/first_assessment_screen.dart';
@@ -22,6 +23,7 @@ import 'route_names.dart';
 /// same way:
 ///
 /// ```text
+/// /home              --Start New Assessment-->  /intake/step-1
 /// /intake/step-5  --Submit Assessment-->  /results/reports
 /// /results/reports --How we reached this result--> /results/reasoning
 /// /results/reasoning --View risk trajectory-->    /results/trajectory
@@ -36,6 +38,13 @@ GoRouter createAppRouter() {
         path: '/',
         redirect: (BuildContext context, GoRouterState state) =>
             RouteNames.step1Profile,
+      ),
+
+      // --- Home hub -----------------------------------------------------------
+      GoRoute(
+        path: RouteNames.home,
+        builder: (BuildContext context, GoRouterState state) =>
+            const HomeDashboardScreen(),
       ),
 
       // --- Intake wizard ----------------------------------------------------
