@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medoracle/core/routing/app_router.dart';
 import 'package:medoracle/core/routing/route_names.dart';
+import 'package:medoracle/features/assessment/screens/assessment_main_finding_screen.dart';
 import 'package:medoracle/features/dashboard/screens/home_dashboard_screen.dart';
 
 void main() {
@@ -65,7 +66,7 @@ void main() {
         RouteNames.step1Profile);
   });
 
-  testWidgets('view full report routes to the results hub',
+  testWidgets('view full report routes to the main finding',
       (WidgetTester tester) async {
     await setPhone(tester, phone);
     final GoRouter router = await pumpDashboard(tester);
@@ -75,6 +76,8 @@ void main() {
 
     expect(router.routeInformationProvider.value.uri.path,
         RouteNames.resultsReports);
+    expect(find.byType(AssessmentMainFindingScreen), findsOneWidget);
+    expect(find.text('Main finding'), findsOneWidget);
   });
 
   testWidgets('dashboard survives a small viewport', (WidgetTester tester) async {
