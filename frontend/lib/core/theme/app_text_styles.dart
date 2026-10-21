@@ -167,4 +167,160 @@ abstract final class AppTextStyles {
     fontVariations: <FontVariation>[FontVariation('wght', 500)],
     color: AppColors.refSubtitle,
   );
+
+  // ---------------------------------------------------------------------------
+  // Assessment / results surfaces
+  // ---------------------------------------------------------------------------
+
+  /// Uppercase eyebrow above a results headline (12 / 16 / 800).
+  static const TextStyle eyebrow = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    height: 16 / 12,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    letterSpacing: 1.2,
+    color: AppColors.refSubtitle,
+  );
+
+  /// Results screen headline (30 / 38 / 800).
+  static const TextStyle resultsHeadline = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 30,
+    height: 38 / 30,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    color: AppColors.refInk,
+  );
+
+  /// Serif italic accent inside the results headline (38 / 38 / 400).
+  static const TextStyle resultsHeadlineAccent = TextStyle(
+    fontFamily: 'Instrument Serif',
+    fontFamilyFallback: <String>['Georgia', 'Times New Roman', 'serif'],
+    fontSize: 38,
+    height: 38 / 38,
+    fontStyle: FontStyle.italic,
+    fontWeight: FontWeight.w400,
+    color: AppColors.refInk,
+  );
+
+  /// Body copy under a results headline (15 / 22 / 500).
+  static const TextStyle resultsBody = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    height: 22 / 15,
+    fontWeight: FontWeight.w500,
+    fontVariations: <FontVariation>[FontVariation('wght', 500)],
+    color: AppColors.refSubtitle,
+  );
+
+  /// Conclusion line inside a results card (20 / 26 / 800).
+  static const TextStyle cardHeadline = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 20,
+    height: 26 / 20,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    color: AppColors.refInk,
+  );
+
+  /// Chip / pill label (13 / 18 / 600).
+  static const TextStyle chipLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 18 / 13,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.refInk,
+  );
+
+  /// Label above a value inside a detail tile (12 / 16 / 600).
+  static const TextStyle statLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    height: 16 / 12,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.refSubtitle,
+  );
+
+  /// Value inside a detail tile (22 / 28 / 800).
+  static const TextStyle statValue = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 22,
+    height: 28 / 22,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    color: AppColors.refInk,
+  );
+
+  /// Large headline metric (32 / 38 / 800).
+  static const TextStyle metricValue = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 32,
+    height: 38 / 32,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    color: AppColors.refInk,
+  );
+
+  /// Caption next to a headline metric (13 / 18 / 600).
+  static const TextStyle metricLabel = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 18 / 13,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.refSubtitle,
+  );
+
+  /// Emphasised body copy inside a callout (15 / 22 / 600).
+  static const TextStyle bodyEmphasis = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    height: 22 / 15,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.refInk,
+  );
+
+  /// `Completed` status label (12 / 16 / 700).
+  static const TextStyle statusBadge = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    height: 16 / 12,
+    fontWeight: FontWeight.w700,
+    fontVariations: <FontVariation>[FontVariation('wght', 700)],
+    color: AppColors.mutedGreen,
+  );
+
+  /// Fine print under the results actions (12.5 / 18 / 600).
+  static const TextStyle finePrint = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12.5,
+    height: 18 / 12.5,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.refSubtitle,
+  );
+
+  /// Conclusion bar of the reasoning map (15 / 20 / 800).
+  static const TextStyle resultBarTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    height: 20 / 15,
+    fontWeight: FontWeight.w800,
+    fontVariations: <FontVariation>[FontVariation('wght', 800)],
+    color: AppColors.onPlum,
+  );
+
+  /// Confidence line under the conclusion bar (13 / 18 / 600).
+  static const TextStyle resultBarConfidence = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 18 / 13,
+    fontWeight: FontWeight.w600,
+    fontVariations: <FontVariation>[FontVariation('wght', 600)],
+    color: AppColors.onPlum,
+  );
 }
