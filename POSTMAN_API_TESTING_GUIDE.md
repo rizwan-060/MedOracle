@@ -745,11 +745,10 @@ Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated con
 - **Headers:**  
   `Authorization: Bearer {{accessToken}}`  
   `Content-Type: application/json`
-- **Body Example (Male Patient):**
+- **Body Example (Male Patient - Note: pregnancies field is strictly omitted):**
 ```json
 {
   "gender": "male",
-  "pregnancies": 0,
   "glucose": 148.0,
   "blood_pressure": 72.0,
   "skin_thickness": 35.0,
@@ -811,9 +810,18 @@ Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated con
 }
 ```
 
-- **Validation Test (Biological Contradiction Check):**
-  - Send: `{"gender": "male", "pregnancies": 3, "glucose": 140, "blood_pressure": 80, "bmi": 28, "diabetes_pedigree": 0.5, "age": 45}`
-  - Expected Status: `422 Unprocessable Entity` with error message `"Biological contradiction: Male patients cannot have pregnancies > 0."`
+- **Validation Tests (Strict Male Pregnancy Contradiction Checks):**
+  - **Case 1 (Male entering `pregnancies: 0` - Rejection Test):**
+    - Send: `{"gender": "male", "pregnancies": 0, "glucose": 140, "blood_pressure": 80, "bmi": 28, "diabetes_pedigree": 0.5, "age": 45}`
+    - Expected Status: `422 Unprocessable Entity`
+    - Error Detail: `"Biological contradiction: Male patients must not provide a pregnancies field. Omit this field entirely for male patients."`
+  - **Case 2 (Male entering `pregnancies > 0` - Rejection Test):**
+    - Send: `{"gender": "male", "pregnancies": 3, "glucose": 140, "blood_pressure": 80, "bmi": 28, "diabetes_pedigree": 0.5, "age": 45}`
+    - Expected Status: `422 Unprocessable Entity`
+    - Error Detail: `"Biological contradiction: Male patients must not provide a pregnancies field. Omit this field entirely for male patients."`
+  - **Case 3 (Female patient including pregnancies - Success Test):**
+    - Send: `{"gender": "female", "pregnancies": 2, "glucose": 140, "blood_pressure": 80, "bmi": 28, "diabetes_pedigree": 0.5, "age": 45}`
+    - Expected Status: `200 OK` (Evaluates gestational metabolic risk)
 
 ---
 

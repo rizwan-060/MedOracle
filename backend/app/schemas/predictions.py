@@ -70,7 +70,7 @@ class DiabetesPredictionRequest(BaseModel):
         None, description="Biological sex ('male' or 'female')", examples=["female"]
     )
     pregnancies: Optional[int] = Field(
-        None, ge=0, le=25, description="Number of pregnancies (females only; must be 0 for males)", examples=[6]
+        None, ge=0, le=25, description="Number of pregnancies (females only; must not be provided for males)", examples=[6]
     )
     glucose: float = Field(..., ge=0.0, le=500.0, description="Fasting plasma glucose (mg/dL)", examples=[148.0])
     blood_pressure: float = Field(..., ge=0.0, le=250.0, description="Diastolic blood pressure (mm Hg)", examples=[72.0])
@@ -86,10 +86,10 @@ class DiabetesPredictionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_male_pregnancy(self):
-        if self.gender == "male" and self.pregnancies is not None and self.pregnancies > 0:
+        if self.gender == "male" and self.pregnancies is not None:
             raise ValueError(
-                "Biological contradiction: Male patients cannot have pregnancies > 0. "
-                "Set pregnancies to 0 or omit the field."
+                "Biological contradiction: Male patients must not provide a pregnancies field. "
+                "Omit this field entirely for male patients."
             )
         return self
 

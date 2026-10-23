@@ -351,8 +351,11 @@ class RealtimePredictor:
 
         raw_preg = normalized_data.get("Pregnancies")
         if gender == "male":
-            if raw_preg is not None and float(raw_preg) > 0:
-                raise ValueError("Biological contradiction: Male patients cannot have pregnancies > 0.")
+            if raw_preg is not None:
+                raise ValueError(
+                    "Biological contradiction: Male patients must not provide a pregnancies field. "
+                    "Omit this field entirely for male patients."
+                )
             normalized_data["Pregnancies"] = 0.0
         elif raw_preg is None:
             normalized_data["Pregnancies"] = 0.0
@@ -641,7 +644,7 @@ class RealtimePredictor:
 
         # Diabetes specific
         if gender_raw == "male":
-            pregnancies = 0
+            pregnancies = None
         else:
             pregnancies = int(_get_bio(["pregnancies"], 0.0, "pregnancies (defaulted 0)"))
         skin_thickness = _get_bio(["skin_thickness", "skinthickness"], 29.0, "skin_thickness (imputed median 29 mm)")
@@ -669,7 +672,6 @@ class RealtimePredictor:
         # 6. Diabetes ML prediction
         diabetes_input = {
             "gender": gender_raw,
-            "pregnancies": pregnancies,
             "glucose": glucose,
             "blood_pressure": diastolic_bp,
             "skin_thickness": skin_thickness,
@@ -678,6 +680,8 @@ class RealtimePredictor:
             "diabetes_pedigree": diabetes_pedigree,
             "age": age,
         }
+        if gender_raw != "male":
+            diabetes_input["pregnancies"] = pregnancies
         diabetes_res = self.predict_diabetes(diabetes_input)
 
         # 7. Symptoms differential diagnosis

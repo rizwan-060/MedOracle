@@ -26,8 +26,13 @@ This document outlines the step-by-step engineering roadmap for the MedOracle ba
    - Mock provider for deterministic, network-free unit and integration testing.
 5. **Security & Authentication**:
    - Custom JWT (`python-jose`) with direct `bcrypt` password hashing (no `passlib`).
-6. **Asynchronous Execution**:
-   - FastAPI `BackgroundTasks` with status polling on `analysis_sessions`.
+6. **Asynchronous Task Queue & Redis Caching**:
+   - Celery with Redis as the message broker (`redis://...`) and session state cache as specified in the FYP proposal.
+   - Graceful local development fallback to FastAPI `BackgroundTasks` when Redis is offline.
+7. **Doctor Recommendation & Second-Opinion Closure**:
+   - Specialty- and proximity-based matching against a curated doctor directory dataset following consensus debate verdict, ensuring MedOracle functions as a clinical decision-support tool.
+8. **Continuous Clinical NLP & Active Learning**:
+   - Continuous vocabulary expansion, medical symptom NER dataset ingestion, and active learning feedback queues for unmapped patient/doctor phrases.
 
 ---
 
@@ -139,36 +144,52 @@ main (Production Stable)
 
 ---
 
-### Step 7: ML Model Training & Continuous Retraining Registry (Next Step)
+### Step 7: ML Model Training & Continuous Retraining Registry (Done - 2026-10-21)
 - **Milestone Parent Branch:** `MOv1/MLModelTrainingAndRegistry` ➔ `main`
 - **Sub-step 7.1 (`MOv1/MLCardioAndDiabetesTraining`):**
-  - Train Cardiovascular Disease Classifier (Logistic Regression / Random Forest baseline on UCI Heart).
-  - Train Type 2 Diabetes Classifier (Random Forest / Gradient Boosting on PIMA Diabetes).
-  - Serialize model weights, scalers, and hyperparameters to `backend/app/ml/models/`.
+  - Trained champion GradientBoostingClassifier (13 features, ROC-AUC 0.902) on UCI Heart Disease dataset.
+  - Trained champion RandomForestClassifier (8 features, ROC-AUC 0.835) on PIMA Indians Diabetes dataset.
+  - Serialized model bundles, preprocessing scalers, and metadata to `models/saved/`.
 - **Sub-step 7.2 (`MOv1/MLSymptomDiseaseTraining`):**
-  - Train 41-class Disease-Symptom Classifier (Multinomial Naive Bayes / Random Forest).
-  - Predict top-N disease candidates with calibrated probability distributions.
-  - Document model metrics and hyperparameters in `MODEL_REGISTER.md`.
+  - Trained champion Multinomial Naive Bayes classifier (132 symptom features across 41 disease classes, Top-1 Acc 100%, Top-3 Acc 100%).
+  - Calibrated posterior probability distributions and registered model metadata in `models/saved/symptoms_disease_v1/`.
 - **Sub-step 7.3 (`MOv1/MLActiveLearningFeedbackLoop`):**
-  - **Continuous Model Retraining Pipeline**: Implement active feedback data collector.
-  - When verified clinical outcomes or doctor corrections are entered, new anonymized samples are appended to an audited retraining queue.
-  - Versioned model checkpointing registered in the `TrainedModel` database table with rollback support.
+  - Implemented thread-safe `FeedbackBuffer` and SQLite/JSON disk-backed feedback queue.
+  - Automated continuous retraining trigger mechanism when verified feedback count crosses configured thresholds (`RETRAIN_BATCH_THRESHOLD=50`).
+  - 85 passed tests.
 
 ---
 
-### Step 8: ML Model Evaluation & Real-Time Inference Service
+### Step 8: ML Model Evaluation & Real-Time Inference Service (Done - 2026-10-23)
 - **Milestone Parent Branch:** `MOv1/MLInferenceAndEvaluation` ➔ `main`
 - **Sub-step 8.1 (`MOv1/MLEvaluationMetrics`):**
-  - Evaluation engine in `backend/app/ml/evaluation/metrics.py`: ROC-AUC, PR-AUC, F1-score, sensitivity, specificity, and confusion matrix generation.
-  - Automated evaluation script `backend/scripts/evaluate_models.py` executing against the held-out test splits.
+  - Comprehensive clinical evaluation suite in `backend/app/ml/evaluation/metrics.py`: ROC-AUC, PR-AUC, Sensitivity, Specificity, Brier score, and Confusion Matrix generation.
+  - Evaluation CLI script `backend/scripts/evaluate_models.py` benchmarked all models on held-out test splits.
 - **Sub-step 8.2 (`MOv1/MLRealtimePredictorService`):**
-  - Real-time feature transformer and inference engine in `backend/app/ml/inference/predictor.py`.
-  - Ingests user profile and lab values, applies stored preprocessing scalers, runs model inference, and returns probabilities + top contributing risk features.
-  - Exposes programmatic hook for Risk Prediction Agent.
+  - Singleton inference service in `backend/app/ml/inference/predictor.py`.
+  - Feature normalization, physiological zero imputation, and explainability feature attribution.
+  - **Strict Biological Validation Enforced**: Male patients are strictly prohibited from providing a `pregnancies` field (fails fast with HTTP 422 if provided, even if `0`; automatically omitted in patient assessment).
+  - Rule-based Clinical NLP Extractor in `backend/app/ml/inference/nlp_extractor.py` handling free-text symptoms, typo tolerance, and NegEx clinical negation.
+  - REST endpoints at `/api/v1/predictions/cardiovascular`, `/diabetes`, `/symptoms`, `/feedback`, `/patient/me`. 100 passed tests.
 
 ---
 
-### Step 9: LLM Service & Fallback Provider Routing
+### Step 8.3: Clinical NLP Active Learning & Medical NER Model Training Pipeline (New Dedicated Step)
+- **Milestone Parent Branch:** `MOv1/ClinicalSymptomNLPAndActiveLearning` ➔ `main`
+- **Sub-step 8.3.1 (`MOv1/MedicalSymptomCorpusAcquisition`):**
+  - Acquire and curate public clinical symptom datasets and biomedical entity corpora (e.g., MTSamples medical transcription dataset, NCBI Disease corpus, and Kaggle symptom-disease phrase corpora).
+  - Store cleaned symptom corpora in `datasets/raw/symptom_corpora/` with automated preprocessing scripts.
+- **Sub-step 8.3.2 (`MOv1/ContinuousKeywordOntologyExpansion`):**
+  - Service that records all unrecognized or partially matched symptom phrases entered by patients or doctors.
+  - Build active vocabulary expansion engine: newly observed symptom tokens are clustered using semantic similarity and queued for automated or doctor-approved synonym mapping.
+  - Dynamic ontology update without requiring application restarts or code changes.
+- **Sub-step 8.3.3 (`MOv1/BiomedicalSymptomNERModelTraining`):**
+  - Train/fine-tune a specialized biomedical NLP / embedding entity extraction model (using sentence embeddings or lightweight token classification) to replace heuristic regex matching.
+  - Automated continuous retraining script `backend/scripts/retrain_nlp_extractor.py` updating symptom dictionaries and model weights.
+
+---
+
+### Step 9: LLM Service & Fallback Provider Routing (Next Step)
 - **Milestone Parent Branch:** `MOv1/LLMServiceRouting` ➔ `main`
 - **Sub-step 9.1 (`MOv1/LLMProviderCore`):**
   - Implement unified LLM interface in `backend/app/services/llm_service.py`.
@@ -229,49 +250,73 @@ main (Production Stable)
 
 ---
 
-### Step 13: Explainability, Disease Trajectory & Doctor Recommendation
+### Step 13: Explainable Reasoning Engine, Trajectory Forecasting & Counterfactual Simulator
 - **Milestone Parent Branch:** `MOv1/ExplainabilityAndForecasting` ➔ `main`
 - **Sub-step 13.1 (`MOv1/ExplainabilityGraphExporter`):**
   - Explainability Agent in `backend/app/agents/explainability_agent.py`.
   - Exports clinical reasoning graph formatted for Flutter `graphview` (nodes = findings/hypotheses, edges = evidential support/contradiction, weights = confidence).
-- **Sub-step 13.2 (`MOv1/TrajectoryAndCounterfactual`):**
-  - Disease Trajectory Forecaster in `backend/app/forecasting/trajectory.py`: Projected risk curves at 30 days, 6 months, and 1 year.
-  - "What-If" Counterfactual Lifestyle Simulator in `backend/app/counterfactual/simulator.py`: Demonstrates risk score reductions based on simulated lifestyle changes (e.g., -10 mmHg SBP, cessation of smoking).
-- **Sub-step 13.3 (`MOv1/DoctorMatcherEngine`):**
-  - Specialist doctor recommendation engine in `backend/app/doctors/recommendations.py`.
-  - Matches patient risk profile to appropriate medical specialties with structured referral summaries.
+- **Sub-step 13.2 (`MOv1/DiseaseTrajectoryForecasting`):**
+  - Disease Trajectory Forecaster in `backend/app/forecasting/trajectory.py`: Projected risk curves at 30 days, 6 months, and 1 year based on longitudinal Framingham/FINDRISC dynamics.
+- **Sub-step 13.3 (`MOv1/CounterfactualLifestyleSimulator`):**
+  - "What-If" Counterfactual Lifestyle Simulator in `backend/app/counterfactual/simulator.py`: Quantifies risk score reductions across at least three lifestyle interventions (e.g., daily walking/exercise, diet modification, smoking cessation).
 
 ---
 
-### Step 14: Analysis Orchestration API & Background Polling
+### Step 14: Doctor Recommendation Module (Post-Debate Clinical Second Opinion)
+- **Milestone Parent Branch:** `MOv1/DoctorRecommendations` ➔ `main`
+- **Sub-step 14.1 (`MOv1/DoctorDatasetAndDirectory`):**
+  - Curate and structure a nearby-doctor directory dataset (name, specialty, clinic/hospital, city/area, contact details, rating) as specified in the FYP proposal.
+  - Database seeding script `backend/scripts/seed_doctors.py` populating the `doctors` table.
+  - CRUD doctor repository queries in `backend/app/database/repositories.py`.
+- **Sub-step 14.2 (`MOv1/SpecialtyAndProximityMatcher`):**
+  - Specialty- and proximity-based matching engine in `backend/app/doctors/recommendations.py`.
+  - Automatically maps consensus disease categories and urgency levels to medical specialties (e.g., High CVD risk $\rightarrow$ Cardiologists; High FINDRISC $\rightarrow$ Endocrinologists/Diabetologists).
+  - REST endpoint: `GET /api/v1/doctors/recommendations`.
+
+---
+
+### Step 15: Redis Caching, Session State Store & Celery Asynchronous Task Queue
+- **Milestone Parent Branch:** `MOv1/RedisAndCeleryTaskQueue` ➔ `main`
+- **Sub-step 15.1 (`MOv1/RedisSessionAndDebateCache`):**
+  - Redis connection manager in `backend/app/core/redis.py` with graceful fallback to in-memory/DB cache when running locally without a Redis server.
+  - Caches active analysis session state, multi-agent debate history, and rate limiting tokens.
+- **Sub-step 15.2 (`MOv1/CeleryTaskQueueDispatcher`):**
+  - Celery worker application configuration in `backend/app/tasks/celery_app.py`.
+  - Asynchronous task definitions for long-running LangGraph multi-agent debate sessions (`run_multi_agent_analysis_task`).
+  - Redis as message broker (`CELERY_BROKER_URL=redis://localhost:6379/0`) and result backend.
+  - Docker Compose recipe orchestrating FastAPI, Celery worker, and Redis.
+
+---
+
+### Step 16: Analysis Orchestration API & Background Session Polling
 - **Milestone Parent Branch:** `MOv1/AnalysisOrchestrationApi` ➔ `main`
-- **Sub-step 14.1 (`MOv1/AsyncJobDispatcher`):**
-  - Asynchronous analysis submission endpoint `POST /api/v1/analysis/start` using FastAPI `BackgroundTasks`.
-  - Session tracking and status polling endpoint `GET /api/v1/analysis/status/{id}` (`pending`, `running`, `debating`, `completed`, `failed`).
-- **Sub-step 14.2 (`MOv1/AnalysisResultsEndpoints`):**
-  - Results endpoints: `GET /api/v1/analysis/{id}/report`, `GET /api/v1/analysis/{id}/graph`, `GET /api/v1/analysis/{id}/counterfactual`.
+- **Sub-step 16.1 (`MOv1/AsyncJobDispatcher`):**
+  - Asynchronous analysis submission endpoint `POST /api/v1/analysis/start` dispatching through Celery/Redis (or BackgroundTasks fallback).
+  - Session tracking and status polling endpoint `GET /api/v1/analysis/{session_id}/status` (`pending`, `running`, `debating`, `completed`, `failed`).
+- **Sub-step 16.2 (`MOv1/AnalysisResultsEndpoints`):**
+  - Results endpoints: `GET /api/v1/analysis/{session_id}/result`, `GET /api/v1/analysis/{session_id}/debate`, `GET /api/v1/analysis/{session_id}/reasoning-graph`, `GET /api/v1/analysis/{session_id}/counterfactual`.
   - Integration with `POSTMAN_API_TESTING_GUIDE.md` for end-to-end endpoint verification.
 
 ---
 
-### Step 15: End-to-End System Benchmark & Clinical Validation
+### Step 17: End-to-End System Benchmark & Multi-Agent Consensus Validation
 - **Milestone Parent Branch:** `MOv1/SystemBenchmarkValidation` ➔ `main`
-- **Sub-step 15.1 (`MOv1/BenchmarkEvaluationSuite`):**
-  - Automated benchmark test suite running synthetic and public patient profiles through the entire multi-agent pipeline.
-  - Quantitative metrics: Clinical equation calibration vs ML probability vs Final Agent Consensus.
-- **Sub-step 15.2 (`MOv1/PerformanceStressTesting`):**
+- **Sub-step 17.1 (`MOv1/BenchmarkEvaluationSuite`):**
+  - Automated benchmark test suite running synthetic and public patient profiles (UCI Heart, PIMA Diabetes, Framingham) through the entire multi-agent pipeline.
+  - Quantitative metrics: Clinical equation calibration vs ML probability vs Final Agent Consensus convergence rate.
+- **Sub-step 17.2 (`MOv1/PerformanceStressTesting`):**
   - Concurrency testing, latency profiling under multi-agent debate load, token usage monitoring, and fallback failover testing.
 
 ---
 
-### Step 16: Hardening, Production Deployment & Continuous Pipeline CI
+### Step 18: Hardening, Production Deployment & Continuous Pipeline CI
 - **Milestone Parent Branch:** `MOv1/ProductionHardeningAndDeploy` ➔ `main`
-- **Sub-step 16.1 (`MOv1/SecurityRateLimiting`):**
+- **Sub-step 18.1 (`MOv1/SecurityRateLimiting`):**
   - Production rate limiting (SlowAPI), input payload size limits, header security (HSTS, CSP), and vulnerability audit.
-- **Sub-step 16.2 (`MOv1/DockerAndCiPipeline`):**
+- **Sub-step 18.2 (`MOv1/DockerAndCiPipeline`):**
   - Multi-stage `Dockerfile` and `docker-compose.yml`.
   - GitHub Actions CI pipeline (`backend-ci.yml`) running linting, formatting, test suite, and continuous retraining trigger tests.
-- **Sub-step 16.3 (`MOv1/ProductionDocsAndDeployment`):**
+- **Sub-step 18.3 (`MOv1/ProductionDocsAndDeployment`):**
   - Deployment configuration for cloud hosting (Render / Supabase).
   - Final FYP technical report documentation and API reference completion.
 

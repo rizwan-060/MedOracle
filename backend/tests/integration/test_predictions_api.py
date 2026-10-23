@@ -362,29 +362,44 @@ def test_cardiovascular_prediction_factor_explainability(client: TestClient, db_
 
 
 def test_diabetes_male_pregnancy_validation_rejection(client: TestClient, db_session):
-    """POST /api/v1/predictions/diabetes rejects requests where male patients are provided pregnancies > 0."""
+    """POST /api/v1/predictions/diabetes rejects requests where male patients provide any pregnancies value (even 0)."""
     _, headers = _create_authenticated_user(db_session, "male_preg_fail_user@example.com")
-    invalid_payload = {
+    
+    # Test 1: Male providing pregnancies = 0 must fail with 422
+    payload_zero = {
         "gender": "male",
-        "pregnancies": 3,  # Biologically contradictory for male
+        "pregnancies": 0,
         "glucose": 140.0,
         "blood_pressure": 80.0,
         "bmi": 28.0,
         "diabetes_pedigree": 0.5,
         "age": 45,
     }
-    res = client.post("/api/v1/predictions/diabetes", json=invalid_payload, headers=headers)
-    assert res.status_code == 422
-    err_body = res.json()
-    assert "Male patients cannot have pregnancies" in str(err_body)
+    res_zero = client.post("/api/v1/predictions/diabetes", json=payload_zero, headers=headers)
+    assert res_zero.status_code == 422
+    assert "Male patients must not provide a pregnancies field" in str(res_zero.json())
+
+    # Test 2: Male providing pregnancies > 0 must also fail with 422
+    payload_nonzero = {
+        "gender": "male",
+        "pregnancies": 3,
+        "glucose": 140.0,
+        "blood_pressure": 80.0,
+        "bmi": 28.0,
+        "diabetes_pedigree": 0.5,
+        "age": 45,
+    }
+    res_nonzero = client.post("/api/v1/predictions/diabetes", json=payload_nonzero, headers=headers)
+    assert res_nonzero.status_code == 422
+    assert "Male patients must not provide a pregnancies field" in str(res_nonzero.json())
 
 
 def test_diabetes_male_pregnancy_suppression_in_factors(client: TestClient, db_session):
-    """POST /api/v1/predictions/diabetes excludes Pregnancies from top contributing factors for male patients."""
+    """POST /api/v1/predictions/diabetes succeeds when male patients omit pregnancies and excludes Pregnancies from factors."""
     _, headers = _create_authenticated_user(db_session, "male_preg_ok_user@example.com")
     payload = {
         "gender": "male",
-        "pregnancies": 0,
+        # pregnancies omitted entirely for male patient
         "glucose": 150.0,
         "blood_pressure": 82.0,
         "bmi": 32.0,
