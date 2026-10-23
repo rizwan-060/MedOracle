@@ -67,16 +67,14 @@ desktop.ini
 .agent/
 .agents/
 
-# Local changelog documents and internal development trackers (not pushed to GitHub)
-FRONTEND_CHANGES.md
-FRONTEND_STATUS.md
-PROJECT_STATUS.md
-IMPLEMENTATION_PLAN.md
-POSTMAN_API_TESTING_GUIDE.md
-DATASET_REGISTER.md
-MODEL_REGISTER.md
-API_CONTRACT.md
-AGENTS.md
+# Development documentation directory (all internal development markdown files live here)
+dev_docs/
+dev_docs/*
+
+# Global rule: No internal development markdown files pushed to GitHub
+*.md
+!frontend/**/README.md
+!backend/**/README.md
 
 # Academic proposals and submission files
 *.docx
