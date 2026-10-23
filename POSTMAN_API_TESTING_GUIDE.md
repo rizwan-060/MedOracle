@@ -89,7 +89,8 @@ For an end-to-end regression pass, execute requests in this order:
    ├── 24. POST   /api/v1/predictions/cardiovascular (GradientBoosting 13-feature CVD risk)
    ├── 25. POST   /api/v1/predictions/diabetes       (RandomForest 8-feature metabolic T2D risk)
    ├── 26. POST   /api/v1/predictions/symptoms       (MultinomialNB 41-class differential diagnosis)
-   └── 27. POST   /api/v1/predictions/feedback       (Active learning feedback queue ingestion)
+   ├── 27. POST   /api/v1/predictions/feedback       (Active learning feedback queue ingestion)
+   └── 28. POST   /api/v1/predictions/patient/me     (Unified multi-model assessment from stored records)
 ```
 
 ---
@@ -931,6 +932,115 @@ pm.expect(json.status).to.eql("recorded");
 
 ---
 
+### 10.5. Generate Unified Multi-Model Assessment from Stored Patient Records
+Ingests the authenticated patient's saved biometric profile, latest laboratory panel, and active reported symptoms directly from the database. Transforms clinical features, applies stored normalization scalers, runs all 3 ML models simultaneously, and returns a unified risk assessment and clinical summary.
+
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/predictions/patient/me`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "user_id": "e3b0c442-98fc-1c14-9afb-4c8996fb9242",
+  "patient_age": 51,
+  "patient_gender": "male",
+  "cardiovascular": {
+    "model_id": "cardiovascular_risk_v1",
+    "model_version": "1.0.0",
+    "probability": 0.2245,
+    "predicted_class": 0,
+    "risk_tier": "moderate",
+    "confidence_score": 77.55,
+    "top_contributing_factors": [
+      {
+        "feature": "thalach",
+        "value": 142.0,
+        "importance": 0.1852,
+        "impact_score": 0.0617
+      },
+      {
+        "feature": "chol",
+        "value": 245.0,
+        "importance": 0.1205,
+        "impact_score": 0.0418
+      }
+    ],
+    "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+  },
+  "diabetes": {
+    "model_id": "diabetes_risk_v1",
+    "model_version": "1.0.0",
+    "probability": 0.6582,
+    "predicted_class": 1,
+    "risk_tier": "high",
+    "confidence_score": 65.82,
+    "top_contributing_factors": [
+      {
+        "feature": "Glucose",
+        "value": 155.0,
+        "importance": 0.3124,
+        "impact_score": 0.3428
+      },
+      {
+        "feature": "Age",
+        "value": 51.0,
+        "importance": 0.1542,
+        "impact_score": 0.2327
+      }
+    ],
+    "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+  },
+  "differential_diagnosis": {
+    "model_id": "symptoms_disease_v1",
+    "model_version": "1.0.0",
+    "top_candidates": [
+      {
+        "rank": 1,
+        "disease": "Malaria",
+        "probability": 0.9971,
+        "confidence_score": 99.71
+      },
+      {
+        "rank": 2,
+        "disease": "Dengue",
+        "probability": 0.0024,
+        "confidence_score": 0.24
+      }
+    ],
+    "detected_symptoms": [
+      "chills",
+      "headache",
+      "high_fever",
+      "nausea",
+      "sweating"
+    ],
+    "unrecognized_symptoms": [],
+    "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+  },
+  "imputed_or_defaulted_parameters": [],
+  "clinical_summary": "Patient is a 51-year-old male. Cardiovascular disease risk is evaluated at 22.5% (MODERATE risk tier, confidence 77.6%). Type 2 diabetes risk is evaluated at 65.8% (HIGH risk tier, confidence 65.8%). Primary differential diagnostic candidate from reported symptoms: Malaria (calibrated confidence 99.7%).",
+  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.user_id).to.be.a("string");
+pm.expect(json.cardiovascular.probability).to.be.within(0.0, 1.0);
+pm.expect(json.diabetes.probability).to.be.within(0.0, 1.0);
+pm.expect(json.clinical_summary).to.be.a("string");
+```
+
+---
+
 ## 11. Future Endpoints Checklist
 
 As subsequent roadmap steps are implemented, their specifications **must** be appended below:
@@ -944,6 +1054,7 @@ As subsequent roadmap steps are implemented, their specifications **must** be ap
   - [x] `POST /api/v1/predictions/diabetes` (RandomForest 8-feature metabolic T2D risk)
   - [x] `POST /api/v1/predictions/symptoms` (MultinomialNB 41-class differential diagnosis)
   - [x] `POST /api/v1/predictions/feedback` (Active learning feedback queue ingestion)
+  - [x] `POST /api/v1/predictions/patient/me` (Unified multi-model assessment from stored records)
 - [ ] **Step 14: Analysis Orchestration (`/api/v1/analysis`)**
   - [ ] `POST /api/v1/analysis/start` (Trigger async LangGraph multi-agent analysis)
   - [ ] `GET /api/v1/analysis/{session_id}/status` (Polling progress bar status)

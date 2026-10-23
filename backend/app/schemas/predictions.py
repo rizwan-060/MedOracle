@@ -145,3 +145,31 @@ class PredictionFeedbackResponse(BaseModel):
     target_disease: str
     status: str = Field("recorded", description="Ingestion status")
     message: str = Field("Feedback queued successfully for model retraining.")
+
+
+# -----------------------------------------------------------------------------
+# Unified Multi-Model Patient Assessment Schemas
+# -----------------------------------------------------------------------------
+class PatientAssessmentResponse(BaseModel):
+    """Unified multi-model machine learning risk assessment for a patient profile."""
+
+    user_id: str = Field(..., description="Unique patient user identifier")
+    patient_age: int = Field(..., description="Patient age in years")
+    patient_gender: str = Field(..., description="Patient biological sex")
+    cardiovascular: CardiovascularPredictionResponse = Field(
+        ..., description="GradientBoosting cardiovascular disease risk prediction"
+    )
+    diabetes: DiabetesPredictionResponse = Field(
+        ..., description="RandomForest Type 2 diabetes risk prediction"
+    )
+    differential_diagnosis: Optional[SymptomPredictionResponse] = Field(
+        None, description="MultinomialNB 41-class symptom differential diagnosis"
+    )
+    imputed_or_defaulted_parameters: List[str] = Field(
+        default_factory=list,
+        description="Clinical biomarkers that were not recorded and had to be defaulted/imputed",
+    )
+    clinical_summary: str = Field(
+        ..., description="Plain-language clinical risk synthesis and recommendation"
+    )
+    disclaimer: str = DEFAULT_DISCLAIMER

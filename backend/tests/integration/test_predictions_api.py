@@ -241,3 +241,87 @@ def test_prediction_feedback_endpoint(client: TestClient, db_session):
     assert "sample_id" in data
     assert data["target_disease"] == "cardio"
     assert data["status"] == "recorded"
+
+
+def test_predict_current_patient_assessment_unauthenticated(client: TestClient):
+    """POST /api/v1/predictions/patient/me rejects unauthenticated callers with 401."""
+    res = client.post("/api/v1/predictions/patient/me")
+    assert res.status_code == 401
+
+
+def test_predict_current_patient_assessment_with_full_records(client: TestClient, db_session):
+    """POST /api/v1/predictions/patient/me extracts stored patient profile, labs, and symptoms to predict."""
+    from datetime import date
+    from app.database.repositories import (
+        LabResultRepository,
+        PatientProfileRepository,
+        SymptomReportRepository,
+    )
+
+    user, headers = _create_authenticated_user(db_session, "patient_assessment_user@example.com")
+
+    # 1. Seed patient profile
+    profile_repo = PatientProfileRepository(db_session)
+    profile_repo.create_or_update(
+        user_id=user.id,
+        date_of_birth=date(1975, 4, 12),
+        gender="male",
+        height_cm=175.0,
+        weight_kg=82.0,
+        smoking_status="current_smoker",
+    )
+
+    # 2. Seed lab results
+    lab_repo = LabResultRepository(db_session)
+    lab_repo.create(
+        user_id=user.id,
+        test_date=date(2026, 10, 1),
+        lab_name="Central Clinical Lab",
+        biomarkers={
+            "total_cholesterol": 245.0,
+            "fasting_glucose": 155.0,
+            "resting_blood_pressure": 138.0,
+            "diastolic_bp": 84.0,
+            "max_heart_rate": 142.0,
+        },
+    )
+
+    # 3. Seed symptom report
+    symptom_repo = SymptomReportRepository(db_session)
+    symptom_repo.create(
+        user_id=user.id,
+        reported_text="Periodic high fever with severe chills and sweating.",
+        structured_symptoms=["chills", "high_fever", "sweating", "headache", "nausea"],
+    )
+
+    # 4. Trigger patient prediction
+    res = client.post("/api/v1/predictions/patient/me", headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    assert data["user_id"] == user.id
+    assert data["patient_gender"] == "male"
+    assert data["patient_age"] > 40
+    assert "cardiovascular" in data
+    assert 0.0 <= data["cardiovascular"]["probability"] <= 1.0
+    assert "diabetes" in data
+    assert 0.0 <= data["diabetes"]["probability"] <= 1.0
+    assert data["differential_diagnosis"] is not None
+    assert len(data["differential_diagnosis"]["top_candidates"]) > 0
+    assert data["differential_diagnosis"]["top_candidates"][0]["disease"] == "Malaria"
+    assert "clinical_summary" in data
+    assert len(data["clinical_summary"]) > 20
+
+
+def test_predict_current_patient_assessment_empty_profile_fallbacks(client: TestClient, db_session):
+    """POST /api/v1/predictions/patient/me handles unpopulated profiles using safe defaults and reports missing items."""
+    user, headers = _create_authenticated_user(db_session, "empty_patient_user@example.com")
+
+    res = client.post("/api/v1/predictions/patient/me", headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    assert data["user_id"] == user.id
+    assert len(data["imputed_or_defaulted_parameters"]) > 0
+    assert data["differential_diagnosis"] is None
+    assert "clinical_summary" in data

@@ -1,15 +1,18 @@
 """FastAPI endpoints for real-time machine learning inference and active learning feedback."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.database.models import User
+from app.database.session import get_db
 from app.ml.inference.predictor import RealtimePredictor
 from app.schemas.predictions import (
     CardiovascularPredictionRequest,
     CardiovascularPredictionResponse,
     DiabetesPredictionRequest,
     DiabetesPredictionResponse,
+    PatientAssessmentResponse,
     PredictionFeedbackRequest,
     PredictionFeedbackResponse,
     SymptomPredictionRequest,
@@ -123,4 +126,29 @@ def submit_prediction_feedback(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Feedback queue failure: {str(e)}",
+        )
+
+
+@router.post(
+    "/patient/me",
+    response_model=PatientAssessmentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate Unified Multi-Model Assessment from Stored Patient Records",
+)
+def predict_current_patient_assessment(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PatientAssessmentResponse:
+    """Ingests the authenticated patient's profile, latest lab panel, and reported symptoms
+
+    from the database, runs multi-model ML inference, and returns a unified risk assessment.
+    """
+    try:
+        predictor = RealtimePredictor.get_instance()
+        result = predictor.predict_patient_assessment(user_id=current_user.id, db=db)
+        return PatientAssessmentResponse(**result)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Patient assessment failure: {str(e)}",
         )

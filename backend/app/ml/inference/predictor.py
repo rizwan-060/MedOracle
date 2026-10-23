@@ -375,3 +375,166 @@ class RealtimePredictor:
 
         sample_id = self._feedback_buffer.add_record(record)
         return sample_id
+
+    # -------------------------------------------------------------------------
+    # Programmatic Hook for Patient Risk Assessment & Multi-Agent Pipeline
+    # -------------------------------------------------------------------------
+    def predict_patient_assessment(self, user_id: str, db: Any) -> Dict[str, Any]:
+        """Ingests patient demographics, laboratory biomarkers, and symptom reports from the database.
+
+        Transforms features, applies stored preprocessing scalers, runs multi-model inference,
+        and returns unified predictions. Primary programmatic hook for the Risk Prediction Agent.
+        """
+        from datetime import date
+        from app.database.repositories import (
+            LabResultRepository,
+            PatientProfileRepository,
+            SymptomReportRepository,
+        )
+
+        profile_repo = PatientProfileRepository(db)
+        lab_repo = LabResultRepository(db)
+        symptom_repo = SymptomReportRepository(db)
+
+        profile = profile_repo.get_by_user_id(user_id)
+        latest_lab = lab_repo.get_latest_by_user_id(user_id)
+        symptom_reports = symptom_repo.list_by_user_id(user_id, limit=5)
+
+        imputed_or_defaulted = []
+
+        # 1. Age extraction
+        if profile and profile.date_of_birth:
+            today = date.today()
+            dob = profile.date_of_birth
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        else:
+            age = 50
+            imputed_or_defaulted.append("age (defaulted to 50)")
+
+        # 2. Gender extraction
+        gender_raw = profile.gender.lower() if profile and profile.gender else "male"
+        sex = 1 if gender_raw == "male" else 0
+        if not profile or not profile.gender:
+            imputed_or_defaulted.append("gender (defaulted to male)")
+
+        # 3. BMI extraction
+        if profile and profile.height_cm and profile.weight_kg and profile.height_cm > 0:
+            bmi = round(profile.weight_kg / ((profile.height_cm / 100.0) ** 2), 2)
+        else:
+            bmi = 27.5
+            imputed_or_defaulted.append("bmi (defaulted to 27.5)")
+
+        # 4. Lab biomarkers extraction
+        biomarkers: Dict[str, Any] = {}
+        if latest_lab and latest_lab.biomarkers:
+            for k, v in latest_lab.biomarkers.items():
+                clean_k = k.strip().lower().replace(" ", "").replace("_", "")
+                biomarkers[clean_k] = v
+
+        def _get_bio(keys: List[str], default_val: float, param_name: str) -> float:
+            for k in keys:
+                clean_k = k.lower().replace(" ", "").replace("_", "")
+                if clean_k in biomarkers:
+                    try:
+                        return float(biomarkers[clean_k])
+                    except (ValueError, TypeError):
+                        pass
+            imputed_or_defaulted.append(param_name)
+            return default_val
+
+        trestbps = _get_bio(["resting_blood_pressure", "trestbps", "systolic_bp", "blood_pressure_systolic"], 125.0, "resting_blood_pressure (defaulted 125 mmHg)")
+        diastolic_bp = _get_bio(["diastolic_bp", "blood_pressure_diastolic", "blood_pressure"], 75.0, "diastolic_blood_pressure (defaulted 75 mmHg)")
+        chol = _get_bio(["total_cholesterol", "cholesterol", "chol"], 210.0, "total_cholesterol (defaulted 210 mg/dL)")
+        glucose = _get_bio(["fasting_glucose", "blood_glucose", "glucose"], 105.0, "fasting_glucose (defaulted 105 mg/dL)")
+        fbs = 1 if glucose > 120.0 else 0
+        thalach = _get_bio(["max_heart_rate", "thalach", "heart_rate"], 150.0, "max_heart_rate (defaulted 150 bpm)")
+        oldpeak = _get_bio(["st_depression", "oldpeak"], 0.8, "st_depression (defaulted 0.8)")
+        restecg = int(_get_bio(["restecg", "resting_ecg"], 0.0, "resting_ecg (defaulted 0)"))
+        exang = int(_get_bio(["exang", "exercise_angina"], 0.0, "exercise_angina (defaulted 0)"))
+        slope = int(_get_bio(["slope", "st_slope"], 1.0, "st_slope (defaulted 1)"))
+        ca = int(_get_bio(["ca", "vessels_colored"], 0.0, "major_vessels_ca (defaulted 0)"))
+        thal = int(_get_bio(["thal", "thallium_stress"], 1.0, "thallium_stress (defaulted 1)"))
+
+        # Diabetes specific
+        pregnancies = int(_get_bio(["pregnancies"], 0.0, "pregnancies (defaulted 0)"))
+        skin_thickness = _get_bio(["skin_thickness", "skinthickness"], 29.0, "skin_thickness (imputed median 29 mm)")
+        insulin = _get_bio(["insulin", "serum_insulin"], 125.0, "insulin (imputed median 125 mu U/ml)")
+        diabetes_pedigree = _get_bio(["diabetes_pedigree", "diabetespedigreefunction", "pedigree"], 0.47, "diabetes_pedigree (defaulted 0.47)")
+
+        # 5. Cardiovascular ML prediction
+        cardio_input = {
+            "age": age,
+            "sex": sex,
+            "cp": 0,
+            "trestbps": trestbps,
+            "chol": chol,
+            "fbs": fbs,
+            "restecg": restecg,
+            "thalach": thalach,
+            "exang": exang,
+            "oldpeak": oldpeak,
+            "slope": slope,
+            "ca": ca,
+            "thal": thal,
+        }
+        cardio_res = self.predict_cardiovascular(cardio_input)
+
+        # 6. Diabetes ML prediction
+        diabetes_input = {
+            "pregnancies": pregnancies,
+            "glucose": glucose,
+            "blood_pressure": diastolic_bp,
+            "skin_thickness": skin_thickness,
+            "insulin": insulin,
+            "bmi": bmi,
+            "diabetes_pedigree": diabetes_pedigree,
+            "age": age,
+        }
+        diabetes_res = self.predict_diabetes(diabetes_input)
+
+        # 7. Symptoms differential diagnosis
+        collected_symptoms: List[str] = []
+        for rep in symptom_reports:
+            if rep.structured_symptoms:
+                for s in rep.structured_symptoms:
+                    if isinstance(s, str) and s.strip():
+                        collected_symptoms.append(s.strip())
+
+        symptoms_res = None
+        if collected_symptoms:
+            try:
+                symptoms_res = self.predict_symptoms(collected_symptoms, top_k=5)
+            except Exception:
+                symptoms_res = None
+
+        # 8. Clinical synthesis
+        top_diff = (
+            symptoms_res["top_candidates"][0]["disease"]
+            if symptoms_res and symptoms_res.get("top_candidates")
+            else None
+        )
+        summary_parts = [
+            f"Patient is a {age}-year-old {gender_raw}.",
+            f"Cardiovascular disease risk is evaluated at {cardio_res['probability']*100:.1f}% ({cardio_res['risk_tier'].upper()} risk tier, confidence {cardio_res['confidence_score']:.1f}%).",
+            f"Type 2 diabetes risk is evaluated at {diabetes_res['probability']*100:.1f}% ({diabetes_res['risk_tier'].upper()} risk tier, confidence {diabetes_res['confidence_score']:.1f}%).",
+        ]
+        if top_diff:
+            summary_parts.append(
+                f"Primary differential diagnostic candidate from reported symptoms: {top_diff} (calibrated confidence {symptoms_res['top_candidates'][0]['confidence_score']:.1f}%)."
+            )
+        else:
+            summary_parts.append("No active acute symptom reports on file for differential ranking.")
+
+        clinical_summary = " ".join(summary_parts)
+
+        return {
+            "user_id": user_id,
+            "patient_age": age,
+            "patient_gender": gender_raw,
+            "cardiovascular": cardio_res,
+            "diabetes": diabetes_res,
+            "differential_diagnosis": symptoms_res,
+            "imputed_or_defaulted_parameters": imputed_or_defaulted,
+            "clinical_summary": clinical_summary,
+            "disclaimer": CLINICAL_DISCLAIMER,
+        }

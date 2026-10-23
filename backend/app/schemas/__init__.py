@@ -50,6 +50,7 @@ from app.schemas.predictions import (
     DiabetesPredictionResponse,
     DifferentialCandidate,
     FeatureFactor,
+    PatientAssessmentResponse,
     PredictionFeedbackRequest,
     PredictionFeedbackResponse,
     SymptomPredictionRequest,
@@ -99,4 +100,5 @@ __all__ = [
     "FeatureFactor",
     "PredictionFeedbackRequest",
     "PredictionFeedbackResponse",
+    "PatientAssessmentResponse",
 ]
