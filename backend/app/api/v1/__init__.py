@@ -5,6 +5,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.laboratory import router as laboratory_router
 from app.api.v1.medical_history import router as medical_history_router
 from app.api.v1.patient import router as patient_router
+from app.api.v1.predictions import router as predictions_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.symptoms import router as symptoms_router
 
@@ -17,6 +18,7 @@ v1_router.include_router(medical_history_router)
 v1_router.include_router(symptoms_router)
 v1_router.include_router(laboratory_router)
 v1_router.include_router(risk_router)
+v1_router.include_router(predictions_router)
 
 
 @v1_router.get("/", tags=["API v1"])

@@ -43,6 +43,7 @@ frontend/design_refs/
 # Generated ML artifacts and large data
 datasets/raw/*
 datasets/processed/*
+datasets/feedback/*
 models/saved/*
 models/checkpoints/*
 models/experiments/*
@@ -50,6 +51,7 @@ models/experiments/*
 # Keep placeholders in empty directories
 !datasets/raw/.gitkeep
 !datasets/processed/.gitkeep
+!datasets/feedback/.gitkeep
 !datasets/external/.gitkeep
 !datasets/metadata/.gitkeep
 !models/saved/.gitkeep

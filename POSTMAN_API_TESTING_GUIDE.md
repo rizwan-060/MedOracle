@@ -16,7 +16,8 @@
 7. [Symptom Reporting APIs (`/api/v1/symptoms`)](#7-symptom-reporting-apis-apiv1symptoms)
 8. [Laboratory Biomarker APIs (`/api/v1/laboratory`)](#8-laboratory-biomarker-apis-apiv1laboratory)
 9. [Clinical Risk Prediction APIs (`/api/v1/risk`)](#9-clinical-risk-prediction-apis-apiv1risk)
-10. [Future Endpoints Checklist](#10-future-endpoints-checklist)
+10. [Real-Time Machine Learning Prediction APIs (`/api/v1/predictions`)](#10-real-time-machine-learning-prediction-apis-apiv1predictions)
+11. [Future Endpoints Checklist](#11-future-endpoints-checklist)
 
 ---
 
@@ -83,6 +84,12 @@ For an end-to-end regression pass, execute requests in this order:
    ├── 21. POST   /api/v1/risk/cardiovascular (Framingham 10-Yr CVD score)
    ├── 22. POST   /api/v1/risk/diabetes       (FINDRISC Type 2 score)
    └── 23. POST   /api/v1/risk/kidney         (CKD-EPI 2021 race-free eGFR)
+        │
+[Real-Time ML Predictions & Differential Diagnosis]
+   ├── 24. POST   /api/v1/predictions/cardiovascular (GradientBoosting 13-feature CVD risk)
+   ├── 25. POST   /api/v1/predictions/diabetes       (RandomForest 8-feature metabolic T2D risk)
+   ├── 26. POST   /api/v1/predictions/symptoms       (MultinomialNB 41-class differential diagnosis)
+   └── 27. POST   /api/v1/predictions/feedback       (Active learning feedback queue ingestion)
 ```
 
 ---
@@ -616,7 +623,315 @@ pm.expect(json.disclaimer).to.include("MedOracle is a decision-support assistant
 
 ---
 
-## 10. Future Endpoints Checklist
+## 10. Real-Time Machine Learning Prediction APIs (`/api/v1/predictions`)
+
+> **Authentication Required:** All endpoints in this section require an active Bearer JWT token.  
+> If `{{accessToken}}` is empty or expired, run **Request 4.2: `POST /api/v1/auth/login`** first with:
+> ```json
+> {
+>   "email": "test.patient@medoracle.org",
+>   "password": "Password123!"
+> }
+> ```
+> The login test script will automatically populate `{{accessToken}}`. All requests below must include the header:  
+> `Authorization: Bearer {{accessToken}}`
+
+---
+
+### 10.1. Real-Time Cardiovascular Disease Risk Prediction
+Predicts patient cardiovascular disease probability, binary risk classification, categorical risk tier, calibrated confidence score, and top contributing clinical factors using the champion GradientBoostingClassifier trained on the UCI Heart Disease benchmark.
+
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/predictions/cardiovascular`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "age": 63,
+  "sex": 1,
+  "cp": 3,
+  "trestbps": 145.0,
+  "chol": 233.0,
+  "fbs": 1,
+  "restecg": 0,
+  "thalach": 150.0,
+  "exang": 0,
+  "oldpeak": 2.3,
+  "slope": 0,
+  "ca": 0,
+  "thal": 1
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model_id": "cardiovascular_risk_v1",
+  "model_version": "1.0.0",
+  "probability": 0.1737,
+  "predicted_class": 0,
+  "risk_tier": "low",
+  "confidence_score": 82.63,
+  "top_contributing_factors": [
+    {
+      "feature": "thalach",
+      "value": 150.0,
+      "importance": 0.1852,
+      "impact_score": 0.0032
+    },
+    {
+      "feature": "oldpeak",
+      "value": 2.3,
+      "importance": 0.1641,
+      "impact_score": 0.1783
+    },
+    {
+      "feature": "age",
+      "value": 63.0,
+      "importance": 0.1419,
+      "impact_score": 0.1347
+    },
+    {
+      "feature": "chol",
+      "value": 233.0,
+      "importance": 0.1205,
+      "impact_score": 0.0319
+    }
+  ],
+  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.model_id).to.eql("cardiovascular_risk_v1");
+pm.expect(json.probability).to.be.within(0.0, 1.0);
+pm.expect([0, 1]).to.include(json.predicted_class);
+pm.expect(["low", "moderate", "high"]).to.include(json.risk_tier);
+pm.expect(json.confidence_score).to.be.within(50.0, 100.0);
+pm.expect(json.top_contributing_factors).to.be.an("array");
+pm.expect(json.disclaimer).to.include("clinical decision support");
+```
+
+---
+
+### 10.2. Real-Time Type 2 Diabetes Risk Prediction
+Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated confidence, and influential metabolic biomarkers using the champion RandomForestClassifier trained on the PIMA Indians Diabetes benchmark. Automatically handles biological zero imputation for Glucose, BloodPressure, SkinThickness, Insulin, and BMI.
+
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/predictions/diabetes`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "pregnancies": 6,
+  "glucose": 148.0,
+  "blood_pressure": 72.0,
+  "skin_thickness": 35.0,
+  "insulin": 0.0,
+  "bmi": 33.6,
+  "diabetes_pedigree": 0.627,
+  "age": 50
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model_id": "diabetes_risk_v1",
+  "model_version": "1.0.0",
+  "probability": 0.6235,
+  "predicted_class": 1,
+  "risk_tier": "high",
+  "confidence_score": 62.35,
+  "top_contributing_factors": [
+    {
+      "feature": "Glucose",
+      "value": 148.0,
+      "importance": 0.3124,
+      "impact_score": 0.2707
+    },
+    {
+      "feature": "BMI",
+      "value": 33.6,
+      "importance": 0.2185,
+      "impact_score": 0.0364
+    },
+    {
+      "feature": "Age",
+      "value": 50.0,
+      "importance": 0.1542,
+      "impact_score": 0.2198
+    },
+    {
+      "feature": "DiabetesPedigreeFunction",
+      "value": 0.627,
+      "importance": 0.1106,
+      "impact_score": 0.0518
+    }
+  ],
+  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.model_id).to.eql("diabetes_risk_v1");
+pm.expect(json.probability).to.be.within(0.0, 1.0);
+pm.expect([0, 1]).to.include(json.predicted_class);
+pm.expect(["low", "moderate", "high"]).to.include(json.risk_tier);
+pm.expect(json.confidence_score).to.be.within(50.0, 100.0);
+pm.expect(json.top_contributing_factors).to.be.an("array");
+pm.expect(json.disclaimer).to.include("clinical decision support");
+```
+
+---
+
+### 10.3. Real-Time 41-Class Symptom Differential Diagnosis
+Maps clinical symptom entities against the 132-symptom diagnostic matrix using the champion Multinomial Naive Bayes model. Returns top-k ranked differential diagnostic candidates, posterior probabilities, and tracks unrecognized symptom tokens.
+
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/predictions/symptoms`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "symptoms": [
+    "chills",
+    "high_fever",
+    "sweating",
+    "headache",
+    "nausea"
+  ],
+  "top_k": 5
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model_id": "symptoms_disease_v1",
+  "model_version": "1.0.0",
+  "top_candidates": [
+    {
+      "rank": 1,
+      "disease": "Malaria",
+      "probability": 0.9971,
+      "confidence_score": 99.71
+    },
+    {
+      "rank": 2,
+      "disease": "Dengue",
+      "probability": 0.0024,
+      "confidence_score": 0.24
+    },
+    {
+      "rank": 3,
+      "disease": "Typhoid",
+      "probability": 0.0003,
+      "confidence_score": 0.03
+    },
+    {
+      "rank": 4,
+      "disease": "Jaundice",
+      "probability": 0.0001,
+      "confidence_score": 0.01
+    },
+    {
+      "rank": 5,
+      "disease": "Tuberculosis",
+      "probability": 0.0001,
+      "confidence_score": 0.01
+    }
+  ],
+  "detected_symptoms": [
+    "chills",
+    "headache",
+    "high_fever",
+    "nausea",
+    "sweating"
+  ],
+  "unrecognized_symptoms": [],
+  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 200", () => pm.response.to.have.status(200));
+const json = pm.response.json();
+pm.expect(json.model_id).to.eql("symptoms_disease_v1");
+pm.expect(json.top_candidates).to.be.an("array");
+pm.expect(json.top_candidates.length).to.be.above(0);
+pm.expect(json.top_candidates[0].rank).to.eql(1);
+pm.expect(json.top_candidates[0].disease).to.be.a("string");
+pm.expect(json.top_candidates[0].probability).to.be.within(0.0, 1.0);
+pm.expect(json.detected_symptoms).to.include("chills");
+```
+
+---
+
+### 10.4. Submit Clinician-Verified Diagnostic Feedback
+Ingests clinician-verified ground truth into the active learning queue for continuous model retraining and drift mitigation.
+
+- **Method:** `POST`
+- **URL:** `{{baseUrl}}/api/v1/predictions/feedback`
+- **Headers:**  
+  `Authorization: Bearer {{accessToken}}`  
+  `Content-Type: application/json`
+- **Body (raw JSON):**
+```json
+{
+  "target_disease": "cardio",
+  "features": {
+    "age": 60,
+    "sex": 1,
+    "cp": 2,
+    "trestbps": 140.0,
+    "chol": 250.0,
+    "fbs": 0,
+    "restecg": 1,
+    "thalach": 145.0,
+    "exang": 1,
+    "oldpeak": 1.5,
+    "slope": 1,
+    "ca": 1,
+    "thal": 2
+  },
+  "ground_truth_label": 1,
+  "confidence_at_prediction": 78.5,
+  "notes": "Coronary angiography confirmed 75% LAD stenosis."
+}
+```
+- **Expected Status:** `201 Created`
+- **Response Example:**
+```json
+{
+  "sample_id": "c7a8b9f0-1234-4567-89ab-cdef01234567",
+  "target_disease": "cardio",
+  "status": "recorded",
+  "message": "Verified feedback queued successfully for cardio retraining queue."
+}
+```
+- **Postman Tests Script:**
+```javascript
+pm.test("Status code is 201", () => pm.response.to.have.status(201));
+const json = pm.response.json();
+pm.expect(json.sample_id).to.be.a("string");
+pm.expect(json.target_disease).to.eql("cardio");
+pm.expect(json.status).to.eql("recorded");
+```
+
+---
+
+## 11. Future Endpoints Checklist
 
 As subsequent roadmap steps are implemented, their specifications **must** be appended below:
 
@@ -624,6 +939,11 @@ As subsequent roadmap steps are implemented, their specifications **must** be ap
   - [x] `POST /api/v1/risk/cardiovascular` (Framingham 10-Yr CVD risk score)
   - [x] `POST /api/v1/risk/diabetes` (FINDRISC 10-Yr Type 2 diabetes score)
   - [x] `POST /api/v1/risk/kidney` (CKD-EPI 2021 eGFR & stage calculator)
+- [x] **Step 8: ML Model Evaluation & Real-Time Inference (`/api/v1/predictions`)**
+  - [x] `POST /api/v1/predictions/cardiovascular` (GradientBoosting 13-feature CVD risk)
+  - [x] `POST /api/v1/predictions/diabetes` (RandomForest 8-feature metabolic T2D risk)
+  - [x] `POST /api/v1/predictions/symptoms` (MultinomialNB 41-class differential diagnosis)
+  - [x] `POST /api/v1/predictions/feedback` (Active learning feedback queue ingestion)
 - [ ] **Step 14: Analysis Orchestration (`/api/v1/analysis`)**
   - [ ] `POST /api/v1/analysis/start` (Trigger async LangGraph multi-agent analysis)
   - [ ] `GET /api/v1/analysis/{session_id}/status` (Polling progress bar status)
@@ -632,4 +952,5 @@ As subsequent roadmap steps are implemented, their specifications **must** be ap
   - [ ] `GET /api/v1/analysis/{session_id}/reasoning-graph` (GraphView node-edge payload)
 - [ ] **Step 14: Doctor Recommendations (`/api/v1/doctors`)**
   - [ ] `GET /api/v1/doctors/recommendations` (Specialty referral matches)
+
 

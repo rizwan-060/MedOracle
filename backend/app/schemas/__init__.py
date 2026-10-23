@@ -43,6 +43,18 @@ from app.schemas.doctor import (
     DoctorRecommendationResponse,
     DoctorResponse,
 )
+from app.schemas.predictions import (
+    CardiovascularPredictionRequest,
+    CardiovascularPredictionResponse,
+    DiabetesPredictionRequest,
+    DiabetesPredictionResponse,
+    DifferentialCandidate,
+    FeatureFactor,
+    PredictionFeedbackRequest,
+    PredictionFeedbackResponse,
+    SymptomPredictionRequest,
+    SymptomPredictionResponse,
+)
 
 __all__ = [
     "UserRegister",
@@ -77,4 +89,14 @@ __all__ = [
     "DoctorCreate",
     "DoctorResponse",
     "DoctorRecommendationResponse",
+    "CardiovascularPredictionRequest",
+    "CardiovascularPredictionResponse",
+    "DiabetesPredictionRequest",
+    "DiabetesPredictionResponse",
+    "SymptomPredictionRequest",
+    "SymptomPredictionResponse",
+    "DifferentialCandidate",
+    "FeatureFactor",
+    "PredictionFeedbackRequest",
+    "PredictionFeedbackResponse",
 ]

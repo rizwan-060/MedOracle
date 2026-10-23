@@ -90,6 +90,19 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
   - CLI runner implemented in `backend/scripts/retrain_feedback.py`.
   - Comprehensive unit test suite in `backend/tests/unit/test_feedback_loop.py`.
   - Test suite status: **71 passed** (0 failures).
+- **ML Model Evaluation & Real-Time Inference (Step 8)**:
+  - Evaluation metrics engine implemented in `backend/app/ml/evaluation/metrics.py` (`evaluate_binary_classifier`, `evaluate_multiclass_classifier`) computing Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC, Brier score (calibration), Specificity, and Top-1/3/5 differential diagnosis accuracy.
+  - CLI evaluation runner implemented in `backend/scripts/evaluate_models.py` validating all 3 champion models on held-out test splits.
+  - Real-time inference engine implemented in `backend/app/ml/inference/predictor.py` (`RealtimePredictor` singleton) with cached model estimators, automatic z-score scaling, zero-imputation, and explainable feature impact scoring.
+  - Pydantic v2 schemas defined in `backend/app/schemas/predictions.py` with strict validation boundaries and clinical disclaimers.
+  - FastAPI endpoints implemented in `backend/app/api/v1/predictions.py`:
+    - `POST /api/v1/predictions/cardiovascular` (GradientBoosting 13-feature CVD risk)
+    - `POST /api/v1/predictions/diabetes` (RandomForest 8-feature metabolic T2D risk)
+    - `POST /api/v1/predictions/symptoms` (MultinomialNB 41-class differential diagnosis)
+    - `POST /api/v1/predictions/feedback` (Active learning feedback queue ingestion)
+  - Unit tests in `backend/tests/unit/test_model_evaluation.py` and integration tests in `backend/tests/integration/test_predictions_api.py`.
+  - Comprehensive documentation added to `POSTMAN_API_TESTING_GUIDE.md` (Section 10).
+  - Test suite status: **88 passed** (0 failures).
 
 ### Frontend Achievements (Milestones F1–F4)
 - **16 passed frontend tests** (`flutter test`).
@@ -106,5 +119,6 @@ All MedOracle development adheres to a structured, 2-tier Git hierarchy:
 ---
 
 ### Next Action
-- Backend: Ready for **Step 8: ML Inference & Real-Time Prediction Endpoints** (`MOv1/MLInferenceAndEvaluation`).
+- Backend: Ready for **Step 9: LangGraph Multi-Agent Architecture & Orchestration Foundations** (`MOv1/AgentFoundations`).
 - Frontend: Ready for **Milestone F5: Assessment Output & Forecasting Screens** (`frontend/assessment-output-screens`).
+
