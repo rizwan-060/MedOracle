@@ -85,3 +85,5 @@ docs/*proposal*
 docs/*.docx
 docs/*.pdf
 
+# Feedback & active learning buffer
+datasets/feedback/

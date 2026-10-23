@@ -12,6 +12,7 @@ from app.database.models import (
     RiskResult,
     Doctor,
     TrainedModel,
+    DiagnosticFeedback,
 )
 from app.database.repositories import (
     UserRepository,
@@ -24,6 +25,7 @@ from app.database.repositories import (
     RiskResultRepository,
     DoctorRepository,
     TrainedModelRepository,
+    DiagnosticFeedbackRepository,
 )
 
 __all__ = [
@@ -41,6 +43,7 @@ __all__ = [
     "RiskResult",
     "Doctor",
     "TrainedModel",
+    "DiagnosticFeedback",
     "UserRepository",
     "PatientProfileRepository",
     "MedicalHistoryRepository",
@@ -51,4 +54,5 @@ __all__ = [
     "RiskResultRepository",
     "DoctorRepository",
     "TrainedModelRepository",
+    "DiagnosticFeedbackRepository",
 ]
