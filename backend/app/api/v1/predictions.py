@@ -83,7 +83,7 @@ def predict_symptom_differential(
     """Evaluate reported symptoms and return top-k ranked differential diagnostic possibilities with calibrated posterior probabilities."""
     try:
         predictor = RealtimePredictor.get_instance()
-        result = predictor.predict_symptoms(symptoms=payload.symptoms, top_k=payload.top_k)
+        result = predictor.predict_symptoms(symptoms=payload.symptoms, text=payload.text, top_k=payload.top_k)
         return SymptomPredictionResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))

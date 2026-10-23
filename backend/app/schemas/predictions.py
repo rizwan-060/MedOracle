@@ -13,8 +13,13 @@ DEFAULT_DISCLAIMER = (
 class FeatureFactor(BaseModel):
     """Quantitative feature contribution factor for model explainability."""
 
-    feature: str = Field(..., description="Feature name")
-    value: float = Field(..., description="Observed/normalized feature value")
+    feature: str = Field(..., description="Raw feature identifier (e.g. 'cp', 'glucose')")
+    display_name: str = Field(..., description="Human-readable clinical title")
+    value: float = Field(..., description="Observed feature value")
+    interpretation: str = Field(..., description="Qualitative clinical interpretation")
+    direction: Literal["increases_risk", "decreases_risk", "neutral"] = Field(
+        ..., description="Directional impact on clinical risk"
+    )
     importance: float = Field(..., description="Global model feature importance weight")
     impact_score: float = Field(..., description="Product of importance and deviation magnitude")
 
@@ -61,7 +66,12 @@ class CardiovascularPredictionResponse(BaseModel):
 class DiabetesPredictionRequest(BaseModel):
     """Input payload for ML Type 2 Diabetes risk classification."""
 
-    pregnancies: int = Field(0, ge=0, le=25, description="Number of pregnancies", examples=[6])
+    gender: Optional[Literal["male", "female"]] = Field(
+        None, description="Biological sex ('male' or 'female')", examples=["female"]
+    )
+    pregnancies: Optional[int] = Field(
+        None, ge=0, le=25, description="Number of pregnancies (females only; must be 0 for males)", examples=[6]
+    )
     glucose: float = Field(..., ge=0.0, le=500.0, description="Fasting plasma glucose (mg/dL)", examples=[148.0])
     blood_pressure: float = Field(..., ge=0.0, le=250.0, description="Diastolic blood pressure (mm Hg)", examples=[72.0])
     skin_thickness: float = Field(0.0, ge=0.0, le=120.0, description="Triceps skin fold thickness (mm)", examples=[35.0])
@@ -71,6 +81,17 @@ class DiabetesPredictionRequest(BaseModel):
     age: int = Field(..., ge=18, le=120, description="Age in years", examples=[50])
 
     model_config = ConfigDict(extra="ignore")
+
+    from pydantic import model_validator
+
+    @model_validator(mode="after")
+    def validate_male_pregnancy(self):
+        if self.gender == "male" and self.pregnancies is not None and self.pregnancies > 0:
+            raise ValueError(
+                "Biological contradiction: Male patients cannot have pregnancies > 0. "
+                "Set pregnancies to 0 or omit the field."
+            )
+        return self
 
 
 class DiabetesPredictionResponse(BaseModel):
@@ -89,18 +110,42 @@ class DiabetesPredictionResponse(BaseModel):
 # -----------------------------------------------------------------------------
 # Symptoms Diagnostic Schemas
 # -----------------------------------------------------------------------------
+class ExtractedSymptomEntity(BaseModel):
+    """NLP-extracted symptom entity with clinical resolution metadata."""
+
+    raw_mention: str = Field(..., description="Raw text span matched from sentence")
+    canonical_symptom: str = Field(..., description="Canonical clinical symptom identifier")
+    confidence: float = Field(..., description="Extraction confidence score [0.0, 1.0]")
+    match_type: str = Field(..., description="Matching strategy ('exact', 'synonym', 'fuzzy_typo')")
+    is_negated: bool = Field(False, description="Whether the symptom was clinically negated")
+
+
 class SymptomPredictionRequest(BaseModel):
     """Input payload for multi-class differential diagnostic prediction."""
 
-    symptoms: List[str] = Field(
-        ...,
-        min_length=1,
+    symptoms: Optional[List[str]] = Field(
+        None,
         description="List of clinical symptom identifiers (e.g. ['chills', 'high_fever', 'headache'])",
-        examples=[["chills", "high_fever", "sweating", "headache", "nausea"]],
+        examples=[["headache", "runny_nose", "throat_irritation"]],
+    )
+    text: Optional[str] = Field(
+        None,
+        description="Natural language sentence describing symptoms (e.g. 'I am experiencing severe headache, runny nose and a sore throught.')",
+        examples=["I am experiencing severe headache from the past 3 days. I also have a runny nose and a sore throught."],
     )
     top_k: int = Field(5, ge=1, le=20, description="Number of differential candidates to return", examples=[5])
 
     model_config = ConfigDict(extra="ignore")
+
+    from pydantic import model_validator
+
+    @model_validator(mode="after")
+    def validate_payload_presence(self):
+        has_symptoms = self.symptoms and len(self.symptoms) > 0
+        has_text = self.text and len(self.text.strip()) > 0
+        if not has_symptoms and not has_text:
+            raise ValueError("Either 'symptoms' list or narrative 'text' must be provided for differential diagnosis.")
+        return self
 
 
 class DifferentialCandidate(BaseModel):
@@ -119,6 +164,12 @@ class SymptomPredictionResponse(BaseModel):
     model_version: str
     top_candidates: List[DifferentialCandidate] = Field(..., description="Ranked candidate diagnoses")
     detected_symptoms: List[str] = Field(..., description="Symptoms successfully matched to clinical ontology")
+    extracted_entities: List[ExtractedSymptomEntity] = Field(
+        default_factory=list, description="NLP-extracted symptom entity spans"
+    )
+    negated_symptoms: List[str] = Field(
+        default_factory=list, description="Symptoms ruled out via clinical negation detection"
+    )
     unrecognized_symptoms: List[str] = Field(default_factory=list, description="Unmatched symptom tokens")
     disclaimer: str = DEFAULT_DISCLAIMER
 

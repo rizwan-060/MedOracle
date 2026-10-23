@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from app.ml.feedback.buffer import FeedbackBuffer, FeedbackRecord
+from app.ml.inference.nlp_extractor import ClinicalSymptomExtractor
 from app.ml.model_registry import ModelMetadata, load_model_bundle
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[4]
@@ -25,6 +26,126 @@ CLINICAL_DISCLAIMER = (
     "and do not constitute a definitive medical diagnosis. Consult a licensed physician "
     "or specialist for comprehensive clinical evaluation."
 )
+
+CARDIO_FEATURE_METADATA = {
+    "cp": {
+        "name": "Chest Pain Type",
+        "interpret": lambda v: (
+            "Typical Angina (severe exertional substernal pain)" if v == 0
+            else "Atypical Angina (non-classical chest discomfort)" if v == 1
+            else "Non-anginal Chest Pain" if v == 2
+            else "Asymptomatic (no typical ischemic chest pain reported)"
+        ),
+        "direction": lambda v: "increases_risk" if v in [0, 1] else "decreases_risk",
+    },
+    "thal": {
+        "name": "Thallium Stress Scintigraphy",
+        "interpret": lambda v: (
+            "Normal myocardial perfusion" if v == 1
+            else "Fixed defect (prior myocardial infarction / scar tissue)" if v == 2
+            else "Reversible defect (active inducible myocardial ischemia)"
+        ),
+        "direction": lambda v: "decreases_risk" if v == 1 else "increases_risk",
+    },
+    "age": {
+        "name": "Patient Age",
+        "interpret": lambda v: f"{int(v)} years old",
+        "direction": lambda v: "increases_risk" if v >= 55 else "decreases_risk",
+    },
+    "oldpeak": {
+        "name": "Exercise ST Depression (Oldpeak)",
+        "interpret": lambda v: f"{v:.1f} mm ({'Marked ischemic depression' if v >= 2.0 else 'Moderate depression' if v >= 1.0 else 'Normal/minimal'})",
+        "direction": lambda v: "increases_risk" if v >= 1.0 else "decreases_risk",
+    },
+    "trestbps": {
+        "name": "Resting Blood Pressure",
+        "interpret": lambda v: f"{v:.0f} mmHg ({'Stage 2 Hypertension' if v >= 140 else 'Stage 1 Hypertension' if v >= 130 else 'Elevated' if v >= 120 else 'Optimal'})",
+        "direction": lambda v: "increases_risk" if v >= 130 else "decreases_risk",
+    },
+    "chol": {
+        "name": "Total Serum Cholesterol",
+        "interpret": lambda v: f"{v:.0f} mg/dL ({'High' if v >= 240 else 'Borderline High' if v >= 200 else 'Desirable'})",
+        "direction": lambda v: "increases_risk" if v >= 200 else "decreases_risk",
+    },
+    "thalach": {
+        "name": "Maximum Exercise Heart Rate",
+        "interpret": lambda v: f"{v:.0f} bpm (cardiac exercise reserve)",
+        "direction": lambda v: "decreases_risk" if v >= 145 else "increases_risk",
+    },
+    "ca": {
+        "name": "Major Vessels Colored by Fluoroscopy",
+        "interpret": lambda v: f"{int(v)} vessels ({'Significant calcification/stenosis' if v > 0 else 'Clear fluoroscopy'})",
+        "direction": lambda v: "increases_risk" if v > 0 else "decreases_risk",
+    },
+    "exang": {
+        "name": "Exercise Induced Angina",
+        "interpret": lambda v: "Yes (angina provoked by exertion)" if v == 1 else "No (exercise tolerated without angina)",
+        "direction": lambda v: "increases_risk" if v == 1 else "decreases_risk",
+    },
+    "slope": {
+        "name": "ST Segment Slope",
+        "interpret": lambda v: "Upsloping (normal)" if v == 0 else "Flat (ischemic)" if v == 1 else "Downsloping (severe ischemia)",
+        "direction": lambda v: "increases_risk" if v in [1, 2] else "decreases_risk",
+    },
+    "fbs": {
+        "name": "Fasting Blood Sugar > 120 mg/dL",
+        "interpret": lambda v: "Elevated (>120 mg/dL)" if v == 1 else "Normal (<=120 mg/dL)",
+        "direction": lambda v: "increases_risk" if v == 1 else "decreases_risk",
+    },
+    "restecg": {
+        "name": "Resting ECG Results",
+        "interpret": lambda v: "Normal" if v == 0 else "ST-T wave abnormality" if v == 1 else "Left ventricular hypertrophy",
+        "direction": lambda v: "increases_risk" if v > 0 else "decreases_risk",
+    },
+    "sex": {
+        "name": "Biological Sex",
+        "interpret": lambda v: "Male" if v == 1 else "Female",
+        "direction": lambda v: "increases_risk" if v == 1 else "decreases_risk",
+    },
+}
+
+DIABETES_FEATURE_METADATA = {
+    "Glucose": {
+        "name": "Fasting Blood Glucose",
+        "interpret": lambda v: f"{v:.0f} mg/dL ({'Diabetic range (>126)' if v >= 126 else 'Impaired fasting glucose (100-125)' if v >= 100 else 'Normal (<100)'})",
+        "direction": lambda v: "increases_risk" if v >= 100 else "decreases_risk",
+    },
+    "BMI": {
+        "name": "Body Mass Index (BMI)",
+        "interpret": lambda v: f"{v:.1f} kg/m² ({'Obese (>=30)' if v >= 30 else 'Overweight (25-29.9)' if v >= 25 else 'Normal weight'})",
+        "direction": lambda v: "increases_risk" if v >= 25 else "decreases_risk",
+    },
+    "Age": {
+        "name": "Patient Age",
+        "interpret": lambda v: f"{int(v)} years old",
+        "direction": lambda v: "increases_risk" if v >= 45 else "decreases_risk",
+    },
+    "DiabetesPedigreeFunction": {
+        "name": "Genetic Diabetes Pedigree",
+        "interpret": lambda v: f"{v:.3f} ({'High familial genetic risk' if v >= 0.50 else 'Moderate/low genetic risk'})",
+        "direction": lambda v: "increases_risk" if v >= 0.50 else "decreases_risk",
+    },
+    "BloodPressure": {
+        "name": "Diastolic Blood Pressure",
+        "interpret": lambda v: f"{v:.0f} mmHg ({'Elevated (>=80)' if v >= 80 else 'Normal'})",
+        "direction": lambda v: "increases_risk" if v >= 80 else "decreases_risk",
+    },
+    "Insulin": {
+        "name": "2-Hour Serum Insulin",
+        "interpret": lambda v: f"{v:.0f} µU/mL ({'Hyperinsulinemia (insulin resistance)' if v >= 166 else 'Normal physiological range'})",
+        "direction": lambda v: "increases_risk" if v >= 166 else "decreases_risk",
+    },
+    "SkinThickness": {
+        "name": "Triceps Skinfold Thickness",
+        "interpret": lambda v: f"{v:.0f} mm (subcutaneous adiposity)",
+        "direction": lambda v: "increases_risk" if v >= 30 else "decreases_risk",
+    },
+    "Pregnancies": {
+        "name": "Number of Pregnancies",
+        "interpret": lambda v: f"{int(v)} pregnancies ({'Gestational metabolic stress factor' if v >= 3 else 'Low parity'})",
+        "direction": lambda v: "increases_risk" if v >= 3 else "decreases_risk",
+    },
+}
 
 
 class RealtimePredictor:
@@ -48,6 +169,9 @@ class RealtimePredictor:
         self._heart_prep_meta: Optional[Dict[str, Any]] = None
         self._diabetes_prep_meta: Optional[Dict[str, Any]] = None
         self._symptoms_prep_meta: Optional[Dict[str, Any]] = None
+
+        # Clinical NLP extractor
+        self._nlp_extractor: Optional[ClinicalSymptomExtractor] = None
 
         # Feedback buffer
         self._feedback_buffer = FeedbackBuffer()
@@ -84,6 +208,10 @@ class RealtimePredictor:
         if symptoms_meta_path.exists():
             with open(symptoms_meta_path, "r", encoding="utf-8") as f:
                 self._symptoms_prep_meta = json.load(f)
+
+        # 4. Clinical NLP Symptom Extractor
+        known_symptoms = self._symptoms_prep_meta.get("symptom_features", []) if self._symptoms_prep_meta else []
+        self._nlp_extractor = ClinicalSymptomExtractor(known_symptoms=known_symptoms)
 
     # -------------------------------------------------------------------------
     # Cardiovascular Risk Prediction
@@ -148,11 +276,17 @@ class RealtimePredictor:
             importances = self._cardio_model.feature_importances_
             feature_impacts = []
             for col, imp, scaled_v, raw_v in zip(required_cols, importances, scaled_row, [features[c] for c in required_cols]):
-                # Impact is proportional to feature importance * magnitude of scaled value
+                meta = CARDIO_FEATURE_METADATA.get(col, {})
+                display_name = meta.get("name", col)
+                interpretation = meta["interpret"](raw_v) if "interpret" in meta else f"{raw_v}"
+                direction = meta["direction"](raw_v) if "direction" in meta else "neutral"
                 impact_score = float(imp * abs(scaled_v))
                 feature_impacts.append({
                     "feature": col,
+                    "display_name": display_name,
                     "value": raw_v,
+                    "interpretation": interpretation,
+                    "direction": direction,
                     "importance": round(float(imp), 4),
                     "impact_score": round(impact_score, 4),
                 })
@@ -210,6 +344,19 @@ class RealtimePredictor:
             elif k_lower in alias_map:
                 normalized_data[alias_map[k_lower]] = v
 
+        # Validate gender and enforce biological plausibility rules
+        gender = data.get("gender")
+        if gender is not None:
+            gender = str(gender).strip().lower()
+
+        raw_preg = normalized_data.get("Pregnancies")
+        if gender == "male":
+            if raw_preg is not None and float(raw_preg) > 0:
+                raise ValueError("Biological contradiction: Male patients cannot have pregnancies > 0.")
+            normalized_data["Pregnancies"] = 0.0
+        elif raw_preg is None:
+            normalized_data["Pregnancies"] = 0.0
+
         # Validate required columns
         medians = self._diabetes_prep_meta.get("imputed_medians", {}) if self._diabetes_prep_meta else {}
         scaler = self._diabetes_prep_meta.get("scaler_params", {}) if self._diabetes_prep_meta else {}
@@ -260,10 +407,20 @@ class RealtimePredictor:
             importances = self._diabetes_model.feature_importances_
             feature_impacts = []
             for col, imp, scaled_v, raw_v in zip(canonical_cols, importances, scaled_row, [features[c] for c in canonical_cols]):
+                # Clinical rule: exclude Pregnancies from male patient contributing factors
+                if gender == "male" and col == "Pregnancies":
+                    continue
+                meta = DIABETES_FEATURE_METADATA.get(col, {})
+                display_name = meta.get("name", col)
+                interpretation = meta["interpret"](raw_v) if "interpret" in meta else f"{raw_v}"
+                direction = meta["direction"](raw_v) if "direction" in meta else "neutral"
                 impact_score = float(imp * abs(scaled_v))
                 feature_impacts.append({
                     "feature": col,
+                    "display_name": display_name,
                     "value": raw_v,
+                    "interpretation": interpretation,
+                    "direction": direction,
                     "importance": round(float(imp), 4),
                     "impact_score": round(impact_score, 4),
                 })
@@ -284,36 +441,61 @@ class RealtimePredictor:
     # -------------------------------------------------------------------------
     # Symptom-Based Differential Diagnosis
     # -------------------------------------------------------------------------
-    def predict_symptoms(self, symptoms: List[str], top_k: int = 5) -> Dict[str, Any]:
-        """Predict top-k differential diagnoses based on reported symptom entities.
+    def predict_symptoms(
+        self,
+        symptoms: Optional[List[str]] = None,
+        text: Optional[str] = None,
+        top_k: int = 5,
+    ) -> Dict[str, Any]:
+        """Predict top-k differential diagnoses based on reported symptom entities or free-text narrative.
 
         Args:
-            symptoms: List of symptom string identifiers.
+            symptoms: Optional list of symptom string identifiers.
+            text: Optional natural language narrative describing symptoms.
             top_k: Number of ranked diagnostic candidates to return.
         """
-        if not symptoms:
-            raise ValueError("At least one clinical symptom must be provided for differential diagnosis.")
-
-        known_symptoms = self._symptoms_prep_meta.get("symptom_features", []) if self._symptoms_prep_meta else []
-        index_to_disease = self._symptoms_prep_meta.get("index_to_disease", {}) if self._symptoms_prep_meta else {}
-
-        # Normalize symptom tokens
+        extracted_entities = []
+        negated_symptoms = []
         detected: List[str] = []
         unrecognized: List[str] = []
 
-        normalized_set = {
-            s.strip().lower().replace(" ", "_").replace("-", "_")
-            for s in symptoms
-            if s and s.strip()
-        }
+        # 1. If narrative text provided, invoke ClinicalSymptomExtractor
+        if text and text.strip():
+            nlp_result = self._nlp_extractor.extract(text)
+            detected.extend(nlp_result["detected_symptoms"])
+            extracted_entities.extend(nlp_result["extracted_entities"])
+            negated_symptoms.extend(nlp_result["negated_symptoms"])
+            unrecognized.extend(nlp_result["unrecognized_spans"])
 
-        for sym in normalized_set:
-            if sym in known_symptoms:
-                detected.append(sym)
-            else:
-                unrecognized.append(sym)
+        # 2. If structured symptoms list provided, normalize and merge
+        known_symptoms = self._symptoms_prep_meta.get("symptom_features", []) if self._symptoms_prep_meta else []
+        index_to_disease = self._symptoms_prep_meta.get("index_to_disease", {}) if self._symptoms_prep_meta else {}
+
+        if symptoms:
+            for s in symptoms:
+                if not s or not s.strip():
+                    continue
+                clean_s = s.strip().lower().replace(" ", "_").replace("-", "_")
+                if clean_s in known_symptoms:
+                    if clean_s not in detected:
+                        detected.append(clean_s)
+                else:
+                    # Synonym lookup
+                    matched_canonical = self._nlp_extractor._synonym_lookup.get(s.strip().lower())
+                    if matched_canonical and matched_canonical in known_symptoms:
+                        if matched_canonical not in detected:
+                            detected.append(matched_canonical)
+                    else:
+                        unrecognized.append(s)
+
+        # Exclude symptoms ruled out by clinical negation
+        detected = [sym for sym in detected if sym not in negated_symptoms]
 
         if not detected:
+            if negated_symptoms:
+                raise ValueError(
+                    f"All mentioned symptoms were clinically ruled out/negated: {negated_symptoms}"
+                )
             raise ValueError(
                 f"None of the provided symptoms could be recognized. Unrecognized: {unrecognized}"
             )
@@ -343,8 +525,10 @@ class RealtimePredictor:
             "model_id": self._symptoms_meta.model_id if self._symptoms_meta else "symptoms_disease_v1",
             "model_version": self._symptoms_meta.version if self._symptoms_meta else "1.0.0",
             "top_candidates": candidates,
-            "detected_symptoms": sorted(detected),
-            "unrecognized_symptoms": sorted(unrecognized),
+            "detected_symptoms": sorted(list(set(detected))),
+            "extracted_entities": extracted_entities,
+            "negated_symptoms": sorted(list(set(negated_symptoms))),
+            "unrecognized_symptoms": sorted(list(set(unrecognized))),
             "disclaimer": CLINICAL_DISCLAIMER,
         }
 
@@ -456,7 +640,10 @@ class RealtimePredictor:
         thal = int(_get_bio(["thal", "thallium_stress"], 1.0, "thallium_stress (defaulted 1)"))
 
         # Diabetes specific
-        pregnancies = int(_get_bio(["pregnancies"], 0.0, "pregnancies (defaulted 0)"))
+        if gender_raw == "male":
+            pregnancies = 0
+        else:
+            pregnancies = int(_get_bio(["pregnancies"], 0.0, "pregnancies (defaulted 0)"))
         skin_thickness = _get_bio(["skin_thickness", "skinthickness"], 29.0, "skin_thickness (imputed median 29 mm)")
         insulin = _get_bio(["insulin", "serum_insulin"], 125.0, "insulin (imputed median 125 mu U/ml)")
         diabetes_pedigree = _get_bio(["diabetes_pedigree", "diabetespedigreefunction", "pedigree"], 0.47, "diabetes_pedigree (defaulted 0.47)")
@@ -481,6 +668,7 @@ class RealtimePredictor:
 
         # 6. Diabetes ML prediction
         diabetes_input = {
+            "gender": gender_raw,
             "pregnancies": pregnancies,
             "glucose": glucose,
             "blood_pressure": diastolic_bp,

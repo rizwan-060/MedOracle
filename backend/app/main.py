@@ -67,12 +67,19 @@ def create_app() -> FastAPI:
         request: Request, exc: RequestValidationError
     ):
         """Format request validation errors consistently."""
+        sanitized_errors = []
+        for err in exc.errors():
+            err_dict = dict(err)
+            if "ctx" in err_dict and isinstance(err_dict["ctx"], dict):
+                err_dict["ctx"] = {k: str(v) for k, v in err_dict["ctx"].items()}
+            sanitized_errors.append(err_dict)
+
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
                 "detail": "Request validation failed",
                 "error_code": "VALIDATION_ERROR",
-                "errors": exc.errors(),
+                "errors": sanitized_errors,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )

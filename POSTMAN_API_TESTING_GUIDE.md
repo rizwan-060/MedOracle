@@ -640,7 +640,7 @@ pm.expect(json.disclaimer).to.include("MedOracle is a decision-support assistant
 ---
 
 ### 10.1. Real-Time Cardiovascular Disease Risk Prediction
-Predicts patient cardiovascular disease probability, binary risk classification, categorical risk tier, calibrated confidence score, and top contributing clinical factors using the champion GradientBoostingClassifier trained on the UCI Heart Disease benchmark.
+Predicts patient cardiovascular disease probability, binary risk classification, categorical risk tier, calibrated confidence score, and top contributing clinical factors with human-readable clinical names, qualitative interpretation, and risk direction using the champion GradientBoostingClassifier trained on the UCI Heart Disease benchmark.
 
 - **Method:** `POST`
 - **URL:** `{{baseUrl}}/api/v1/predictions/cardiovascular`
@@ -666,7 +666,7 @@ Predicts patient cardiovascular disease probability, binary risk classification,
 }
 ```
 - **Expected Status:** `200 OK`
-- **Response Example:**
+- **Response Example (with Clinical Explainability):**
 ```json
 {
   "model_id": "cardiovascular_risk_v1",
@@ -677,28 +677,40 @@ Predicts patient cardiovascular disease probability, binary risk classification,
   "confidence_score": 82.63,
   "top_contributing_factors": [
     {
-      "feature": "thalach",
-      "value": 150.0,
-      "importance": 0.1852,
-      "impact_score": 0.0032
+      "feature": "cp",
+      "display_name": "Chest Pain Type",
+      "value": 3.0,
+      "interpretation": "Asymptomatic (no typical ischemic chest pain reported)",
+      "direction": "decreases_risk",
+      "importance": 0.1792,
+      "impact_score": 0.5376
     },
     {
-      "feature": "oldpeak",
-      "value": 2.3,
-      "importance": 0.1641,
-      "impact_score": 0.1783
+      "feature": "thal",
+      "display_name": "Thallium Stress Scintigraphy",
+      "value": 1.0,
+      "interpretation": "Normal myocardial perfusion",
+      "direction": "decreases_risk",
+      "importance": 0.2456,
+      "impact_score": 0.2456
     },
     {
       "feature": "age",
+      "display_name": "Patient Age",
       "value": 63.0,
-      "importance": 0.1419,
-      "impact_score": 0.1347
+      "interpretation": "63 years old",
+      "direction": "increases_risk",
+      "importance": 0.0905,
+      "impact_score": 0.0858
     },
     {
-      "feature": "chol",
-      "value": 233.0,
-      "importance": 0.1205,
-      "impact_score": 0.0319
+      "feature": "oldpeak",
+      "display_name": "Exercise ST Depression (Oldpeak)",
+      "value": 2.3,
+      "interpretation": "2.3 mm (Marked ischemic depression)",
+      "direction": "increases_risk",
+      "importance": 0.0552,
+      "impact_score": 0.06
     }
   ],
   "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
@@ -714,23 +726,30 @@ pm.expect([0, 1]).to.include(json.predicted_class);
 pm.expect(["low", "moderate", "high"]).to.include(json.risk_tier);
 pm.expect(json.confidence_score).to.be.within(50.0, 100.0);
 pm.expect(json.top_contributing_factors).to.be.an("array");
+pm.expect(json.top_contributing_factors[0].display_name).to.be.a("string");
+pm.expect(json.top_contributing_factors[0].interpretation).to.be.a("string");
 pm.expect(json.disclaimer).to.include("clinical decision support");
 ```
 
 ---
 
 ### 10.2. Real-Time Type 2 Diabetes Risk Prediction
-Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated confidence, and influential metabolic biomarkers using the champion RandomForestClassifier trained on the PIMA Indians Diabetes benchmark. Automatically handles biological zero imputation for Glucose, BloodPressure, SkinThickness, Insulin, and BMI.
+Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated confidence, and influential metabolic biomarkers using the champion RandomForestClassifier trained on the PIMA Indians Diabetes benchmark.
+- **Biological Plausibility Rules:**
+  - `gender: "male"`: Pregnancies must be 0 or omitted. Supplying `pregnancies > 0` triggers an immediate **HTTP 422 Unprocessable Entity** rejection (`Biological contradiction: Male patients cannot have pregnancies > 0.`).
+  - For male patients, `Pregnancies` is automatically filtered out from `top_contributing_factors`.
+  - For female patients, `pregnancies` is evaluated as a gestational metabolic stress biomarker.
 
 - **Method:** `POST`
 - **URL:** `{{baseUrl}}/api/v1/predictions/diabetes`
 - **Headers:**  
   `Authorization: Bearer {{accessToken}}`  
   `Content-Type: application/json`
-- **Body (raw JSON):**
+- **Body Example (Male Patient):**
 ```json
 {
-  "pregnancies": 6,
+  "gender": "male",
+  "pregnancies": 0,
   "glucose": 148.0,
   "blood_pressure": 72.0,
   "skin_thickness": 35.0,
@@ -741,7 +760,7 @@ Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated con
 }
 ```
 - **Expected Status:** `200 OK`
-- **Response Example:**
+- **Response Example (Pregnancies excluded for male):**
 ```json
 {
   "model_id": "diabetes_risk_v1",
@@ -753,25 +772,37 @@ Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated con
   "top_contributing_factors": [
     {
       "feature": "Glucose",
+      "display_name": "Fasting Blood Glucose",
       "value": 148.0,
+      "interpretation": "148 mg/dL (Diabetic range (>126))",
+      "direction": "increases_risk",
       "importance": 0.3124,
       "impact_score": 0.2707
     },
     {
       "feature": "BMI",
+      "display_name": "Body Mass Index (BMI)",
       "value": 33.6,
+      "interpretation": "33.6 kg/m² (Obese (>=30))",
+      "direction": "increases_risk",
       "importance": 0.2185,
       "impact_score": 0.0364
     },
     {
       "feature": "Age",
+      "display_name": "Patient Age",
       "value": 50.0,
+      "interpretation": "50 years old",
+      "direction": "increases_risk",
       "importance": 0.1542,
       "impact_score": 0.2198
     },
     {
       "feature": "DiabetesPedigreeFunction",
+      "display_name": "Genetic Diabetes Pedigree",
       "value": 0.627,
+      "interpretation": "0.627 (High familial genetic risk)",
+      "direction": "increases_risk",
       "importance": 0.1106,
       "impact_score": 0.0518
     }
@@ -779,29 +810,107 @@ Predicts Type 2 diabetes risk probability, categorical risk tier, calibrated con
   "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
 }
 ```
-- **Postman Tests Script:**
-```javascript
-pm.test("Status code is 200", () => pm.response.to.have.status(200));
-const json = pm.response.json();
-pm.expect(json.model_id).to.eql("diabetes_risk_v1");
-pm.expect(json.probability).to.be.within(0.0, 1.0);
-pm.expect([0, 1]).to.include(json.predicted_class);
-pm.expect(["low", "moderate", "high"]).to.include(json.risk_tier);
-pm.expect(json.confidence_score).to.be.within(50.0, 100.0);
-pm.expect(json.top_contributing_factors).to.be.an("array");
-pm.expect(json.disclaimer).to.include("clinical decision support");
-```
+
+- **Validation Test (Biological Contradiction Check):**
+  - Send: `{"gender": "male", "pregnancies": 3, "glucose": 140, "blood_pressure": 80, "bmi": 28, "diabetes_pedigree": 0.5, "age": 45}`
+  - Expected Status: `422 Unprocessable Entity` with error message `"Biological contradiction: Male patients cannot have pregnancies > 0."`
 
 ---
 
-### 10.3. Real-Time 41-Class Symptom Differential Diagnosis
-Maps clinical symptom entities against the 132-symptom diagnostic matrix using the champion Multinomial Naive Bayes model. Returns top-k ranked differential diagnostic candidates, posterior probabilities, and tracks unrecognized symptom tokens.
+### 10.3. Real-Time Symptom Differential Diagnosis (NLP Free-Text & Ontology Matching)
+Maps reported symptoms against the 132-symptom benchmark diagnostic matrix across 41 conditions using the champion Multinomial Naive Bayes model.
+- **Intelligent Clinical NLP:**
+  - Accepts free-text sentences (e.g. `"i am experiencing severe headache from the past 3 days. i also have a runny nose and a sore throught."`).
+  - **Typo Tolerance:** Employs fuzzy string matching (e.g. `"sore throught"` $\rightarrow$ `"sore throat"` $\rightarrow$ `throat_irritation`).
+  - **Clinical Negation (NegEx):** Excludes symptoms ruled out by patient (e.g. `"no fever"`, `"denies chest pain"` are placed in `negated_symptoms` and withheld from active features).
 
 - **Method:** `POST`
 - **URL:** `{{baseUrl}}/api/v1/predictions/symptoms`
 - **Headers:**  
   `Authorization: Bearer {{accessToken}}`  
   `Content-Type: application/json`
+
+#### Option A: Natural Language Sentence Input
+- **Body (raw JSON):**
+```json
+{
+  "text": "i am experiencing severe headache from the past 3 days. i also have a runny nose and a sore throught.",
+  "top_k": 5
+}
+```
+- **Expected Status:** `200 OK`
+- **Response Example:**
+```json
+{
+  "model_id": "symptoms_disease_v1",
+  "model_version": "1.0.0",
+  "top_candidates": [
+    {
+      "rank": 1,
+      "disease": "Common Cold",
+      "probability": 0.983,
+      "confidence_score": 98.3
+    },
+    {
+      "rank": 2,
+      "disease": "Allergy",
+      "probability": 0.012,
+      "confidence_score": 1.2
+    },
+    {
+      "rank": 3,
+      "disease": "Dengue",
+      "probability": 0.003,
+      "confidence_score": 0.3
+    },
+    {
+      "rank": 4,
+      "disease": "Migraine",
+      "probability": 0.0015,
+      "confidence_score": 0.15
+    },
+    {
+      "rank": 5,
+      "disease": "Hypertension",
+      "probability": 0.0005,
+      "confidence_score": 0.05
+    }
+  ],
+  "detected_symptoms": [
+    "headache",
+    "runny_nose",
+    "throat_irritation"
+  ],
+  "extracted_entities": [
+    {
+      "raw_mention": "severe headache",
+      "canonical_symptom": "headache",
+      "confidence": 0.98,
+      "match_type": "synonym",
+      "is_negated": false
+    },
+    {
+      "raw_mention": "sore throught",
+      "canonical_symptom": "throat_irritation",
+      "confidence": 0.98,
+      "match_type": "synonym",
+      "is_negated": false
+    },
+    {
+      "raw_mention": "runny nose",
+      "canonical_symptom": "runny_nose",
+      "confidence": 1.0,
+      "match_type": "exact",
+      "is_negated": false
+    }
+  ],
+  "negated_symptoms": [],
+  "unrecognized_symptoms": [],
+  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
+}
+```
+
+#### Option B: Structured Symptom Token List
 - **Body (raw JSON):**
 ```json
 {
@@ -816,54 +925,7 @@ Maps clinical symptom entities against the 132-symptom diagnostic matrix using t
 }
 ```
 - **Expected Status:** `200 OK`
-- **Response Example:**
-```json
-{
-  "model_id": "symptoms_disease_v1",
-  "model_version": "1.0.0",
-  "top_candidates": [
-    {
-      "rank": 1,
-      "disease": "Malaria",
-      "probability": 0.9971,
-      "confidence_score": 99.71
-    },
-    {
-      "rank": 2,
-      "disease": "Dengue",
-      "probability": 0.0024,
-      "confidence_score": 0.24
-    },
-    {
-      "rank": 3,
-      "disease": "Typhoid",
-      "probability": 0.0003,
-      "confidence_score": 0.03
-    },
-    {
-      "rank": 4,
-      "disease": "Jaundice",
-      "probability": 0.0001,
-      "confidence_score": 0.01
-    },
-    {
-      "rank": 5,
-      "disease": "Tuberculosis",
-      "probability": 0.0001,
-      "confidence_score": 0.01
-    }
-  ],
-  "detected_symptoms": [
-    "chills",
-    "headache",
-    "high_fever",
-    "nausea",
-    "sweating"
-  ],
-  "unrecognized_symptoms": [],
-  "disclaimer": "MedOracle machine learning risk predictions provide clinical decision support and do not constitute a definitive medical diagnosis. Consult a licensed physician or specialist for comprehensive clinical evaluation."
-}
-```
+- **Response:** Primary diagnosis `Malaria` (99.71% confidence) with candidates Dengue, Typhoid, Jaundice, and Tuberculosis.
 - **Postman Tests Script:**
 ```javascript
 pm.test("Status code is 200", () => pm.response.to.have.status(200));

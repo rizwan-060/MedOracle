@@ -296,7 +296,7 @@ def test_predict_current_patient_assessment_with_full_records(client: TestClient
 
     # 4. Trigger patient prediction
     res = client.post("/api/v1/predictions/patient/me", headers=headers)
-    assert res.status_code == 200
+    assert res.status_code == 200, res.json()
 
     data = res.json()
     assert data["user_id"] == user.id
@@ -325,3 +325,126 @@ def test_predict_current_patient_assessment_empty_profile_fallbacks(client: Test
     assert len(data["imputed_or_defaulted_parameters"]) > 0
     assert data["differential_diagnosis"] is None
     assert "clinical_summary" in data
+
+
+def test_cardiovascular_prediction_factor_explainability(client: TestClient, db_session):
+    """POST /api/v1/predictions/cardiovascular includes rich clinical labels, qualitative interpretation, and risk direction."""
+    _, headers = _create_authenticated_user(db_session, "cardio_explain_user@example.com")
+    payload = {
+        "age": 63,
+        "sex": 1,
+        "cp": 3,
+        "trestbps": 145.0,
+        "chol": 233.0,
+        "fbs": 1,
+        "restecg": 0,
+        "thalach": 150.0,
+        "exang": 0,
+        "oldpeak": 2.3,
+        "slope": 0,
+        "ca": 0,
+        "thal": 1,
+    }
+    res = client.post("/api/v1/predictions/cardiovascular", json=payload, headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    factors = data["top_contributing_factors"]
+    assert len(factors) > 0
+
+    for f in factors:
+        assert "feature" in f
+        assert "display_name" in f and len(f["display_name"]) > 0
+        assert "interpretation" in f and len(f["interpretation"]) > 0
+        assert f["direction"] in ["increases_risk", "decreases_risk", "neutral"]
+        assert "importance" in f
+        assert "impact_score" in f
+
+
+def test_diabetes_male_pregnancy_validation_rejection(client: TestClient, db_session):
+    """POST /api/v1/predictions/diabetes rejects requests where male patients are provided pregnancies > 0."""
+    _, headers = _create_authenticated_user(db_session, "male_preg_fail_user@example.com")
+    invalid_payload = {
+        "gender": "male",
+        "pregnancies": 3,  # Biologically contradictory for male
+        "glucose": 140.0,
+        "blood_pressure": 80.0,
+        "bmi": 28.0,
+        "diabetes_pedigree": 0.5,
+        "age": 45,
+    }
+    res = client.post("/api/v1/predictions/diabetes", json=invalid_payload, headers=headers)
+    assert res.status_code == 422
+    err_body = res.json()
+    assert "Male patients cannot have pregnancies" in str(err_body)
+
+
+def test_diabetes_male_pregnancy_suppression_in_factors(client: TestClient, db_session):
+    """POST /api/v1/predictions/diabetes excludes Pregnancies from top contributing factors for male patients."""
+    _, headers = _create_authenticated_user(db_session, "male_preg_ok_user@example.com")
+    payload = {
+        "gender": "male",
+        "pregnancies": 0,
+        "glucose": 150.0,
+        "blood_pressure": 82.0,
+        "bmi": 32.0,
+        "diabetes_pedigree": 0.65,
+        "age": 52,
+    }
+    res = client.post("/api/v1/predictions/diabetes", json=payload, headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    factors = data["top_contributing_factors"]
+    factor_features = [f["feature"] for f in factors]
+    # Pregnancies must be suppressed for male patients
+    assert "Pregnancies" not in factor_features
+    # Check that explainability fields exist
+    for f in factors:
+        assert len(f["display_name"]) > 0
+        assert len(f["interpretation"]) > 0
+        assert f["direction"] in ["increases_risk", "decreases_risk", "neutral"]
+
+
+def test_symptom_differential_natural_language_sentence(client: TestClient, db_session):
+    """POST /api/v1/predictions/symptoms parses natural language sentences, tolerates typos, and returns Common Cold."""
+    _, headers = _create_authenticated_user(db_session, "symptoms_nlp_user@example.com")
+    payload = {
+        "text": "i am experiencing severe headache from the past 3 days. i also have a runny nose and a sore throught.",
+        "top_k": 5,
+    }
+    res = client.post("/api/v1/predictions/symptoms", json=payload, headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    assert "headache" in data["detected_symptoms"]
+    assert "runny_nose" in data["detected_symptoms"]
+    assert "throat_irritation" in data["detected_symptoms"]
+
+    # Verify extracted entities
+    assert len(data["extracted_entities"]) >= 3
+    # Verify top candidate is Common Cold
+    assert data["top_candidates"][0]["disease"] == "Common Cold"
+    assert data["top_candidates"][0]["confidence_score"] > 80.0
+
+
+def test_symptom_differential_clinical_negation(client: TestClient, db_session):
+    """POST /api/v1/predictions/symptoms respects NegEx clinical negation to exclude ruled-out symptoms."""
+    _, headers = _create_authenticated_user(db_session, "symptoms_negation_user@example.com")
+    payload = {
+        "text": "Patient reports severe headache and runny nose, but no fever and denies chest pain.",
+        "top_k": 3,
+    }
+    res = client.post("/api/v1/predictions/symptoms", json=payload, headers=headers)
+    assert res.status_code == 200
+
+    data = res.json()
+    assert "headache" in data["detected_symptoms"]
+    assert "runny_nose" in data["detected_symptoms"]
+
+    # Negated symptoms must be excluded from positive active features
+    assert "high_fever" not in data["detected_symptoms"]
+    assert "chest_pain" not in data["detected_symptoms"]
+    assert "high_fever" in data["negated_symptoms"]
+    assert "chest_pain" in data["negated_symptoms"]
+
