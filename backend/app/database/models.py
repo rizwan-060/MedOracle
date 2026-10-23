@@ -90,6 +90,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    diagnostic_feedbacks = relationship(
+        "DiagnosticFeedback",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class PatientProfile(Base):
@@ -179,6 +184,14 @@ class LabResult(Base):
     lab_name = Column(String(255), nullable=True)
     biomarkers = Column(JSON, nullable=False)  # Map of biomarker name -> numeric/text value
     notes = Column(Text, nullable=True)
+
+    # Scanned report & Multimodal OCR document tracking
+    document_url = Column(String(500), nullable=True)  # URL or relative file path to uploaded scan/PDF
+    document_type = Column(String(50), default="manual_entry", nullable=False)  # "manual_entry", "scanned_image", "pdf_report"
+    ocr_raw_text = Column(Text, nullable=True)  # Full raw extracted text preserved for clinical audit
+    ocr_confidence = Column(Float, nullable=True)  # Average OCR extraction confidence (0.0 to 100.0)
+    is_verified = Column(Boolean, default=False, nullable=False)  # Clinician or patient verified flag
+
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
@@ -208,6 +221,14 @@ class AnalysisSession(Base):
     )  # "queued", "agent_analysis", "risk_calculation", "consensus_debate", "completed", "failed"
     progress_percent = Column(Integer, default=0, nullable=False)
 
+    # Triage and Consensus Metrics
+    urgency_level = Column(
+        String(30), default="routine", nullable=False
+    )  # "routine", "moderate", "urgent", "emergency"
+    consensus_score = Column(Float, nullable=True)  # Weighted consensus agreement score (0.0 to 100.0)
+    debate_rounds_count = Column(Integer, default=1, nullable=False)  # Total debate rounds conducted
+    has_minority_dissent = Column(Boolean, default=False, nullable=False)  # Minority opinion preserved
+
     # Multi-agent results
     consensus_verdict = Column(JSON, nullable=True)
     debate_summary = Column(JSON, nullable=True)
@@ -215,6 +236,7 @@ class AnalysisSession(Base):
     counterfactuals = Column(JSON, nullable=True)
     reasoning_graph = Column(JSON, nullable=True)
     recommended_specialty = Column(String(100), nullable=True)
+    doctor_recommendations = Column(JSON, default=list, nullable=False)  # Matched specialist referrals
     error_message = Column(Text, nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -249,9 +271,18 @@ class AgentOutput(Base):
     )
     agent_role = Column(
         String(50), nullable=False, index=True
-    )  # "symptom_agent", "medical_history_agent", "laboratory_agent", "risk_prediction_agent", "consensus_agent"
+    )  # "symptom_agent", "medical_history_agent", "laboratory_agent", "risk_prediction_agent", "consensus_agent", "explainability_agent"
+    round_number = Column(
+        Integer, default=1, nullable=False, index=True
+    )  # Debate round (1: initial findings, 2: challenge round, 3: recalibration)
+    target_agent_role = Column(
+        String(50), nullable=True
+    )  # Opposing agent challenged during debate round
     findings = Column(Text, nullable=False)
     confidence = Column(Float, nullable=False)  # 0.0 to 100.0
+    confidence_delta = Column(
+        Float, default=0.0, nullable=False
+    )  # Confidence score adjustment following challenge round
     reasoning_chain = Column(JSON, default=list, nullable=False)
     evidence = Column(JSON, default=list, nullable=False)
     challenges = Column(JSON, default=list, nullable=False)
@@ -308,12 +339,16 @@ class Doctor(Base):
     name = Column(String(255), nullable=False)
     specialty = Column(String(100), nullable=False, index=True)
     sub_specialty = Column(String(100), nullable=True)
+    qualification = Column(String(255), nullable=True)  # e.g., "MBBS, FCPS (Cardiology)", "MD, FACP"
+    experience_years = Column(Integer, nullable=True)  # Years of clinical experience
     hospital_clinic = Column(String(255), nullable=False)
     city = Column(String(100), nullable=False, index=True)
     area = Column(String(150), nullable=False)
     address = Column(Text, nullable=True)
     contact_phone = Column(String(50), nullable=True)
     contact_email = Column(String(100), nullable=True)
+    consultation_fee = Column(Float, nullable=True)  # Consultation fee in PKR / local currency
+    available_days = Column(JSON, default=list, nullable=False)  # e.g., ["Monday", "Wednesday", "Friday"]
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     rating = Column(Float, default=5.0, nullable=False)
@@ -345,3 +380,34 @@ class TrainedModel(Base):
     updated_at = Column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
+
+
+class DiagnosticFeedback(Base):
+    """Clinician-verified diagnostic ground truth for active learning continuous retraining."""
+
+    __tablename__ = "diagnostic_feedbacks"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    analysis_session_id = Column(
+        String(36), ForeignKey("analysis_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    target_disease = Column(String(50), nullable=False, index=True)  # "cardio", "diabetes", "symptoms"
+    features = Column(JSON, nullable=False)
+    ground_truth_label = Column(String(100), nullable=False)
+    predicted_label = Column(String(100), nullable=True)
+    confidence_at_prediction = Column(Float, nullable=True)
+    clinician_notes = Column(Text, nullable=True)
+    is_used_for_retraining = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="diagnostic_feedbacks")
+    analysis_session = relationship("AnalysisSession")
+

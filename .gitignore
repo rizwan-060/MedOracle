@@ -57,3 +57,29 @@ models/experiments/*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Agent workflows and rules (local knowledge only, not for GitHub)
+.agent/
+.agents/
+
+# Development documentation directory (all internal development markdown files live here)
+dev_docs/
+dev_docs/*
+
+# Global rule: No internal development markdown files pushed to GitHub
+*.md
+!frontend/**/README.md
+!backend/**/README.md
+
+# Academic proposals and submission files
+*.docx
+*Proposal*
+*proposal*
+docs/*Proposal*
+docs/*proposal*
+docs/*.docx
+docs/*.pdf
+
+# Feedback & active learning buffer
+datasets/feedback/
+

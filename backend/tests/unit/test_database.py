@@ -13,6 +13,7 @@ from app.database.models import (
     AnalysisSession,
     Base,
     Doctor,
+    DiagnosticFeedback,
     LabResult,
     MedicalHistory,
     PatientProfile,
@@ -25,6 +26,7 @@ from app.database.repositories import (
     AgentOutputRepository,
     AnalysisSessionRepository,
     DoctorRepository,
+    DiagnosticFeedbackRepository,
     LabResultRepository,
     MedicalHistoryRepository,
     PatientProfileRepository,
@@ -67,6 +69,7 @@ def test_schema_tables_exist():
         "risk_results",
         "doctors",
         "trained_models",
+        "diagnostic_feedbacks",
     }
     actual_tables = set(Base.metadata.tables.keys())
     assert expected_tables.issubset(actual_tables)
@@ -330,3 +333,86 @@ def test_trained_model_repository(db_session):
     active_model = model_repo.get_active_by_name("cardiovascular_rf_classifier")
     assert active_model is not None
     assert active_model.metrics["roc_auc"] == 0.884
+
+
+def test_diagnostic_feedback_and_enhanced_models(db_session):
+    """Test DiagnosticFeedback repository and OCR/debate schema extensions."""
+    user_repo = UserRepository(db_session)
+    user = user_repo.create(
+        email="doctor.feedback@example.com",
+        hashed_password="pw_hash_test_123",
+        full_name="Dr. Test Reviewer",
+    )
+
+    # 1. Test LabResult with OCR attributes
+    lab_repo = LabResultRepository(db_session)
+    lab = lab_repo.create(
+        user_id=user.id,
+        test_date=date(2026, 10, 24),
+        lab_name="Chughtai Lab",
+        biomarkers={"fasting_blood_glucose": 135.0, "total_cholesterol": 210.0},
+        document_url="uploads/lab_reports/scan_001.pdf",
+        document_type="pdf_report",
+        ocr_raw_text="Fasting Blood Sugar: 135 mg/dL. Total Cholesterol: 210 mg/dL.",
+        ocr_confidence=97.5,
+        is_verified=True,
+    )
+    assert lab.document_type == "pdf_report"
+    assert lab.ocr_confidence == 97.5
+    assert lab.is_verified is True
+
+    # 2. Test AnalysisSession with urgency and debate metrics
+    session_repo = AnalysisSessionRepository(db_session)
+    session = session_repo.create(
+        user_id=user.id,
+        status="completed",
+        current_phase="completed",
+        urgency_level="urgent",
+        consensus_score=92.4,
+        debate_rounds_count=2,
+        has_minority_dissent=False,
+        doctor_recommendations=[{"doctor_name": "Dr. Sarah Khan", "specialty": "Cardiology"}],
+    )
+    assert session.urgency_level == "urgent"
+    assert session.consensus_score == 92.4
+    assert session.debate_rounds_count == 2
+    assert len(session.doctor_recommendations) == 1
+
+    # 3. Test AgentOutput with debate rounds and delta
+    agent_output_repo = AgentOutputRepository(db_session)
+    output = agent_output_repo.create(
+        analysis_session_id=session.id,
+        agent_role="risk_prediction_agent",
+        round_number=2,
+        target_agent_role="laboratory_agent",
+        findings="Adjusted cardiovascular risk upwards based on troponin trend.",
+        confidence=88.0,
+        confidence_delta=12.0,
+        reasoning_chain=["Reviewed elevated troponin", "Recalibrated Framingham input"],
+    )
+    assert output.round_number == 2
+    assert output.target_agent_role == "laboratory_agent"
+    assert output.confidence_delta == 12.0
+
+    # 4. Test DiagnosticFeedback persistence
+    feedback_repo = DiagnosticFeedbackRepository(db_session)
+    feedback = feedback_repo.create(
+        user_id=user.id,
+        analysis_session_id=session.id,
+        target_disease="cardio",
+        features={"age": 55, "trestbps": 160.0},
+        ground_truth_label="1",
+        predicted_label="0",
+        confidence_at_prediction=65.0,
+        clinician_notes="Patient experienced severe angina on angiography.",
+    )
+    assert feedback.id is not None
+    assert feedback.target_disease == "cardio"
+    assert feedback.is_used_for_retraining is False
+
+    unprocessed = feedback_repo.list_unprocessed("cardio")
+    assert len(unprocessed) == 1
+    assert unprocessed[0].id == feedback.id
+
+    feedback_repo.mark_as_retrained([feedback.id])
+    assert len(feedback_repo.list_unprocessed("cardio")) == 0
