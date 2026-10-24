@@ -28,7 +28,7 @@ class DashboardHeroMetricCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 6),
       decoration: BoxDecoration(
-        color: AppColors.primaryMaroon,
+        color: AppColors.headerBg,
         borderRadius: BorderRadius.circular(12.0),
         boxShadow: <BoxShadow>[
           BoxShadow(
