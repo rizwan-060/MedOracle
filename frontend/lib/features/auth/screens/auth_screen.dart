@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-
+import 'package:medoracle/features/auth/widgets/auth_header.dart'; 
 /// Unified Authentication Screen supporting seamless toggle between
 /// "Sign In" and "Create Account" using local state.
 class AuthScreen extends StatefulWidget {
@@ -66,7 +66,7 @@ class _AuthScreenState extends State<AuthScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Top Main Header with consistent header color and comfortable padding
-              _AuthHeader(isLogin: _isLogin),
+              AuthHeader(isLogin: _isLogin),
 
               // Comfortable vertical gap (24.0) between header and primary card
               const SizedBox(height: 24.0),
@@ -167,83 +167,6 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 /// Top Main Header displaying Logo, Header Text color, and Instrument Serif title
-class _AuthHeader extends StatelessWidget {
-  final bool isLogin;
-
-  const _AuthHeader({required this.isLogin});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 0.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Logo Row
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryAccent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.primaryAccent.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.shield_outlined,
-                  color: AppColors.primaryAccent,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'MedOracle',
-                style: AppTextStyles.lexend(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.headerText,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24.0),
-
-          // Main Header with Instrument Serif (28.0 screen titles) & AppColors.headerText
-          Text(
-            isLogin ? 'Welcome back' : 'Create your account',
-            style: AppTextStyles.instrumentSerif(
-              fontSize: 28.0,
-              fontWeight: FontWeight.w600,
-              color: AppColors.headerText,
-              letterSpacing: -0.4,
-            ),
-          ),
-
-          const SizedBox(height: 8.0),
-
-          // Subtitle in Lexend
-          Text(
-            isLogin
-                ? 'Log in to see your results and next steps.'
-                : 'Start your first health check in a few minutes.',
-            style: AppTextStyles.lexend(
-              fontSize: 14.0,
-              fontWeight: FontWeight.w400,
-              color: AppColors.textMuted,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// Segmented Switcher for toggling "Sign In" and "Create Account"
 class _SegmentedSwitcher extends StatelessWidget {
