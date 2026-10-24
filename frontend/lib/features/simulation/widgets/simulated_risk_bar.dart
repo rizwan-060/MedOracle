@@ -37,15 +37,14 @@ class SimulatedRiskBar extends StatelessWidget {
         color: AppColors.cardSurface,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
-          color: AppColors.border,
+          color: AppColors.borderSubtle,
           width: 1.5,
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.primaryMaroon.withValues(alpha: 0.12),
-            offset: const Offset(0, 10),
-            blurRadius: 24,
-            spreadRadius: -8,
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
           ),
         ],
       ),
@@ -93,7 +92,7 @@ class SimulatedRiskBar extends StatelessWidget {
           GradientCtaButton(
             label: 'Save Action Plan',
             onPressed: onSave,
-            height: 52,
+            height: 56,
           ),
         ],
       ),

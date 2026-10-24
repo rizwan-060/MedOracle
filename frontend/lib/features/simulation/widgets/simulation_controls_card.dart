@@ -57,14 +57,13 @@ class SimulationControlsCard extends StatelessWidget {
         color: AppColors.cardSurface,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
-          color: AppColors.dustyTaupe.withValues(alpha: 0.45),
+          color: AppColors.borderSubtle,
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.primaryMaroon.withValues(alpha: 0.30),
-            offset: const Offset(0, 14),
-            blurRadius: 30,
-            spreadRadius: -12,
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
           ),
         ],
       ),
