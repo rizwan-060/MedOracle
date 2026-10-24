@@ -163,7 +163,7 @@ abstract final class AppColors {
     colors: <Color>[
       Color(0x1AFFFFFF),
       Color(0x00FFFFFF),
-      Color(0x33000000),
+      Color(0x00FFFFFF),
     ],
     stops: <double>[0.0, 0.45, 1.0],
   );

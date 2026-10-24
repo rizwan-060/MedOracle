@@ -31,9 +31,9 @@ class WizardHeader extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.8),
-            blurRadius: 32,
-            offset: const Offset(0, 18),
+            color: AppColors.headerShadow,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
