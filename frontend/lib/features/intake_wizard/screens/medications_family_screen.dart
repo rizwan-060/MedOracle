@@ -15,18 +15,18 @@ import '../widgets/two_column_row.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
-/// Step 2B of the intake wizard — current medications and family history.
+/// Step 2B of the intake wizard — medications and family history.
 class MedicationsFamilyScreen extends ConsumerWidget {
   const MedicationsFamilyScreen({super.key});
 
   static const String routePath = IntakeRoutes.medicationsFamily;
 
   static const List<String> _frequencies = <String>[
-    'Once Daily',
-    'Twice Daily',
-    'Three Times Daily',
+    'Once daily',
+    'Twice daily',
+    'Three times daily',
+    'As needed',
     'Weekly',
-    'As Needed',
   ];
 
   static const List<String> _relatives = <String>[
@@ -50,17 +50,7 @@ class MedicationsFamilyScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.canvasBackground,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppColors.dustyTaupe,
-              AppColors.canvasBackground,
-            ],
-            stops: [0, 0.35],
-          ),
-        ),
+        color: AppColors.canvasBackground,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

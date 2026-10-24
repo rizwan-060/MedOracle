@@ -39,17 +39,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.canvasBackground,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppColors.dustyTaupe,
-              AppColors.canvasBackground,
-            ],
-            stops: [0, 0.35],
-          ),
-        ),
+        color: AppColors.canvasBackground,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
