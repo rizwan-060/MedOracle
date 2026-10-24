@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:medoracle/core/theme/app_colors.dart';
 import 'package:medoracle/core/theme/app_text_styles.dart';
 import 'package:medoracle/core/widgets/assessment_section_card.dart';
-import 'package:medoracle/core/widgets/assessment_top_bar.dart';
 import 'package:medoracle/core/widgets/disclaimer_text.dart';
 import 'package:medoracle/core/widgets/glass_pill_button.dart';
 import 'package:medoracle/core/widgets/gradient_cta_button.dart';
@@ -10,6 +9,7 @@ import 'package:medoracle/features/intake_wizard/models/assessment_data.dart';
 import 'package:medoracle/features/intake_wizard/widgets/doubt_warning_card.dart';
 import 'package:medoracle/features/intake_wizard/widgets/reasoning_map_chart.dart';
 import 'package:medoracle/features/intake_wizard/widgets/specialist_check_stack.dart';
+import 'package:medoracle/features/assessment/widgets/assessment_header.dart';
 
 /// First assessment screen of the intake flow.
 ///
@@ -77,104 +77,113 @@ class _FirstAssessmentScreenState extends State<FirstAssessmentScreen> {
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: AppColors.canvasGradient),
         child: SafeArea(
+          bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                AssessmentTopBar(
+                AssessmentHeader(
                   onClose:
                       widget.onClose ?? () => _placeholder(context, 'close'),
                 ),
-                const SizedBox(height: 18),
-                const Text(
-                  'HOW OUR AI REACHED THIS RESULT',
-                  style: AppTextStyles.eyebrow,
-                ),
-                const SizedBox(height: 8),
-                Text.rich(
-                  TextSpan(
-                    children: <InlineSpan>[
-                      const TextSpan(text: 'Why we are '),
-                      TextSpan(
-                        text: '${widget.confidence}% sure',
-                        style: AppTextStyles.resultsHeadlineAccent,
-                      ),
-                    ],
-                  ),
-                  style: AppTextStyles.resultsHeadline,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '3 specialist AI checks reviewed your details separately and '
-                  'agreed.',
-                  style: AppTextStyles.resultsBody,
-                ),
-                const SizedBox(height: 22),
-                AssessmentSectionCard(
-                  stepNumber: '1',
-                  title: 'Visual reasoning map',
-                  subtitle: 'How your details became the result',
-                  child: ReasoningMapChart(
-                    facts: widget.facts,
-                    models: widget.models,
-                    resultTitle: AssessmentDemoData.resultTitle,
-                    resultConfidence: AssessmentDemoData.resultConfidence,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                AssessmentSectionCard(
-                  stepNumber: '2',
-                  title: 'The 3 specialist checks',
-                  subtitle: 'Tap the paper behind to read the next one',
-                  emphasized: true,
-                  trailing: _HeaderPill(label: badge),
-                  child: SpecialistCheckStack(
-                    checks: widget.checks,
-                    onIndexChanged: (int index) =>
-                        setState(() => _selectedCheck = index),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                AssessmentSectionCard(
-                  stepNumber: '3',
-                  title: 'What our AI debated',
-                  subtitle: 'We challenged the result before agreeing',
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      const DoubtRaisedCard(
-                        message:
-                            'Could this just be muscle strain, since it only '
-                            'started 4 days ago?',
+                      const SizedBox(height: 18),
+                      const Text(
+                        'HOW OUR AI REACHED THIS RESULT',
+                        style: AppTextStyles.eyebrow,
                       ),
-                      const VerticalFlowArrow(),
-                      const RuledOutCard(
-                        message:
-                            'Pain spreading to the jaw during walking, '
-                            'combined with these, points to the heart:',
-                        highlights: <String>[
-                          'Cholesterol 242',
-                          'BP 146',
-                          'Family history',
-                        ],
+                      const SizedBox(height: 8),
+                      Text.rich(
+                        TextSpan(
+                          children: <InlineSpan>[
+                            const TextSpan(text: 'Why we are '),
+                            TextSpan(
+                              text: '${widget.confidence}% sure',
+                              style: AppTextStyles.resultsHeadlineAccent,
+                            ),
+                          ],
+                        ),
+                        style: AppTextStyles.resultsHeadline,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        '3 specialist AI checks reviewed your details separately and '
+                        'agreed.',
+                        style: AppTextStyles.resultsBody,
+                      ),
+                      const SizedBox(height: 22),
+                      AssessmentSectionCard(
+                        stepNumber: '1',
+                        title: 'Visual reasoning map',
+                        subtitle: 'How your details became the result',
+                        child: ReasoningMapChart(
+                          facts: widget.facts,
+                          models: widget.models,
+                          resultTitle: AssessmentDemoData.resultTitle,
+                          resultConfidence: AssessmentDemoData.resultConfidence,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      AssessmentSectionCard(
+                        stepNumber: '2',
+                        title: 'The 3 specialist checks',
+                        subtitle: 'Tap the paper behind to read the next one',
+                        emphasized: true,
+                        trailing: _HeaderPill(label: badge),
+                        child: SpecialistCheckStack(
+                          checks: widget.checks,
+                          onIndexChanged: (int index) =>
+                              setState(() => _selectedCheck = index),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      AssessmentSectionCard(
+                        stepNumber: '3',
+                        title: 'What our AI debated',
+                        subtitle: 'We challenged the result before agreeing',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            const DoubtRaisedCard(
+                              message:
+                                  'Could this just be muscle strain, since it only '
+                                  'started 4 days ago?',
+                            ),
+                            const VerticalFlowArrow(),
+                            const RuledOutCard(
+                              message:
+                                  'Pain spreading to the jaw during walking, '
+                                  'combined with these, points to the heart:',
+                              highlights: <String>[
+                                'Cholesterol 242',
+                                'BP 146',
+                                'Family history',
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const DisclaimerText(),
+                      const SizedBox(height: 16),
+                      GradientCtaButton(
+                        label: 'View risk trajectory',
+                        onPressed: widget.onPrimaryAction ??
+                            () => _placeholder(context, 'risk trajectory'),
+                      ),
+                      const SizedBox(height: 10),
+                      GlassPillButton.footer(
+                        label: 'Back to results',
+                        onTap: widget.onSecondaryAction ??
+                            () => _placeholder(context, 'results'),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 24),
-                const DisclaimerText(),
-                const SizedBox(height: 16),
-                GradientCtaButton(
-                  label: 'View risk trajectory',
-                  onPressed: widget.onPrimaryAction ??
-                      () => _placeholder(context, 'risk trajectory'),
-                ),
-                const SizedBox(height: 10),
-                GlassPillButton.footer(
-                  label: 'Back to results',
-                  onTap: widget.onSecondaryAction ??
-                      () => _placeholder(context, 'results'),
                 ),
               ],
             ),

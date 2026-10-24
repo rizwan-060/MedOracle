@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:medoracle/core/theme/app_colors.dart';
 import 'package:medoracle/core/theme/app_text_styles.dart';
-import 'package:medoracle/core/widgets/assessment_top_bar.dart';
 import 'package:medoracle/core/widgets/disclaimer_text.dart';
 import 'package:medoracle/core/widgets/glass_pill_button.dart';
 import 'package:medoracle/core/widgets/gradient_cta_button.dart';
 import 'package:medoracle/data/models/doctor_model.dart';
 import 'package:medoracle/features/doctors/widgets/doctor_card.dart';
+
+// Added import for the AssessmentHeader
+import 'package:medoracle/features/assessment/widgets/assessment_header.dart';
 
 /// Care finder - specialist recommendations matching the assessment.
 ///
@@ -78,46 +80,55 @@ class DoctorRecommendationScreen extends StatelessWidget {
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: AppColors.canvasGradient),
         child: SafeArea(
+          bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                AssessmentTopBar(
+                AssessmentHeader(
                   onClose: onBack ?? () => _placeholder(context, 'close'),
                 ),
-                const SizedBox(height: 18),
-                const Text('CARE NEAR YOU', style: AppTextStyles.eyebrow),
-                const SizedBox(height: 8),
-                const Text(
-                  'Cardiologists near you',
-                  style: AppTextStyles.resultsHeadline,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Specialists who can review your result and set up the next '
-                  'steps with you.',
-                  style: AppTextStyles.resultsBody,
-                ),
-                const SizedBox(height: 22),
-                for (int index = 0; index < doctors.length; index++) ...<Widget>[
-                  if (index > 0) const SizedBox(height: 12),
-                  DoctorCard(
-                    doctor: doctors[index],
-                    onTap: () => onSelectDoctor?.call(doctors[index]),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const SizedBox(height: 18),
+                      const Text('CARE NEAR YOU', style: AppTextStyles.eyebrow),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Cardiologists near you',
+                        style: AppTextStyles.resultsHeadline,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Specialists who can review your result and set up the next '
+                        'steps with you.',
+                        style: AppTextStyles.resultsBody,
+                      ),
+                      const SizedBox(height: 22),
+                      for (int index = 0; index < doctors.length; index++) ...<Widget>[
+                        if (index > 0) const SizedBox(height: 12),
+                        DoctorCard(
+                          doctor: doctors[index],
+                          onTap: () => onSelectDoctor?.call(doctors[index]),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      const DisclaimerText(),
+                      const SizedBox(height: 16),
+                      GradientCtaButton(
+                        label: 'Book the earliest slot',
+                        onPressed: () => _placeholder(context, 'booking'),
+                      ),
+                      const SizedBox(height: 10),
+                      GlassPillButton.footer(
+                        label: backLabel,
+                        onTap: onBack ?? () => _placeholder(context, 'back'),
+                      ),
+                    ],
                   ),
-                ],
-                const SizedBox(height: 24),
-                const DisclaimerText(),
-                const SizedBox(height: 16),
-                GradientCtaButton(
-                  label: 'Book the earliest slot',
-                  onPressed: () => _placeholder(context, 'booking'),
-                ),
-                const SizedBox(height: 10),
-                GlassPillButton.footer(
-                  label: backLabel,
-                  onTap: onBack ?? () => _placeholder(context, 'back'),
                 ),
               ],
             ),
