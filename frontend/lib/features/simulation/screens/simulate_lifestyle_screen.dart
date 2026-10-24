@@ -42,44 +42,51 @@ class SimulateLifestyleScreen extends ConsumerWidget {
       body: Container(
         decoration: const BoxDecoration(gradient: AppColors.canvasGradient),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                SimulationBand(
-                  title: 'Simulate Lifestyle Changes',
-                  subtitle:
-                      'Adjust the controls below to see how specific '
-                      'actions lower your future risk.',
-                  onClose: onClose,
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SimulationBand(
+                title: 'Simulate Lifestyle Changes',
+                subtitle:
+                    'Adjust the controls below to see how specific '
+                    'actions lower your future risk.',
+                onClose: onClose,
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SimulationBaselineCard(
+                        label: 'Current 1-Year Risk',
+                        value: '${projection.baseline}',
+                        unit: 'out of 100',
+                      ),
+                      SimulationControlsCard(
+                        weightKg: inputs.weightKg,
+                        bloodPressureMmHg: inputs.bloodPressureMmHg,
+                        quitSmoking: inputs.quitSmoking,
+                        walkThirtyMinutesDaily:
+                            inputs.walkThirtyMinutesDaily,
+                        onWeightChanged: controller.setWeightKg,
+                        onBloodPressureChanged: controller.setBloodPressureMmHg,
+                        onQuitSmokingToggled: controller.setQuitSmoking,
+                        onWalkToggled: controller.setWalkThirtyMinutesDaily,
+                      ),
+                      const SizedBox(height: 20),
+                      SimulatedRiskBar(
+                        simulatedRisk: projection.simulated,
+                        deltaLabel: projection.deltaLabel,
+                        hasDelta: projection.hasDelta,
+                        onSave: () => _saveActionPlan(context, ref),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                SimulationBaselineCard(
-                  label: 'Current 1-Year Risk',
-                  value: '${projection.baseline}',
-                  unit: 'out of 100',
-                ),
-                SimulationControlsCard(
-                  weightKg: inputs.weightKg,
-                  bloodPressureMmHg: inputs.bloodPressureMmHg,
-                  quitSmoking: inputs.quitSmoking,
-                  walkThirtyMinutesDaily:
-                      inputs.walkThirtyMinutesDaily,
-                  onWeightChanged: controller.setWeightKg,
-                  onBloodPressureChanged: controller.setBloodPressureMmHg,
-                  onQuitSmokingToggled: controller.setQuitSmoking,
-                  onWalkToggled: controller.setWalkThirtyMinutesDaily,
-                ),
-                const SizedBox(height: 20),
-                SimulatedRiskBar(
-                  simulatedRisk: projection.simulated,
-                  deltaLabel: projection.deltaLabel,
-                  hasDelta: projection.hasDelta,
-                  onSave: () => _saveActionPlan(context, ref),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
