@@ -54,22 +54,25 @@ class _ProfileView extends ConsumerWidget {
     final ProfileState state = ref.watch(profileControllerProvider);
     final String openSection = ref.watch(sectionAccordionProvider);
 
-    return StepScaffold(
-      stepNumber: 1,
-      totalSteps: 5,
-      ctaLabel: 'Next: Clinical Status',
-      isSaving: state.isSaving,
-      onCta: () => context.go(RouteNames.step2Clinical),
-      onBack: () => context.go(RouteNames.dashboard),
-      onSaveExit: () => context.go(RouteNames.dashboard),
-      child: _ProfileBody(
-        state: state,
-        openSection: openSection,
-        onToggleSection: (String section) =>
-            ref.read(sectionAccordionProvider.notifier).toggle(section),
-        onProfileChanged: (PatientProfile next) => ref
-            .read(profileControllerProvider.notifier)
-            .update((PatientProfile _) => next),
+    // Wrapped in a Scaffold to instantly fix the double yellow line bug
+    return Scaffold(
+      body: StepScaffold(
+        stepNumber: 1,
+        totalSteps: 5,
+        ctaLabel: 'Next: Clinical Status',
+        isSaving: state.isSaving,
+        onCta: () => context.go(RouteNames.step2Clinical),
+        onBack: () => context.go(RouteNames.dashboard),
+        onSaveExit: () => context.go(RouteNames.dashboard),
+        child: _ProfileBody(
+          state: state,
+          openSection: openSection,
+          onToggleSection: (String section) =>
+              ref.read(sectionAccordionProvider.notifier).toggle(section),
+          onProfileChanged: (PatientProfile next) => ref
+              .read(profileControllerProvider.notifier)
+              .update((PatientProfile _) => next),
+        ),
       ),
     );
   }
