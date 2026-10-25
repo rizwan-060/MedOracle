@@ -3,13 +3,16 @@ import 'package:medoracle/core/theme/app_colors.dart';
 import 'package:medoracle/core/theme/app_text_styles.dart';
 import 'package:medoracle/core/widgets/disclaimer_text.dart';
 import 'package:medoracle/core/widgets/glass_pill_button.dart';
-import 'package:medoracle/features/intake_wizard/models/assessment_data.dart';
-import 'package:medoracle/features/intake_wizard/widgets/risk_action_card.dart';
-import 'package:medoracle/features/intake_wizard/widgets/risk_reduction_bar.dart';
-import 'package:medoracle/features/intake_wizard/widgets/risk_trajectory_dial.dart';
+import '../models/assessment_data.dart';
+import '../widgets/risk_action_card.dart';
+import '../widgets/risk_reduction_bar.dart';
+import '../widgets/risk_trajectory_dial.dart';
 
 // Added import for the AssessmentHeader
-import 'package:medoracle/features/assessment/widgets/assessment_header.dart';
+import '../widgets/assessment_header.dart';
+
+/// Descriptive alias for [RiskTrajectoryScreen].
+typedef AssessmentRiskTrajectoryForecastScreen = RiskTrajectoryScreen;
 
 /// Risk trajectory screen of the intake flow.
 ///

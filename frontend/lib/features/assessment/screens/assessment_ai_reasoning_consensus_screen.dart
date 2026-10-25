@@ -5,11 +5,15 @@ import 'package:medoracle/core/widgets/assessment_section_card.dart';
 import 'package:medoracle/core/widgets/disclaimer_text.dart';
 import 'package:medoracle/core/widgets/glass_pill_button.dart';
 import 'package:medoracle/core/widgets/gradient_cta_button.dart';
-import 'package:medoracle/features/intake_wizard/models/assessment_data.dart';
-import 'package:medoracle/features/intake_wizard/widgets/doubt_warning_card.dart';
-import 'package:medoracle/features/intake_wizard/widgets/reasoning_map_chart.dart';
-import 'package:medoracle/features/intake_wizard/widgets/specialist_check_stack.dart';
-import 'package:medoracle/features/assessment/widgets/assessment_header.dart';
+import '../models/assessment_data.dart';
+import '../widgets/doubt_warning_card.dart';
+import '../widgets/reasoning_map_chart.dart';
+import '../widgets/specialist_check_stack.dart';
+import '../widgets/assessment_header.dart';
+
+/// Clean alias for [FirstAssessmentScreen] explicitly naming its role.
+typedef AssessmentReasoningScreen = FirstAssessmentScreen;
+typedef AssessmentAiReasoningConsensusScreen = FirstAssessmentScreen;
 
 /// First assessment screen of the intake flow.
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:medoracle/core/theme/app_colors.dart';
 import 'package:medoracle/core/theme/app_text_styles.dart';
-import 'package:medoracle/features/intake_wizard/models/assessment_data.dart';
+import '../models/assessment_data.dart';
 
 /// Stack of "paper" cards holding the specialist checks.
 ///

@@ -7,6 +7,9 @@ import '../widgets/doctor_to_see_band.dart';
 import '../widgets/main_finding_card.dart';
 import '../widgets/stacked_reports_card.dart';
 
+/// Descriptive alias for [AssessmentMainFindingScreen].
+typedef AssessmentPrimaryFindingScreen = AssessmentMainFindingScreen;
+
 /// Screen 6A — Main Finding.
 ///
 /// First assessment output shown after the intake wizard is submitted

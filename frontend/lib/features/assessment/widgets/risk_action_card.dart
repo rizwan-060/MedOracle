@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:medoracle/core/theme/app_colors.dart';
 import 'package:medoracle/core/theme/app_text_styles.dart';
-import 'package:medoracle/features/intake_wizard/models/assessment_data.dart';
-import 'package:medoracle/features/intake_wizard/widgets/risk_reduction_bar.dart';
+import '../models/assessment_data.dart';
+import 'risk_reduction_bar.dart';
 
 /// Card describing one behaviour change and the risk it removes.
 class RiskActionCard extends StatelessWidget {
