@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
+import '../../../core/routing/route_names.dart';
 import '../providers/medications_family_provider.dart';
 import '../widgets/dashed_add_button.dart';
 import '../widgets/field_label.dart';
@@ -15,11 +15,14 @@ import '../widgets/two_column_row.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
+/// Descriptive alias for [MedicationsFamilyScreen].
+typedef Step2bMedicationsAndFamilyHistoryInputScreen = MedicationsFamilyScreen;
+
 /// Step 2B of the intake wizard — medications and family history.
 class MedicationsFamilyScreen extends ConsumerWidget {
   const MedicationsFamilyScreen({super.key});
 
-  static const String routePath = IntakeRoutes.medicationsFamily;
+  static const String routePath = RouteNames.step2Medications;
 
   static const List<String> _frequencies = <String>[
     'Once daily',
@@ -57,7 +60,7 @@ class MedicationsFamilyScreen extends ConsumerWidget {
             WizardHeader(
               currentStep: 2,
               totalSteps: 5,
-              onSaveExit: () => context.go(IntakeRoutes.dashboard),
+              onSaveExit: () => context.go(RouteNames.dashboard),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -194,10 +197,10 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Save & Continue',
-                      onTap: () => context.go(IntakeRoutes.symptoms),
+                      onTap: () => context.go(RouteNames.step3Symptoms),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.clinicalStatus),
+                      onTap: () => context.go(RouteNames.step2Clinical),
                     ),
                   ],
                 ),

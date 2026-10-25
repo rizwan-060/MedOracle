@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
+import '../../../core/routing/route_names.dart';
 import '../providers/labs_vitals_provider.dart';
 import '../widgets/field_label.dart';
 import '../widgets/intake_text_field.dart';
@@ -13,11 +13,14 @@ import '../widgets/two_column_row.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
+/// Descriptive alias for [LabsVitalsScreen].
+typedef Step4VitalsAndBloodTestsInputScreen = LabsVitalsScreen;
+
 /// Step 4 of the intake wizard — general vitals and recent lab results.
 class LabsVitalsScreen extends ConsumerWidget {
   const LabsVitalsScreen({super.key});
 
-  static const String routePath = IntakeRoutes.labsVitals;
+  static const String routePath = RouteNames.step4Labs;
 
   /// Labeled numeric input with a unit suffix (design's `.l` + `.in` + `.u`).
   Widget _unitField({
@@ -57,7 +60,7 @@ class LabsVitalsScreen extends ConsumerWidget {
             WizardHeader(
               currentStep: 4,
               totalSteps: 5,
-              onSaveExit: () => context.go(IntakeRoutes.dashboard),
+              onSaveExit: () => context.go(RouteNames.dashboard),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -217,10 +220,10 @@ class LabsVitalsScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Next: Review & Confirm',
-                      onTap: () => context.go(IntakeRoutes.review),
+                      onTap: () => context.go(RouteNames.step5Review),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.symptoms),
+                      onTap: () => context.go(RouteNames.step3Symptoms),
                     ),
                   ],
                 ),

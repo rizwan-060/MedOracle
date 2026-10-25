@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
+import '../../../core/routing/route_names.dart';
 import '../providers/symptoms_provider.dart';
 import '../widgets/combo_input_field.dart';
 import '../widgets/dashed_add_button.dart';
@@ -16,12 +16,15 @@ import '../widgets/severity_slider.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
+/// Descriptive alias for [SymptomsScreen].
+typedef Step3SymptomsAndSeverityInputScreen = SymptomsScreen;
+
 /// Step 3 of the intake wizard — symptom capture: what the patient feels,
 /// where, what triggers it, how severe, for how long, plus free notes.
 class SymptomsScreen extends ConsumerStatefulWidget {
   const SymptomsScreen({super.key});
 
-  static const String routePath = IntakeRoutes.symptoms;
+  static const String routePath = RouteNames.step3Symptoms;
 
   @override
   ConsumerState<SymptomsScreen> createState() => _SymptomsScreenState();
@@ -57,7 +60,7 @@ class _SymptomsScreenState extends ConsumerState<SymptomsScreen> {
             WizardHeader(
               currentStep: 3,
               totalSteps: 5,
-              onSaveExit: () => context.go(IntakeRoutes.dashboard),
+              onSaveExit: () => context.go(RouteNames.dashboard),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -218,10 +221,10 @@ class _SymptomsScreenState extends ConsumerState<SymptomsScreen> {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Next: Labs & Vitals',
-                      onTap: () => context.go(IntakeRoutes.labsVitals),
+                      onTap: () => context.go(RouteNames.step4Labs),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.medicationsFamily),
+                      onTap: () => context.go(RouteNames.step2Medications),
                     ),
                   ],
                 ),

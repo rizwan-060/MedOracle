@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../intake_routes.dart';
+import '../../../core/routing/route_names.dart';
 import '../providers/clinical_status_provider.dart';
 import '../providers/labs_vitals_provider.dart';
 import '../providers/medications_family_provider.dart';
@@ -19,12 +19,15 @@ import '../widgets/severity_slider.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
+/// Descriptive alias for [ReviewConfirmScreen].
+typedef Step5DataReviewAndSubmissionScreen = ReviewConfirmScreen;
+
 /// Step 5 (final) of the intake wizard — a read-only summary of every
 /// completed step, with per-section edit jumps and the submit CTA.
 class ReviewConfirmScreen extends ConsumerWidget {
   const ReviewConfirmScreen({super.key});
 
-  static const String routePath = IntakeRoutes.review;
+  static const String routePath = RouteNames.step5Review;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,7 +49,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
             WizardHeader(
               currentStep: 5,
               totalSteps: 5,
-              onSaveExit: () => context.go(IntakeRoutes.dashboard),
+              onSaveExit: () => context.go(RouteNames.dashboard),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -59,7 +62,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Profile & Demographics',
                       trailing: EditIconButton(
                         tooltip: 'Edit Profile & Demographics',
-                        onTap: () => context.go(IntakeRoutes.profile),
+                        onTap: () => context.go(RouteNames.step1Profile),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -90,7 +93,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       trailing: EditIconButton(
                         tooltip: 'Edit Clinical History',
                         onTap: () =>
-                            context.go(IntakeRoutes.clinicalStatus),
+                            context.go(RouteNames.step2Clinical),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,7 +165,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Active Symptoms',
                       trailing: EditIconButton(
                         tooltip: 'Edit Active Symptoms',
-                        onTap: () => context.go(IntakeRoutes.symptoms),
+                        onTap: () => context.go(RouteNames.step3Symptoms),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -207,7 +210,7 @@ class ReviewConfirmScreen extends ConsumerWidget {
                       title: 'Lab Values',
                       trailing: EditIconButton(
                         tooltip: 'Edit Lab Values',
-                        onTap: () => context.go(IntakeRoutes.labsVitals),
+                        onTap: () => context.go(RouteNames.step4Labs),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -274,10 +277,10 @@ class ReviewConfirmScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
                     GradientNextButton(
                       label: 'Submit Assessment',
-                      onTap: () => context.go(IntakeRoutes.results),
+                      onTap: () => context.go(RouteNames.resultsReports),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(IntakeRoutes.labsVitals),
+                      onTap: () => context.go(RouteNames.step4Labs),
                     ),
                   ],
                 ),

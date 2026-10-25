@@ -7,8 +7,8 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/widgets/expandable_section_card.dart';
 import '../../../core/widgets/step_scaffold.dart';
 import '../../../data/models/patient_profile_model.dart';
-import '../../intake/providers/section_accordion_controller.dart';
-import '../../intake/providers/section_providers.dart';
+import '../providers/section_accordion_controller.dart';
+import '../providers/section_providers.dart';
 import '../providers/profile_controller.dart';
 import '../widgets/body_measurements_section.dart';
 import '../widgets/lifestyle_section.dart';
@@ -25,6 +25,9 @@ abstract final class _ProfileSection {
 class _ProfileAccordion extends SectionAccordionController {
   _ProfileAccordion() : super(initialSection: _ProfileSection.details);
 }
+
+/// Descriptive alias for [ProfileScreen].
+typedef Step1DemographicsAndBiometricsInputScreen = ProfileScreen;
 
 /// Step 1 of the intake flow - **Profile**.
 ///
