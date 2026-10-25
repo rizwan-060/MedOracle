@@ -1,79 +1,94 @@
-# Front end - shared foundation
+# MedOracle Frontend Architecture
 
-Screens live in `lib/features/<feature>/`; anything reusable lives in
-`lib/core/`. This file is the map of what already exists so new screens reuse
-it instead of re-inventing patterns.
+This codebase implements the MedOracle multi-agent disease forecasting mobile application using **Flutter (Dart)**, **flutter_riverpod** for state management, and **go_router** for navigation.
 
-## Design tokens
+Strict adherence to [`AGENTS.md`](../../AGENTS.md) is enforced across all screens, widgets, design tokens, and typography.
 
-| File | Contents |
-| --- | --- |
-| `core/theme/app_colors.dart` | **The only place hex values are allowed.** Brand palette + the exact tokens of the `MedOracle v3.1 - Intake Flow` reference, plus every gradient. |
-| `core/theme/app_text_styles.dart` | Plus Jakarta Sans type scale (sizes / line heights / weights measured from the reference frames). |
-| `core/theme/app_theme.dart` | `ThemeData`, input decoration, snack bar, selection colours. |
+---
 
-Fonts: `assets/fonts/PlusJakartaSans.ttf` (SIL OFL 1.1), registered in
-`pubspec.yaml` as the `Plus Jakarta Sans` family.
+## 1. Directory Structure
 
-## Routing (`core/routing`)
-
-`route_names.dart` holds every path; `app_router.dart` builds the `GoRouter`.
-
+```text
+frontend/
+├── assets/                  # Static fonts, icons, images
+├── lib/
+│   ├── core/                # Shared application infrastructure
+│   │   ├── routing/         # GoRouter setup & RouteNames constants
+│   │   ├── theme/           # AppColors, AppTextStyles, AppTheme
+│   │   └── widgets/         # Globally shared widgets (GlassPill, CTAs, Cards, etc.)
+│   ├── data/                # Data layer
+│   │   ├── models/          # Domain data models (PatientProfile, Doctor, etc.)
+│   │   ├── providers/       # Repository providers
+│   │   └── repositories/    # Intake and API repositories
+│   ├── features/            # Feature-first modular screens & widgets
+│   │   ├── assessment/      # AI Diagnostics & Consensus Output Screens (Reports, Reasoning, Trajectory)
+│   │   ├── auth/            # Authentication & Onboarding
+│   │   ├── dashboard/       # Home Dashboard & Metric Overview
+│   │   ├── doctors/         # Specialist Care Finder & Recommendations
+│   │   ├── intake/          # 5-Step Patient Intake Flow (Profile, Clinical, Meds, Symptoms, Labs, Review)
+│   │   └── simulation/      # Counterfactual Lifestyle Simulator
+│   └── main.dart            # Application entry point
+└── test/                    # Unit and widget tests
 ```
-/intake/step-1   -> ProfileScreen          (built)
-/intake/step-2a  -> PendingStepScreen      (Clinical Status)
-/intake/step-2b  -> PendingStepScreen      (Medications & Family)
-/intake/step-3   -> PendingStepScreen      (Symptoms)
-/intake/step-4   -> PendingStepScreen      (Labs & Vitals)
-/intake/step-5   -> PendingStepScreen      (Review & Confirm)
-/results/*       -> assessment screens, next session
+
+---
+
+## 2. Design System & Tokens (`lib/core/theme/`)
+
+All colors and text styles must reference tokens declared in `app_colors.dart` and `app_text_styles.dart`. **Never hardcode hex values or raw text styles in widget files.**
+
+### Strict Color Palette
+
+| Token | Hex | Visual Identity | Usage |
+|---|---|---|---|
+| `AppColors.canvasBackground` | `#FAF9F5` | Warm cream / ecru | Main background across all app screens |
+| `AppColors.cardSurface` | `#FFFFFF` | Pure white | Reasoning cards, form cards, pill surfaces |
+| `AppColors.textPrimary` | `#2C2520` | Earth brown | Main readable text, headings, body copy |
+| `AppColors.headerText` | `#4D738F` | Soft Slate / Powder Blue | Screen titles, wizard header background, major section titles |
+| `AppColors.primaryAccent` | `#E04E26` | Burnt Orange | Primary interactive elements, CTA buttons, active states |
+| `AppColors.alertMedium` | `#E89A3E` | Ochre / Amber | Warning badges, caution indicators, doubt alerts |
+| `AppColors.borderSubtle` | `#D6CFC4` | Neutral outline | Container borders, dividers, subtle card outlines |
+
+### Typography Scale
+
+- **Headings:** **Instrument Serif** (`28.0` screen titles, `24.0` card titles).
+- **Body & Inputs:** **Lexend** (`14.0` labels/body, `12.0` helpers, `16.0` primary CTAs).
+
+---
+
+## 3. Screen Routing Map (`lib/core/routing/`)
+
+All routes are defined statically in `RouteNames` (`lib/core/routing/route_names.dart`).
+
+```text
+/ (Auth)
+└── /dashboard (Home Dashboard)
+    │
+    ├── /intake/step-1     -> Step1DemographicsAndBiometricsInputScreen (Demographics, Body, Lifestyle)
+    ├── /intake/step-2a    -> Step2aChronicConditionsAndHistoryInputScreen (Conditions & Surgeries)
+    ├── /intake/step-2b    -> Step2bMedicationsAndFamilyHistoryInputScreen (Medications & Family)
+    ├── /intake/step-3     -> Step3SymptomsAndSeverityInputScreen (Active Symptoms & Severity)
+    ├── /intake/step-4     -> Step4VitalsAndBloodTestsInputScreen (Vitals & Lab Biomarkers)
+    └── /intake/step-5     -> Step5DataReviewAndSubmissionScreen (Summary & Submission)
+        │
+        └── /results/reports     -> AssessmentPrimaryFindingScreen (Primary Finding & Stacked Reports)
+            ├── /results/reasoning   -> AssessmentAiReasoningConsensusScreen (AI Reasoning Map & Consensus)
+            ├── /results/trajectory  -> AssessmentRiskTrajectoryForecastScreen (10-Year Risk Trajectory & Actions)
+            ├── /results/simulate    -> SimulateLifestyleScreen (Counterfactual Simulator)
+            └── /results/care-finder -> DoctorRecommendationScreen (Specialist Finder)
 ```
 
-`initialLocation` is `/intake/step-1`. Replace each `PendingStepScreen` route
-with the real screen as it is built.
+---
 
-## Reusable widgets (`core/widgets`)
+## 4. Reusable Widgets (`lib/core/widgets/`)
 
-| Widget | Use |
-| --- | --- |
-| `step_scaffold.dart` | Whole intake page: maroon header + scroll area + CTA/Back footer. |
-| `step_header.dart` | Header only (autosave badge, wordmark, `Save & exit`, progress rails). `StepScaffold` uses it. |
-| `expandable_section_card.dart` | Collapsible white card with the blurred glow while expanded. |
-| `field_group.dart` | Label + control with the reference's 12px/4px rhythm. |
-| `choice_segment.dart` | Pill-row single select (`Male / Female / Other`). |
-| `unit_text_field.dart` | Numeric field with unit suffix (`170 cm`). |
-| `tappable_value_field.dart` | Read-only select/date field (chevron or caret suffix). |
-| `tag_chips_field.dart` | Removable chip list + `+ Add ...` affordance. |
-| `gradient_cta_button.dart` | Primary maroon pill CTA. |
-| `glass_pill_button.dart` | `.header` (glass, on maroon) and `.footer` (`Back`) pills. |
-| `brand_logo.dart` | `BrandShield` (vector mark) and `BrandLogo` (mark + wordmark). |
-| `autosave_badge.dart` | "Autosaved" / "Saving..." micro status. |
-| `ref_chevron.dart` | The 18px painted chevron used everywhere. |
-| `disclaimer_text.dart` | Standard non-diagnostic footnote. |
-
-**Rule:** any widget needing a `Material` ancestor for `InkWell` must provide
-its own `Material(color: Colors.transparent)` - `StepScaffold` deliberately
-does not wrap the page in a `Scaffold`.
-
-## State (`flutter_riverpod`)
-
-- Repository providers: `lib/data/providers/repository_providers.dart`.
-- `MockIntakeRepository` (`lib/data/repositories/intake_repository.dart`) holds
-  the demo patient from the design reference; swap for an HTTP implementation
-  without touching the UI.
-- `SectionAccordionController`
-  (`lib/features/intake/providers/section_accordion_controller.dart`) keeps
-  exactly one accordion section open. Because Riverpod uses the unnamed
-  constructor, each screen defines a tiny subclass and overrides
-  `sectionAccordionProvider` inside a local `ProviderScope` - see
-  `_ProfileAccordion` in `features/profile/screens/profile_screen.dart`.
-
-## Adding the next intake screen
-
-1. Add/extend the model in `lib/data/models/` (mirror the backend schema).
-2. Extend `IntakeRepository` + `MockIntakeRepository`.
-3. Add a `Notifier` controller under `features/<feature>/providers/`.
-4. Split the screen body into section widgets under `features/<feature>/widgets/`.
-5. Build the page with `StepScaffold` and one `ExpandableSectionCard` per
-   section; keep the screen file to composition only.
-6. Swap the `PendingStepScreen` route in `app_router.dart`.
+| Widget | Purpose |
+|---|---|
+| `GlassPillButton` | Glassmorphic pills for header actions (`Save & exit`) and footer secondary buttons (`Back`). |
+| `GradientCtaButton` | Primary action button with fixed 56.0 height, 12.0 radius, and `AppColors.primaryAccent`. |
+| `AssessmentSectionCard` | Base white card container with `AppColors.borderSubtle` and 12.0 radius. |
+| `ExpandableSectionCard` | Accordion card container with expand/collapse animations. |
+| `DisclaimerText` | Mandatory clinical disclaimer footnote on AI decision-support screens. |
+| `ChoiceSegment` | Segmented choice toggle with active Burnt Orange highlight. |
+| `UnitTextField` | Numeric input container with integrated unit label (`cm`, `kg`, `mmHg`). |
+| `TappableValueField` | Labeled selector row with trailing chevron for bottom-sheet pickers. |

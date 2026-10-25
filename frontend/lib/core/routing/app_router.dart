@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/assessment/screens/assessment_main_finding_screen.dart';
+import '../../features/assessment/screens/assessment_primary_finding_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/dashboard/screens/home_dashboard_screen.dart';
 import '../../features/doctors/screens/doctor_recommendation_screen.dart';
-import '../../features/intake_wizard/screens/clinical_status_screen.dart';
-import '../../features/intake_wizard/screens/first_assessment_screen.dart';
-import '../../features/intake_wizard/screens/labs_vitals_screen.dart';
-import '../../features/intake_wizard/screens/medications_family_screen.dart';
-import '../../features/intake_wizard/screens/review_confirm_screen.dart';
-import '../../features/intake_wizard/screens/risk_trajectory_screen.dart';
-import '../../features/intake_wizard/screens/symptoms_screen.dart';
-import '../../features/profile/screens/profile_screen.dart';
+import '../../features/intake/screens/step2a_chronic_conditions_and_history_input_screen.dart';
+import '../../features/assessment/screens/assessment_ai_reasoning_consensus_screen.dart';
+import '../../features/intake/screens/step4_vitals_and_blood_tests_input_screen.dart';
+import '../../features/intake/screens/step2b_medications_and_family_history_input_screen.dart';
+import '../../features/intake/screens/step5_data_review_and_submission_screen.dart';
+import '../../features/assessment/screens/assessment_risk_trajectory_forecast_screen.dart';
+import '../../features/intake/screens/step3_symptoms_and_severity_input_screen.dart';
+import '../../features/intake/screens/step1_demographics_and_biometrics_input_screen.dart';
 import '../../features/simulation/screens/simulate_lifestyle_screen.dart';
 import 'route_names.dart';
 

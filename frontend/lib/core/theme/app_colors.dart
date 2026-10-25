@@ -29,9 +29,11 @@ abstract final class AppColors {
 
   /// Primary Accent: #E04E26 (Burnt Orange active elements/buttons)
   static const Color primaryAccent = Color(0xFFE04E26);
+  static const Color accentDark = Color(0xFFC03C17);
   static const Color cta = primaryAccent;
+  // Backward-compatible aliases for primaryAccent (Burnt Orange)
   static const Color primaryMaroon = primaryAccent;
-  static const Color maroonDark = Color(0xFFC03C17);
+  static const Color maroonDark = accentDark;
 
   /// Alert Medium: #E89A3E (Ochre / Amber indicators)
   static const Color alertMedium = Color(0xFFE89A3E);
