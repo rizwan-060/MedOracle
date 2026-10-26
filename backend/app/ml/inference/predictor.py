@@ -213,6 +213,14 @@ class RealtimePredictor:
         known_symptoms = self._symptoms_prep_meta.get("symptom_features", []) if self._symptoms_prep_meta else []
         self._nlp_extractor = ClinicalSymptomExtractor(known_symptoms=known_symptoms)
 
+    @property
+    def nlp_extractor(self) -> ClinicalSymptomExtractor:
+        """Return the active ClinicalSymptomExtractor instance."""
+        if self._nlp_extractor is None:
+            known_symptoms = self._symptoms_prep_meta.get("symptom_features", []) if self._symptoms_prep_meta else []
+            self._nlp_extractor = ClinicalSymptomExtractor(known_symptoms=known_symptoms)
+        return self._nlp_extractor
+
     # -------------------------------------------------------------------------
     # Cardiovascular Risk Prediction
     # -------------------------------------------------------------------------
