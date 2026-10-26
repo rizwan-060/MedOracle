@@ -56,6 +56,17 @@ from app.schemas.predictions import (
     SymptomPredictionRequest,
     SymptomPredictionResponse,
 )
+from app.schemas.nlp import (
+    EntityMention,
+    ExpandOntologyRequest,
+    ExpandOntologyResponse,
+    OntologyOverviewResponse,
+    SuggestedMatch,
+    TextExtractionRequest,
+    TextExtractionResponse,
+    UnmappedPhraseItem,
+    UnmappedPhrasesListResponse,
+)
 
 __all__ = [
     "UserRegister",
@@ -101,4 +112,13 @@ __all__ = [
     "PredictionFeedbackRequest",
     "PredictionFeedbackResponse",
     "PatientAssessmentResponse",
+    "EntityMention",
+    "TextExtractionRequest",
+    "TextExtractionResponse",
+    "SuggestedMatch",
+    "UnmappedPhraseItem",
+    "UnmappedPhrasesListResponse",
+    "ExpandOntologyRequest",
+    "ExpandOntologyResponse",
+    "OntologyOverviewResponse",
 ]

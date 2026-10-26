@@ -23,6 +23,15 @@ def record_symptoms(
     repo = SymptomReportRepository(db)
     data = payload.model_dump()
     reported_text = data.pop("reported_text")
+    # Auto-extract canonical symptoms via NLP extractor if structured_symptoms is empty
+    if not data.get("structured_symptoms") and reported_text:
+        try:
+            from app.ml.inference.predictor import RealtimePredictor
+            extractor = RealtimePredictor.get_instance().nlp_extractor
+            nlp_result = extractor.extract(reported_text)
+            data["structured_symptoms"] = nlp_result.get("detected_symptoms", [])
+        except Exception:
+            pass
     report = repo.create(user_id=current_user.id, reported_text=reported_text, **data)
     return report
 

@@ -463,3 +463,39 @@ def test_symptom_differential_clinical_negation(client: TestClient, db_session):
     assert "high_fever" in data["negated_symptoms"]
     assert "chest_pain" in data["negated_symptoms"]
 
+
+def test_patient_assessment_with_free_text_symptom_report_nlp(client: TestClient, db_session):
+    """Verify that free-text symptom report is parsed by NLP and seamlessly drives patient/me differential diagnosis."""
+    user, headers = _create_authenticated_user(db_session, "free_text_patient_nlp@example.com")
+
+    # 1. Post a symptom report with colloquial free text and empty structured_symptoms
+    sym_res = client.post(
+        "/api/v1/symptoms/",
+        json={
+            "reported_text": "Patient has squeezing chest tightness and air hunger while lying flat, but denies high fever.",
+            "duration_days": 2,
+            "severity_self_rating": 8,
+            "structured_symptoms": [],
+        },
+        headers=headers,
+    )
+    assert sym_res.status_code == 201
+    sym_data = sym_res.json()
+    # Auto-extracted via NLP extractor
+    assert "chest_pain" in sym_data["structured_symptoms"]
+    assert "breathlessness" in sym_data["structured_symptoms"]
+    assert "high_fever" not in sym_data["structured_symptoms"]
+
+    # 2. Invoke unified patient assessment
+    assess_res = client.post("/api/v1/predictions/patient/me", headers=headers)
+    assert assess_res.status_code == 200
+    assess_data = assess_res.json()
+
+    # Differential diagnosis must be populated
+    assert assess_data["differential_diagnosis"] is not None
+    assert len(assess_data["differential_diagnosis"]["top_candidates"]) > 0
+    top_disease = assess_data["differential_diagnosis"]["top_candidates"][0]["disease"]
+    assert top_disease in ["Heart attack", "Bronchial Asthma", "Hypertension", "GERD"]
+    assert "Heart attack" in [c["disease"] for c in assess_data["differential_diagnosis"]["top_candidates"]]
+
+

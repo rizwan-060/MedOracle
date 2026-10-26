@@ -9,8 +9,17 @@ Extracts canonical symptom entities from unstructured clinical text using:
 
 from dataclasses import dataclass
 import difflib
+import logging
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from app.ml.inference.ontology_manager import (
+    CLINICAL_STOPWORDS,
+    DynamicOntologyManager,
+    UnmappedPhraseBuffer,
+)
+
+logger = logging.getLogger("nlp_extractor")
 
 
 @dataclass
@@ -18,7 +27,7 @@ class ExtractedEntity:
     raw_mention: str
     canonical_symptom: str
     confidence: float
-    match_type: str  # "exact", "synonym", "fuzzy_typo"
+    match_type: str  # "exact", "synonym", "dynamic_synonym", "fuzzy_typo", "semantic_ner"
     is_negated: bool = False
 
 
@@ -317,34 +326,84 @@ CLINICAL_SYNONYMS: Dict[str, str] = {
 class ClinicalSymptomExtractor:
     """Intelligent clinical entity extractor for free-text symptom narratives."""
 
-    def __init__(self, known_symptoms: Optional[List[str]] = None):
+    def __init__(
+        self,
+        known_symptoms: Optional[List[str]] = None,
+        dynamic_ontology_manager: Optional[DynamicOntologyManager] = None,
+        unmapped_buffer: Optional[UnmappedPhraseBuffer] = None,
+        ner_model: Optional[Any] = None,
+    ):
         self.known_symptoms: Set[str] = set(known_symptoms) if known_symptoms else set()
-        # Build reference lookup for exact match, synonyms, and fuzzy matching
+        self.dynamic_ontology_manager = (
+            dynamic_ontology_manager or DynamicOntologyManager.get_instance()
+        )
+        self.unmapped_buffer = (
+            unmapped_buffer
+            or UnmappedPhraseBuffer.get_instance(ontology_manager=self.dynamic_ontology_manager)
+        )
+        self._ner_model = ner_model
         self._synonym_lookup: Dict[str, str] = {}
+        self._dynamic_phrases: Set[str] = set()
+        self._target_phrases: List[Tuple[str, str, int]] = []
+        self.reload_dynamic_synonyms()
 
-        # 1. Direct canonical features (e.g. 'headache' -> 'headache', 'continuous_sneezing' -> 'continuous_sneezing')
+    @property
+    def ner_model(self):
+        """Lazy accessor for BiomedicalSymptomNER instance."""
+        if self._ner_model is None:
+            try:
+                from app.ml.inference.ner_model import BiomedicalSymptomNER
+                self._ner_model = BiomedicalSymptomNER.get_instance()
+            except Exception as e:
+                logger.warning("Could not initialize BiomedicalSymptomNER: %s", e)
+                self._ner_model = None
+        return self._ner_model
+
+    def reload_dynamic_synonyms(self) -> None:
+        """Rebuilds synonym lookup table incorporating static and dynamic ontology synonyms."""
+        lookup: Dict[str, str] = {}
+        dynamic_phrases: Set[str] = set()
+
+        # 1. Direct canonical features
         for sym in self.known_symptoms:
             clean_sym = sym.replace("_", " ").lower()
-            self._synonym_lookup[clean_sym] = sym
-            self._synonym_lookup[sym] = sym
+            lookup[clean_sym] = sym
+            lookup[sym] = sym
 
-        # 2. Add curated clinical synonyms
+        # 2. Add curated static clinical synonyms
         for phrase, canonical in CLINICAL_SYNONYMS.items():
             if not self.known_symptoms or canonical in self.known_symptoms:
-                self._synonym_lookup[phrase.lower()] = canonical
+                lookup[phrase.lower()] = canonical
+
+        # 3. Add dynamic ontology synonyms
+        if self.dynamic_ontology_manager:
+            for phrase, canonical in self.dynamic_ontology_manager.get_synonyms().items():
+                if not self.known_symptoms or canonical in self.known_symptoms:
+                    clean_phrase = phrase.lower()
+                    lookup[clean_phrase] = canonical
+                    dynamic_phrases.add(clean_phrase)
+
+        self._synonym_lookup = lookup
+        self._dynamic_phrases = dynamic_phrases
 
         # Pre-compile candidate search phrases sorted by token length descending (greedy multi-word matching)
-        self._target_phrases: List[Tuple[str, str, int]] = sorted(
+        self._target_phrases = sorted(
             [(phrase, canonical, len(phrase.split())) for phrase, canonical in self._synonym_lookup.items()],
             key=lambda x: (x[2], len(x[0])),
             reverse=True,
         )
+        logger.info(
+            "Reloaded clinical ontology: %d total phrases (%d dynamic)",
+            len(self._synonym_lookup),
+            len(self._dynamic_phrases),
+        )
 
-    def extract(self, text: str) -> Dict[str, Any]:
+    def extract(self, text: str, record_unmapped: bool = True) -> Dict[str, Any]:
         """Extracts canonical symptoms, applies typo correction, and respects clinical negation.
 
         Args:
             text: Unstructured narrative string provided by patient or clinician.
+            record_unmapped: Whether unrecognized tokens should be logged to active learning buffer.
 
         Returns:
             Dict containing:
@@ -389,11 +448,22 @@ class ClinicalSymptomExtractor:
                     for idx in range(i, i + k):
                         matched_token_indices.add(idx)
 
+                    # Determine match category
+                    if window_phrase in self._dynamic_phrases:
+                        m_type = "dynamic_synonym"
+                        confidence = 0.99
+                    elif window_phrase == canonical.replace("_", " "):
+                        m_type = "exact"
+                        confidence = 1.0
+                    else:
+                        m_type = "synonym"
+                        confidence = 0.98
+
                     entity = ExtractedEntity(
                         raw_mention=window_phrase,
                         canonical_symptom=canonical,
-                        confidence=1.0 if window_phrase == canonical.replace("_", " ") else 0.98,
-                        match_type="exact" if window_phrase == canonical.replace("_", " ") else "synonym",
+                        confidence=confidence,
+                        match_type=m_type,
                         is_negated=is_neg,
                     )
                     extracted_entities.append(entity)
@@ -438,6 +508,95 @@ class ClinicalSymptomExtractor:
                     else:
                         detected_symptoms.add(best_canonical)
 
+        # Phase 2.5: Biomedical Semantic NER Matching (Step 8.3.3)
+        # Evaluates candidate spans using the trained TF-IDF + Centroid Cosine Matcher
+        if self.ner_model and getattr(self.ner_model, "is_ready", False):
+            for k in [6, 5, 4, 3, 2, 1]:
+                for i in range(total_tokens - k + 1):
+                    if any(idx in matched_token_indices for idx in range(i, i + k)):
+                        continue
+
+                    window_tokens = tokens[i : i + k]
+                    if all(t in CLINICAL_STOPWORDS or len(t) < 3 for t in window_tokens):
+                        continue
+
+                    # Boundary hygiene: Candidate clinical entities should not begin or end with stopwords/particles
+                    if (
+                        window_tokens[0] in CLINICAL_STOPWORDS
+                        or window_tokens[-1] in CLINICAL_STOPWORDS
+                        or len(window_tokens[0]) < 3
+                        or len(window_tokens[-1]) < 3
+                    ):
+                        continue
+
+                    window_phrase = " ".join(window_tokens)
+                    ner_pred = self.ner_model.predict_mention(window_phrase, threshold=0.30)
+                    if ner_pred:
+                        canonical_match, sim_score = ner_pred
+                        if not self.known_symptoms or canonical_match in self.known_symptoms:
+                            is_neg = self._is_negated(tokens, i)
+                            for idx in range(i, i + k):
+                                matched_token_indices.add(idx)
+
+                            entity = ExtractedEntity(
+                                raw_mention=window_phrase,
+                                canonical_symptom=canonical_match,
+                                confidence=sim_score,
+                                match_type="semantic_ner",
+                                is_negated=is_neg,
+                            )
+                            extracted_entities.append(entity)
+
+                            if is_neg:
+                                negated_symptoms.add(canonical_match)
+                            else:
+                                detected_symptoms.add(canonical_match)
+
+        # Phase 3: Identify unrecognized clinical phrases / active learning candidates
+        unrecognized_spans: List[str] = []
+        i = 0
+        while i < total_tokens:
+            # Skip matched tokens, punctuation, and stopwords
+            if (
+                i in matched_token_indices
+                or tokens[i] in {".", ",", "!", "?", ";", "-", ":"}
+                or tokens[i] in CLINICAL_STOPWORDS
+                or len(tokens[i]) < 3
+            ):
+                i += 1
+                continue
+
+            # Gather contiguous slice of unmatched non-stopword tokens
+            chunk_tokens = []
+            while (
+                i < total_tokens
+                and i not in matched_token_indices
+                and tokens[i] not in {".", ",", "!", "?", ";", "-", ":"}
+                and tokens[i] not in CLINICAL_STOPWORDS
+                and len(tokens[i]) >= 2
+            ):
+                chunk_tokens.append(tokens[i])
+                i += 1
+
+            chunk_len = len(chunk_tokens)
+            if chunk_len > 0:
+                full_phrase = " ".join(chunk_tokens)
+                if full_phrase not in unrecognized_spans:
+                    unrecognized_spans.append(full_phrase)
+
+                # Add 2-grams and 3-grams for multi-word candidate detection
+                for n in [2, 3]:
+                    if chunk_len >= n:
+                        for j in range(chunk_len - n + 1):
+                            ngram = " ".join(chunk_tokens[j : j + n])
+                            if ngram not in unrecognized_spans:
+                                unrecognized_spans.append(ngram)
+
+        # Buffer unmapped phrases for active learning if requested
+        if record_unmapped and self.unmapped_buffer:
+            for phrase in unrecognized_spans:
+                self.unmapped_buffer.record_unmapped_phrase(phrase, reference_lexicon=self._synonym_lookup)
+
         # Do not include negated symptoms in positive diagnostic vector
         positive_symptoms = [s for s in sorted(detected_symptoms) if s not in negated_symptoms]
 
@@ -454,8 +613,50 @@ class ClinicalSymptomExtractor:
                 for e in extracted_entities
             ],
             "negated_symptoms": sorted(negated_symptoms),
-            "unrecognized_spans": [],
+            "unrecognized_spans": unrecognized_spans,
         }
+
+    def register_dynamic_synonym(
+        self,
+        phrase: str,
+        canonical_symptom: str,
+        clinical_notes: Optional[str] = None,
+        source: str = "clinician_approval",
+    ) -> bool:
+        """Register a new colloquial phrase mapping to a canonical symptom and hot-reload."""
+        clean_canonical = canonical_symptom.strip().lower()
+        if self.known_symptoms and clean_canonical not in self.known_symptoms:
+            raise ValueError(
+                f"Unknown canonical symptom '{canonical_symptom}'. Must be one of 132 benchmark symptoms."
+            )
+
+        success = self.dynamic_ontology_manager.register_synonym(
+            phrase=phrase,
+            canonical_symptom=clean_canonical,
+            clinical_notes=clinical_notes,
+            source=source,
+        )
+        if success:
+            if self.unmapped_buffer:
+                self.unmapped_buffer.resolve_unmapped_phrase(phrase)
+            self.reload_dynamic_synonyms()
+        return success
+
+    def get_ontology_overview(self) -> Dict[str, Any]:
+        """Return catalog of active clinical ontology and dynamic synonyms."""
+        return {
+            "total_canonical_symptoms": len(self.known_symptoms),
+            "canonical_symptoms": sorted(list(self.known_symptoms)),
+            "total_synonyms": len(self._synonym_lookup),
+            "total_dynamic_synonyms": len(self._dynamic_phrases),
+            "dynamic_synonyms": self.dynamic_ontology_manager.get_synonyms(),
+        }
+
+    def get_unmapped_phrases(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """List candidate unmapped phrases pending clinician review."""
+        if not self.unmapped_buffer:
+            return []
+        return self.unmapped_buffer.list_unmapped_phrases(limit=limit)
 
     def _tokenize(self, text: str) -> Tuple[List[str], List[Tuple[int, int]]]:
         """Tokenize narrative into clean alphanumeric tokens and punctuation markers."""
