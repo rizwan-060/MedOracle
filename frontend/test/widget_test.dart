@@ -1,35 +1,30 @@
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medoracle/core/routing/app_router.dart';
-import 'package:medoracle/core/theme/app_theme.dart';
+import 'package:medoracle/main.dart';
 
 void main() {
-  testWidgets('intake flow opens on Step 1 - Profile', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: createAppRouter(),
-        ),
-      ),
-    );
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const MyApp());
 
-    // Let the router build and the (mock) profile fetch resolve.
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
+
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('MedOracle'), findsOneWidget);
-    expect(find.text('Autosaved'), findsOneWidget);
-    expect(find.text('Personal Details'), findsOneWidget);
-    expect(find.text('Body Measurements'), findsOneWidget);
-    expect(find.text('Lifestyle'), findsOneWidget);
-    expect(find.text('15 Mar 1972'), findsOneWidget);
-    expect(find.text('A+'), findsOneWidget);
-    expect(find.text('Next: Clinical Status'), findsOneWidget);
-    expect(find.text('Back'), findsOneWidget);
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
   });
 }
