@@ -694,16 +694,25 @@ class RealtimePredictor:
 
         # 7. Symptoms differential diagnosis
         collected_symptoms: List[str] = []
+        collected_texts: List[str] = []
         for rep in symptom_reports:
             if rep.structured_symptoms:
                 for s in rep.structured_symptoms:
                     if isinstance(s, str) and s.strip():
                         collected_symptoms.append(s.strip())
+            if hasattr(rep, "reported_text") and rep.reported_text and rep.reported_text.strip():
+                collected_texts.append(rep.reported_text.strip())
+
+        combined_text = " ".join(collected_texts) if collected_texts else None
 
         symptoms_res = None
-        if collected_symptoms:
+        if collected_symptoms or combined_text:
             try:
-                symptoms_res = self.predict_symptoms(collected_symptoms, top_k=5)
+                symptoms_res = self.predict_symptoms(
+                    symptoms=collected_symptoms if collected_symptoms else None,
+                    text=combined_text,
+                    top_k=5,
+                )
             except Exception:
                 symptoms_res = None
 
