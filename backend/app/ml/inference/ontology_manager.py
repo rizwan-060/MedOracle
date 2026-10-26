@@ -36,6 +36,8 @@ CLINICAL_STOPWORDS: Set[str] = {
     "reports", "reported", "history", "ago", "since", "yesterday", "today",
     "week", "weeks", "month", "months", "day", "days", "times", "severe", "mild",
     "moderate", "very", "somewhat", "quite", "really", "almost", "non", "also",
+    "complains", "complained", "complaining", "complaint", "experiences", "experiencing",
+    "noted", "noting", "noticed", "suffering",
 }
 
 

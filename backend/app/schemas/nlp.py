@@ -9,7 +9,7 @@ class EntityMention(BaseModel):
     raw_mention: str = Field(..., description="Original raw text snippet in patient description")
     canonical_symptom: str = Field(..., description="Canonical 132-symptom target identifier")
     confidence: float = Field(..., description="Extraction confidence score (0.0 to 1.0)")
-    match_type: str = Field(..., description="'exact', 'synonym', 'dynamic_synonym', or 'fuzzy_typo'")
+    match_type: str = Field(..., description="'exact', 'synonym', 'dynamic_synonym', 'fuzzy_typo', or 'semantic_ner'")
     is_negated: bool = Field(False, description="True if preceded by clinical negation trigger")
 
 

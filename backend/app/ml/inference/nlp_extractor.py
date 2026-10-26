@@ -27,7 +27,7 @@ class ExtractedEntity:
     raw_mention: str
     canonical_symptom: str
     confidence: float
-    match_type: str  # "exact", "synonym", "dynamic_synonym", "fuzzy_typo"
+    match_type: str  # "exact", "synonym", "dynamic_synonym", "fuzzy_typo", "semantic_ner"
     is_negated: bool = False
 
 
@@ -331,6 +331,7 @@ class ClinicalSymptomExtractor:
         known_symptoms: Optional[List[str]] = None,
         dynamic_ontology_manager: Optional[DynamicOntologyManager] = None,
         unmapped_buffer: Optional[UnmappedPhraseBuffer] = None,
+        ner_model: Optional[Any] = None,
     ):
         self.known_symptoms: Set[str] = set(known_symptoms) if known_symptoms else set()
         self.dynamic_ontology_manager = (
@@ -340,10 +341,23 @@ class ClinicalSymptomExtractor:
             unmapped_buffer
             or UnmappedPhraseBuffer.get_instance(ontology_manager=self.dynamic_ontology_manager)
         )
+        self._ner_model = ner_model
         self._synonym_lookup: Dict[str, str] = {}
         self._dynamic_phrases: Set[str] = set()
         self._target_phrases: List[Tuple[str, str, int]] = []
         self.reload_dynamic_synonyms()
+
+    @property
+    def ner_model(self):
+        """Lazy accessor for BiomedicalSymptomNER instance."""
+        if self._ner_model is None:
+            try:
+                from app.ml.inference.ner_model import BiomedicalSymptomNER
+                self._ner_model = BiomedicalSymptomNER.get_instance()
+            except Exception as e:
+                logger.warning("Could not initialize BiomedicalSymptomNER: %s", e)
+                self._ner_model = None
+        return self._ner_model
 
     def reload_dynamic_synonyms(self) -> None:
         """Rebuilds synonym lookup table incorporating static and dynamic ontology synonyms."""
@@ -493,6 +507,50 @@ class ClinicalSymptomExtractor:
                         negated_symptoms.add(best_canonical)
                     else:
                         detected_symptoms.add(best_canonical)
+
+        # Phase 2.5: Biomedical Semantic NER Matching (Step 8.3.3)
+        # Evaluates candidate spans using the trained TF-IDF + Centroid Cosine Matcher
+        if self.ner_model and getattr(self.ner_model, "is_ready", False):
+            for k in [6, 5, 4, 3, 2, 1]:
+                for i in range(total_tokens - k + 1):
+                    if any(idx in matched_token_indices for idx in range(i, i + k)):
+                        continue
+
+                    window_tokens = tokens[i : i + k]
+                    if all(t in CLINICAL_STOPWORDS or len(t) < 3 for t in window_tokens):
+                        continue
+
+                    # Boundary hygiene: Candidate clinical entities should not begin or end with stopwords/particles
+                    if (
+                        window_tokens[0] in CLINICAL_STOPWORDS
+                        or window_tokens[-1] in CLINICAL_STOPWORDS
+                        or len(window_tokens[0]) < 3
+                        or len(window_tokens[-1]) < 3
+                    ):
+                        continue
+
+                    window_phrase = " ".join(window_tokens)
+                    ner_pred = self.ner_model.predict_mention(window_phrase, threshold=0.30)
+                    if ner_pred:
+                        canonical_match, sim_score = ner_pred
+                        if not self.known_symptoms or canonical_match in self.known_symptoms:
+                            is_neg = self._is_negated(tokens, i)
+                            for idx in range(i, i + k):
+                                matched_token_indices.add(idx)
+
+                            entity = ExtractedEntity(
+                                raw_mention=window_phrase,
+                                canonical_symptom=canonical_match,
+                                confidence=sim_score,
+                                match_type="semantic_ner",
+                                is_negated=is_neg,
+                            )
+                            extracted_entities.append(entity)
+
+                            if is_neg:
+                                negated_symptoms.add(canonical_match)
+                            else:
+                                detected_symptoms.add(canonical_match)
 
         # Phase 3: Identify unrecognized clinical phrases / active learning candidates
         unrecognized_spans: List[str] = []
