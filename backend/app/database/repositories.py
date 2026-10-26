@@ -12,6 +12,7 @@ from app.database.models import (
     AgentOutput,
     AnalysisSession,
     Doctor,
+    DiagnosticFeedback,
     LabResult,
     MedicalHistory,
     PatientProfile,
@@ -224,13 +225,14 @@ class AnalysisSessionRepository:
         )
         return list(self.db.scalars(stmt).all())
 
-    def create(self, user_id: str, symptom_report_id: Optional[str] = None) -> AnalysisSession:
+    def create(self, user_id: str, symptom_report_id: Optional[str] = None, **kwargs) -> AnalysisSession:
         session = AnalysisSession(
             user_id=user_id,
             symptom_report_id=symptom_report_id,
-            status="pending",
-            current_phase="queued",
-            progress_percent=0,
+            status=kwargs.pop("status", "pending"),
+            current_phase=kwargs.pop("current_phase", "queued"),
+            progress_percent=kwargs.pop("progress_percent", 0),
+            **kwargs,
         )
         self.db.add(session)
         self.db.commit()
@@ -281,10 +283,14 @@ class AgentOutputRepository:
         agent_role: str,
         findings: str,
         confidence: float,
-        reasoning_chain: List[str],
-        evidence: List[str],
+        reasoning_chain: Optional[List[str]] = None,
+        evidence: Optional[List[str]] = None,
         challenges: Optional[List[str]] = None,
         metadata_payload: Optional[Dict[str, Any]] = None,
+        round_number: int = 1,
+        target_agent_role: Optional[str] = None,
+        confidence_delta: float = 0.0,
+        **kwargs,
     ) -> AgentOutput:
         output = AgentOutput(
             analysis_session_id=analysis_session_id,
@@ -295,6 +301,10 @@ class AgentOutputRepository:
             evidence=evidence or [],
             challenges=challenges or [],
             metadata_payload=metadata_payload or {},
+            round_number=round_number,
+            target_agent_role=target_agent_role,
+            confidence_delta=confidence_delta,
+            **kwargs,
         )
         self.db.add(output)
         self.db.commit()
@@ -413,3 +423,36 @@ class TrainedModelRepository:
         self.db.commit()
         self.db.refresh(model)
         return model
+
+
+class DiagnosticFeedbackRepository:
+    """Data access repository for clinician-verified diagnostic feedback."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, **kwargs) -> DiagnosticFeedback:
+        record = DiagnosticFeedback(**kwargs)
+        self.db.add(record)
+        self.db.commit()
+        self.db.refresh(record)
+        return record
+
+    def list_unprocessed(self, target_disease: Optional[str] = None, limit: int = 100) -> List[DiagnosticFeedback]:
+        stmt = select(DiagnosticFeedback).where(DiagnosticFeedback.is_used_for_retraining.is_(False))
+        if target_disease:
+            stmt = stmt.where(DiagnosticFeedback.target_disease == target_disease)
+        stmt = stmt.order_by(DiagnosticFeedback.created_at.asc()).limit(limit)
+        return list(self.db.scalars(stmt).all())
+
+    def mark_as_retrained(self, feedback_ids: List[str]) -> None:
+        if not feedback_ids:
+            return
+        stmt = (
+            update(DiagnosticFeedback)
+            .where(DiagnosticFeedback.id.in_(feedback_ids))
+            .values(is_used_for_retraining=True)
+        )
+        self.db.execute(stmt)
+        self.db.commit()
+
