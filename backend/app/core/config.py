@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     gemini_model_fallback: str = "gemini-2.5-flash"
 
+    # Redis & Caching (Step 9.1)
+    redis_url: str | None = None  # e.g. "redis://localhost:6379/0"
+    redis_cache_enabled: bool = True
+    redis_default_ttl: int = 600  # Default TTL in seconds (10 mins)
+    redis_key_prefix: str = "medoracle"
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.cache import CacheManager
 from app.database.models import (
     AgentOutput,
     AnalysisSession,
@@ -24,14 +25,23 @@ from app.database.models import (
 
 
 class UserRepository:
-    """Data access repository for User accounts."""
+    """Data access repository for User accounts with high-speed JWT identity caching."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache: Optional[CacheManager] = None):
         self.db = db
+        self.cache = cache or CacheManager.get_instance()
 
     def get_by_id(self, user_id: str) -> Optional[User]:
+        cache_key = self.cache.build_key("db", "user", user_id)
+        cached = self.cache.get_model(cache_key, User)
+        if cached is not None:
+            return cached
+
         stmt = select(User).where(User.id == user_id)
-        return self.db.scalars(stmt).first()
+        user = self.db.scalars(stmt).first()
+        if user is not None:
+            self.cache.set_model(cache_key, user, ttl=300)
+        return user
 
     def get_by_email(self, email: str) -> Optional[User]:
         stmt = select(User).where(User.email == email.lower())
@@ -50,17 +60,27 @@ class UserRepository:
 
 
 class PatientProfileRepository:
-    """Data access repository for patient demographic and biometric profiles."""
+    """Data access repository for patient demographic and biometric profiles with Redis/Memory caching."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache: Optional[CacheManager] = None):
         self.db = db
+        self.cache = cache or CacheManager.get_instance()
 
     def get_by_user_id(self, user_id: str) -> Optional[PatientProfile]:
+        cache_key = self.cache.build_key("db", "patient_profile", user_id)
+        cached = self.cache.get_model(cache_key, PatientProfile)
+        if cached is not None:
+            return cached
+
         stmt = select(PatientProfile).where(PatientProfile.user_id == user_id)
-        return self.db.scalars(stmt).first()
+        profile = self.db.scalars(stmt).first()
+        if profile is not None:
+            self.cache.set_model(cache_key, profile)
+        return profile
 
     def create_or_update(self, user_id: str, **kwargs) -> PatientProfile:
-        profile = self.get_by_user_id(user_id)
+        stmt = select(PatientProfile).where(PatientProfile.user_id == user_id)
+        profile = self.db.scalars(stmt).first()
         if not profile:
             profile = PatientProfile(user_id=user_id, **kwargs)
             self.db.add(profile)
@@ -70,28 +90,44 @@ class PatientProfileRepository:
                     setattr(profile, key, val)
         self.db.commit()
         self.db.refresh(profile)
+
+        # Invalidate cache on write/update
+        cache_key = self.cache.build_key("db", "patient_profile", user_id)
+        self.cache.delete(cache_key)
         return profile
 
 
 class MedicalHistoryRepository:
     """Data access repository for personal medical conditions, surgeries, and family history."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache: Optional[CacheManager] = None):
         self.db = db
+        self.cache = cache or CacheManager.get_instance()
 
     def get_latest_by_user_id(self, user_id: str) -> Optional[MedicalHistory]:
+        cache_key = self.cache.build_key("db", "medical_history_latest", user_id)
+        cached = self.cache.get_model(cache_key, MedicalHistory)
+        if cached is not None:
+            return cached
+
         stmt = (
             select(MedicalHistory)
             .where(MedicalHistory.user_id == user_id)
             .order_by(MedicalHistory.created_at.desc())
         )
-        return self.db.scalars(stmt).first()
+        history = self.db.scalars(stmt).first()
+        if history is not None:
+            self.cache.set_model(cache_key, history)
+        return history
 
     def create(self, user_id: str, **kwargs) -> MedicalHistory:
         history = MedicalHistory(user_id=user_id, **kwargs)
         self.db.add(history)
         self.db.commit()
         self.db.refresh(history)
+
+        # Invalidate cache on new record
+        self.cache.delete(self.cache.build_key("db", "medical_history_latest", user_id))
         return history
 
     def update(self, history_id: str, user_id: str, **kwargs) -> Optional[MedicalHistory]:
@@ -106,10 +142,18 @@ class MedicalHistoryRepository:
                 setattr(history, key, val)
         self.db.commit()
         self.db.refresh(history)
+
+        # Invalidate cache on update
+        self.cache.delete(self.cache.build_key("db", "medical_history_latest", user_id))
         return history
 
     def create_or_update(self, user_id: str, **kwargs) -> MedicalHistory:
-        history = self.get_latest_by_user_id(user_id)
+        stmt = (
+            select(MedicalHistory)
+            .where(MedicalHistory.user_id == user_id)
+            .order_by(MedicalHistory.created_at.desc())
+        )
+        history = self.db.scalars(stmt).first()
         if not history:
             history = MedicalHistory(user_id=user_id, **kwargs)
             self.db.add(history)
@@ -119,14 +163,18 @@ class MedicalHistoryRepository:
                     setattr(history, key, val)
         self.db.commit()
         self.db.refresh(history)
+
+        # Invalidate cache
+        self.cache.delete(self.cache.build_key("db", "medical_history_latest", user_id))
         return history
 
 
 class SymptomReportRepository:
     """Data access repository for patient symptom reporting."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache: Optional[CacheManager] = None):
         self.db = db
+        self.cache = cache or CacheManager.get_instance()
 
     def get_by_id(self, report_id: str, user_id: Optional[str] = None) -> Optional[SymptomReport]:
         stmt = select(SymptomReport).where(SymptomReport.id == report_id)
@@ -135,19 +183,30 @@ class SymptomReportRepository:
         return self.db.scalars(stmt).first()
 
     def list_by_user_id(self, user_id: str, limit: int = 50) -> List[SymptomReport]:
+        cache_key = self.cache.build_key("db", "symptoms_list", user_id, str(limit))
+        cached = self.cache.get_model_list(cache_key, SymptomReport)
+        if cached is not None:
+            return cached
+
         stmt = (
             select(SymptomReport)
             .where(SymptomReport.user_id == user_id)
             .order_by(SymptomReport.created_at.desc())
             .limit(limit)
         )
-        return list(self.db.scalars(stmt).all())
+        reports = list(self.db.scalars(stmt).all())
+        if reports:
+            self.cache.set_model_list(cache_key, reports)
+        return reports
 
     def create(self, user_id: str, reported_text: str, **kwargs) -> SymptomReport:
         report = SymptomReport(user_id=user_id, reported_text=reported_text, **kwargs)
         self.db.add(report)
         self.db.commit()
         self.db.refresh(report)
+
+        # Invalidate symptom list cache pattern for this user
+        self.cache.delete_pattern(self.cache.build_key("db", "symptoms_list", user_id, "*"))
         return report
 
     def delete(self, report_id: str, user_id: str) -> bool:
@@ -156,14 +215,18 @@ class SymptomReportRepository:
             return False
         self.db.delete(report)
         self.db.commit()
+
+        # Invalidate symptom list cache pattern for this user
+        self.cache.delete_pattern(self.cache.build_key("db", "symptoms_list", user_id, "*"))
         return True
 
 
 class LabResultRepository:
     """Data access repository for clinical laboratory test results."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache: Optional[CacheManager] = None):
         self.db = db
+        self.cache = cache or CacheManager.get_instance()
 
     def get_by_id(self, lab_id: str, user_id: Optional[str] = None) -> Optional[LabResult]:
         stmt = select(LabResult).where(LabResult.id == lab_id)
@@ -172,27 +235,47 @@ class LabResultRepository:
         return self.db.scalars(stmt).first()
 
     def get_latest_by_user_id(self, user_id: str) -> Optional[LabResult]:
+        cache_key = self.cache.build_key("db", "lab_result_latest", user_id)
+        cached = self.cache.get_model(cache_key, LabResult)
+        if cached is not None:
+            return cached
+
         stmt = (
             select(LabResult)
             .where(LabResult.user_id == user_id)
             .order_by(LabResult.test_date.desc(), LabResult.created_at.desc())
         )
-        return self.db.scalars(stmt).first()
+        lab = self.db.scalars(stmt).first()
+        if lab is not None:
+            self.cache.set_model(cache_key, lab)
+        return lab
 
     def list_by_user_id(self, user_id: str, limit: int = 50) -> List[LabResult]:
+        cache_key = self.cache.build_key("db", "labs_list", user_id, str(limit))
+        cached = self.cache.get_model_list(cache_key, LabResult)
+        if cached is not None:
+            return cached
+
         stmt = (
             select(LabResult)
             .where(LabResult.user_id == user_id)
             .order_by(LabResult.test_date.desc())
             .limit(limit)
         )
-        return list(self.db.scalars(stmt).all())
+        labs = list(self.db.scalars(stmt).all())
+        if labs:
+            self.cache.set_model_list(cache_key, labs)
+        return labs
 
     def create(self, user_id: str, **kwargs) -> LabResult:
         lab = LabResult(user_id=user_id, **kwargs)
         self.db.add(lab)
         self.db.commit()
         self.db.refresh(lab)
+
+        # Invalidate latest lab and lab list cache
+        self.cache.delete(self.cache.build_key("db", "lab_result_latest", user_id))
+        self.cache.delete_pattern(self.cache.build_key("db", "labs_list", user_id, "*"))
         return lab
 
     def delete(self, lab_id: str, user_id: str) -> bool:
@@ -201,6 +284,10 @@ class LabResultRepository:
             return False
         self.db.delete(lab)
         self.db.commit()
+
+        # Invalidate latest lab and lab list cache
+        self.cache.delete(self.cache.build_key("db", "lab_result_latest", user_id))
+        self.cache.delete_pattern(self.cache.build_key("db", "labs_list", user_id, "*"))
         return True
 
 
