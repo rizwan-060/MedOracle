@@ -18,3 +18,5 @@ python-dotenv==1.2.4
 scikit-learn==1.9.1
 joblib==1.6.0
 redis==8.1.0
+groq==1.7.0
+google-genai==2.33.0

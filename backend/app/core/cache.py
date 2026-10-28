@@ -462,3 +462,9 @@ class CacheManager:
             "misses": self.misses,
             "hit_ratio_pct": hit_ratio,
         }
+
+
+def get_cache_manager() -> CacheManager:
+    """Return the singleton CacheManager instance."""
+    return CacheManager.get_instance()
+
