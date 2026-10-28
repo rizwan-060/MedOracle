@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     groq_model_fast: str = "llama-3.1-8b-instant"
     gemini_api_key: str | None = None
     gemini_model_fallback: str = "gemini-2.5-flash"
+    llm_cache_ttl: int = 86400  # Cache retention in seconds (24 hours)
+    llm_max_retries: int = 2  # Max retries on rate limits or transient errors
+    llm_retry_backoff: float = 1.0  # Exponential backoff base factor (seconds)
+    llm_timeout: float = 30.0  # Request timeout in seconds
 
     # Redis & Caching (Step 9.1)
     redis_url: str | None = None  # e.g. "redis://localhost:6379/0"

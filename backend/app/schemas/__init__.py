@@ -67,6 +67,12 @@ from app.schemas.nlp import (
     UnmappedPhraseItem,
     UnmappedPhrasesListResponse,
 )
+from app.schemas.llm import (
+    LLMClinicalTestOutput,
+    LLMProviderInfo,
+    LLMStatusResponse,
+    LLMTestRequest,
+)
 
 __all__ = [
     "UserRegister",
@@ -121,4 +127,8 @@ __all__ = [
     "ExpandOntologyRequest",
     "ExpandOntologyResponse",
     "OntologyOverviewResponse",
+    "LLMProviderInfo",
+    "LLMStatusResponse",
+    "LLMTestRequest",
+    "LLMClinicalTestOutput",
 ]
