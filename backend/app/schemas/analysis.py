@@ -134,6 +134,26 @@ class MedicalHistoryAgentTestRequest(BaseModel):
     use_cache: bool = Field(default=True, description="Enable response caching.")
 
 
+class LaboratoryAgentTestRequest(BaseModel):
+    """Request payload for standalone testing of the Laboratory Biomarker Specialist Agent."""
+
+    systolic_bp: Optional[float] = Field(default=142.0, ge=50, le=280, description="Systolic blood pressure (mmHg).")
+    diastolic_bp: Optional[float] = Field(default=88.0, ge=30, le=180, description="Diastolic blood pressure (mmHg).")
+    total_cholesterol_mg_dl: Optional[float] = Field(default=225.0, ge=50, le=600, description="Total serum cholesterol (mg/dL).")
+    hdl_cholesterol_mg_dl: Optional[float] = Field(default=38.0, ge=10, le=150, description="High-density lipoprotein cholesterol (mg/dL).")
+    ldl_cholesterol_mg_dl: Optional[float] = Field(default=145.0, ge=20, le=400, description="Low-density lipoprotein cholesterol (mg/dL).")
+    triglycerides_mg_dl: Optional[float] = Field(default=210.0, ge=20, le=1500, description="Serum triglycerides (mg/dL).")
+    fasting_blood_glucose_mg_dl: Optional[float] = Field(default=138.0, ge=30, le=600, description="Fasting plasma glucose (mg/dL).")
+    hba1c_percent: Optional[float] = Field(default=7.4, ge=3.0, le=20.0, description="Glycated hemoglobin percentage (%).")
+    serum_creatinine_mg_dl: Optional[float] = Field(default=1.1, ge=0.1, le=25.0, description="Serum creatinine (mg/dL).")
+    estimated_gfr: Optional[float] = Field(default=72.0, ge=1.0, le=200.0, description="Estimated glomerular filtration rate (mL/min/1.73m2).")
+    test_date: Optional[str] = Field(default="2026-10-15", description="Date of laboratory specimen collection.")
+    age: Optional[int] = Field(default=58, description="Patient age.")
+    sex: Optional[str] = Field(default="male", description="Biological sex ('male' or 'female').")
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider ('mock', 'groq', 'gemini').")
+    use_cache: bool = Field(default=True, description="Enable response caching.")
+
+
 class AnalysisSessionStatusResponse(BaseModel):
 
     """Polling status schema for client progress indicators."""

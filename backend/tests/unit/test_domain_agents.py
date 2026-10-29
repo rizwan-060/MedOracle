@@ -319,3 +319,108 @@ def test_medical_history_agent_execution_contract(history_agent: MedicalHistoryA
     assert output.metadata_payload["provider_used"] == "mock"
     assert output.metadata_payload["cached"] is False
 
+
+# =============================================================================
+# 7. LaboratoryAgent Specific Unit Tests
+# =============================================================================
+from app.agents.laboratory_agent import LaboratoryAgent
+
+
+@pytest.fixture
+def lab_agent(mock_llm_service: LLMService) -> LaboratoryAgent:
+    """Instantiated LaboratoryAgent with mock LLM backend."""
+    return LaboratoryAgent(llm_service=mock_llm_service)
+
+
+def test_laboratory_agent_properties(lab_agent: LaboratoryAgent):
+    """Verify LaboratoryAgent role and clinical guidelines."""
+    assert lab_agent.agent_role == "Laboratory Biomarker Specialist"
+    assert "Pathologist" in lab_agent.system_prompt
+    assert "Laboratory Biomarker Specialist" in lab_agent.system_prompt
+
+
+def test_laboratory_agent_missing_or_unavailable_labs(lab_agent: LaboratoryAgent):
+    """Verify that missing/empty lab results execute gracefully under epistemic uncertainty."""
+    output = lab_agent.analyze({})
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Laboratory Biomarker Specialist"
+    assert output.confidence <= 40.0
+    assert any("objective data gap" in ev.lower() or "no objective" in ev.lower() for ev in output.evidence)
+    assert any("requisition" in ch.lower() or "order" in ch.lower() for ch in output.challenges)
+
+    # Briefing prompt also includes the clinical guidance notice
+    prompt = lab_agent.build_prompt({})
+    assert "LABORATORY PANELS UNAVAILABLE / UNRECORDED" in prompt
+
+
+def test_laboratory_agent_hypertensive_crisis_and_hyperglycemia_alerts(lab_agent: LaboratoryAgent):
+    """Verify that critical hemodynamic and metabolic cutoffs trigger automated alerts."""
+    context = {
+        "biomarkers": {
+            "systolic_bp": 195.0,
+            "diastolic_bp": 125.0,
+            "fasting_blood_glucose_mg_dl": 280.0,
+            "hba1c_percent": 11.2,
+            "estimated_gfr": 24.0,
+        },
+        "patient_demographics": {"age": 64, "sex": "male"},
+    }
+    prompt = lab_agent.build_prompt(context)
+
+    assert "Hypertensive Crisis Alert" in prompt
+    assert "Severe Hyperglycemia Alert" in prompt
+    assert "Poor Glycemic Control" in prompt
+    assert "Critical Renal Impairment" in prompt
+
+
+def test_laboratory_agent_biomarker_discordance_prompt(lab_agent: LaboratoryAgent):
+    """Verify that biochemical discordance (FBG vs HbA1c) and atherogenic dyslipidemia are flagged."""
+    context = {
+        "biomarkers": {
+            "systolic_bp": 150.0,
+            "diastolic_bp": 78.0,
+            "fasting_blood_glucose_mg_dl": 92.0,  # Normal FBG
+            "hba1c_percent": 7.8,                # Diabetic HbA1c -> Discordance!
+            "triglycerides_mg_dl": 260.0,        # High TG
+            "hdl_cholesterol_mg_dl": 34.0,       # Low HDL -> Atherogenic Dyslipidemia!
+        },
+        "patient_demographics": {"age": 55, "sex": "male"},
+    }
+    prompt = lab_agent.build_prompt(context)
+
+    assert "Biomarker Discordance Detected" in prompt
+    assert "Atherogenic Dyslipidemia Phenotype" in prompt
+    assert "Isolated Systolic Hypertension" in prompt
+
+
+def test_laboratory_agent_execution_contract(lab_agent: LaboratoryAgent):
+    """Verify that LaboratoryAgent executes and produces valid AgentOutputResponse."""
+    context = {
+        "biomarkers": {
+            "systolic_bp": 136.0,
+            "diastolic_bp": 84.0,
+            "total_cholesterol_mg_dl": 215.0,
+            "hdl_cholesterol_mg_dl": 42.0,
+            "ldl_cholesterol_mg_dl": 140.0,
+            "triglycerides_mg_dl": 165.0,
+            "fasting_blood_glucose_mg_dl": 112.0,
+            "hba1c_percent": 6.1,
+            "serum_creatinine_mg_dl": 0.95,
+            "estimated_gfr": 88.0,
+        },
+        "patient_demographics": {"age": 52, "sex": "female"},
+    }
+    output = lab_agent.analyze(context)
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Laboratory Biomarker Specialist"
+    assert 0.0 <= output.confidence <= 100.0
+    assert len(output.findings) > 0
+    assert len(output.reasoning_chain) > 0
+    assert len(output.evidence) > 0
+    assert len(output.challenges) > 0
+    assert output.metadata_payload["provider_used"] == "mock"
+    assert output.metadata_payload["cached"] is False
+
+
