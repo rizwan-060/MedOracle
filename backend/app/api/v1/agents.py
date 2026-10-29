@@ -17,9 +17,12 @@ from app.agents.risk_prediction_agent import RiskPredictionAgent
 from app.agents.symptom_agent import SymptomAgent
 from app.core.security import get_current_user
 from app.database.models import User
+from app.graph import create_initial_graph_state, run_clinical_graph
 from app.ml.inference.predictor import RealtimePredictor
 from app.schemas.analysis import (
     AgentOutputResponse,
+    ClinicalGraphPipelineTestRequest,
+    ClinicalGraphPipelineTestResponse,
     LaboratoryAgentTestRequest,
     MedicalHistoryAgentTestRequest,
     RiskPredictionAgentTestRequest,
@@ -264,6 +267,59 @@ def test_risk_prediction_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"RiskPredictionAgent analysis failed: {str(exc)}",
         ) from exc
+
+
+@router.post(
+    "/pipeline/test",
+    response_model=ClinicalGraphPipelineTestResponse,
+    summary="Execute full LangGraph multi-agent clinical orchestration pipeline",
+)
+def test_clinical_graph_pipeline(
+    payload: ClinicalGraphPipelineTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> ClinicalGraphPipelineTestResponse:
+    """Execute the full MedOracle LangGraph multi-agent pipeline.
+
+    Workflow topology:
+    1. Parallel execution: SymptomAgent, MedicalHistoryAgent, LaboratoryAgent.
+    2. Fan-in aggregation: RiskPredictionAgent ensembles upstream outputs with deterministic equations & ML models.
+    3. State snapshotting: Returns all agent outputs, execution telemetry, and pipeline phase status.
+    """
+    try:
+        initial_state = create_initial_graph_state(
+            patient_demographics=payload.patient_demographics,
+            symptoms_data=payload.symptoms_data,
+            medical_history_data=payload.medical_history_data,
+            laboratory_data=payload.laboratory_data,
+            clinical_scores=payload.clinical_scores,
+            ml_predictions=payload.ml_predictions,
+            user_id=current_user.id,
+            provider=payload.provider,
+            use_cache=payload.use_cache,
+        )
+
+        final_state = run_clinical_graph(initial_state)
+
+        return ClinicalGraphPipelineTestResponse(
+            session_id=final_state.get("session_id", "unknown"),
+            status=final_state.get("status", "completed"),
+            current_phase=final_state.get("current_phase", "completed"),
+            completed_at=final_state.get("completed_at"),
+            agent_outputs=final_state.get("agent_outputs") or [],
+            symptom_output=final_state.get("symptom_output"),
+            medical_history_output=final_state.get("medical_history_output"),
+            laboratory_output=final_state.get("laboratory_output"),
+            risk_prediction_output=final_state.get("risk_prediction_output"),
+            errors=final_state.get("errors") or [],
+            warnings=final_state.get("warnings") or [],
+        )
+    except Exception as exc:
+        logger.error("Clinical LangGraph pipeline execution failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"LangGraph clinical pipeline failed: {str(exc)}",
+        ) from exc
+
 
 
 
