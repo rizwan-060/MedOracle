@@ -154,6 +154,49 @@ class LaboratoryAgentTestRequest(BaseModel):
     use_cache: bool = Field(default=True, description="Enable response caching.")
 
 
+class RiskPredictionAgentTestRequest(BaseModel):
+    """Request payload for standalone testing of the Risk Prediction Ensemble Specialist Agent."""
+
+    age: Optional[int] = Field(default=58, ge=1, le=120, description="Patient age.")
+    sex: Optional[str] = Field(default="male", description="Biological sex ('male' or 'female').")
+    clinical_scores: Optional[Dict[str, Any]] = Field(
+        default={
+            "framingham_risk_percent": 18.4,
+            "framingham_risk_category": "moderate",
+            "findrisc_score": 14,
+            "findrisc_risk_category": "moderate",
+            "ckd_epi_egfr": 72.0,
+            "ckd_stage": "G2",
+        },
+        description="Deterministic clinical risk equation calculations.",
+    )
+    ml_predictions: Optional[Dict[str, Any]] = Field(
+        default={
+            "cardiovascular_risk_percent": 24.6,
+            "cardiovascular_risk_category": "high",
+            "diabetes_risk_percent": 38.2,
+            "diabetes_risk_category": "moderate",
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.42},
+                {"disease": "essential_hypertension", "probability": 0.31},
+                {"disease": "type_2_diabetes", "probability": 0.18},
+            ],
+        },
+        description="Trained machine learning classifier risk predictions.",
+    )
+    agent_findings: Optional[Dict[str, Any]] = Field(
+        default={
+            "symptom_findings": "Subacute exertional chest tightness radiating to the left shoulder with associated dyspnea.",
+            "medical_history_findings": "Premature paternal CAD history, 8-year history of essential hypertension, active 20 pack-year smoking.",
+            "laboratory_findings": "AHA Stage 2 hypertension, atherogenic dyslipidemia (elevated LDL and TG, low HDL), elevated HbA1c (7.4%).",
+        },
+        description="Qualitative findings from upstream specialist agents.",
+    )
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider ('mock', 'groq', 'gemini').")
+    use_cache: bool = Field(default=True, description="Enable response caching.")
+
+
+
 class AnalysisSessionStatusResponse(BaseModel):
 
     """Polling status schema for client progress indicators."""

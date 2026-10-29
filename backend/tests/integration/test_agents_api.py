@@ -271,4 +271,100 @@ def test_laboratory_agent_validation_bounds(client: TestClient, db_session):
     assert res.status_code == 422
 
 
+# =============================================================================
+# 4. Risk Prediction Agent Integration Tests
+# =============================================================================
+def test_unauthenticated_risk_prediction_agent_rejected(client: TestClient):
+    """POST /api/v1/agents/risk-prediction/test must reject unauthenticated requests with 401."""
+    res = client.post(
+        "/api/v1/agents/risk-prediction/test",
+        json={"clinical_scores": {"framingham_risk_percent": 12.0}},
+    )
+    assert res.status_code == 401
+
+
+def test_authenticated_risk_prediction_agent_success(client: TestClient, db_session):
+    """POST /api/v1/agents/risk-prediction/test executes RiskPredictionAgent and verifies caching."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_risk_ensemble@example.com")
+
+    payload = {
+        "age": 58,
+        "sex": "male",
+        "clinical_scores": {
+            "framingham_risk_percent": 18.4,
+            "framingham_risk_category": "moderate",
+            "findrisc_score": 14,
+            "findrisc_risk_category": "moderate",
+            "ckd_epi_egfr": 72.0,
+            "ckd_stage": "G2",
+        },
+        "ml_predictions": {
+            "cardiovascular_risk_percent": 24.6,
+            "cardiovascular_risk_category": "high",
+            "diabetes_risk_percent": 38.2,
+            "diabetes_risk_category": "moderate",
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.42},
+                {"disease": "essential_hypertension", "probability": 0.31},
+            ],
+        },
+        "agent_findings": {
+            "symptom_findings": "Subacute exertional chest tightness radiating to the left shoulder.",
+            "medical_history_findings": "Premature paternal CAD history, 8-year history of hypertension.",
+            "laboratory_findings": "AHA Stage 2 hypertension, atherogenic dyslipidemia, elevated HbA1c (7.4%).",
+        },
+        "provider": "mock",
+        "use_cache": True,
+    }
+
+    # 1. Execution (Cache miss)
+    res = client.post("/api/v1/agents/risk-prediction/test", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["agent_role"] == "Risk Prediction Ensemble Specialist"
+    assert "findings" in data and len(data["findings"]) > 0
+    assert 0.0 <= data["confidence"] <= 100.0
+    assert len(data["reasoning_chain"]) > 0
+    assert len(data["evidence"]) > 0
+    assert len(data["challenges"]) > 0
+    assert data["metadata_payload"]["provider_used"] == "mock"
+    assert data["metadata_payload"]["cached"] is False
+
+    # 2. Execution with identical payload (Cache hit)
+    res2 = client.post("/api/v1/agents/risk-prediction/test", json=payload, headers=headers)
+    assert res2.status_code == 200
+    data2 = res2.json()
+
+    assert data2["metadata_payload"]["cached"] is True
+    assert data2["metadata_payload"]["latency_ms"] == 0.0
+    assert data2["findings"] == data["findings"]
+    assert data2["confidence"] == data["confidence"]
+
+
+def test_authenticated_risk_prediction_agent_empty_data_graceful(client: TestClient, db_session):
+    """POST /api/v1/agents/risk-prediction/test handles empty/unrecorded risk models under epistemic uncertainty."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_empty_risk@example.com")
+
+    payload = {
+        "age": None,
+        "sex": None,
+        "clinical_scores": None,
+        "ml_predictions": None,
+        "agent_findings": None,
+        "provider": "mock",
+        "use_cache": False,
+    }
+
+    res = client.post("/api/v1/agents/risk-prediction/test", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["agent_role"] == "Risk Prediction Ensemble Specialist"
+    assert data["confidence"] <= 35.0
+    assert any("modeling gap" in ev.lower() or "no quantitative" in ev.lower() for ev in data["evidence"])
+    assert any("baseline" in ch.lower() or "biometric" in ch.lower() or "parameter" in ch.lower() for ch in data["challenges"])
+
+
+
 
