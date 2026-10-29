@@ -11,11 +11,16 @@ import logging
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.agents.medical_history_agent import MedicalHistoryAgent
 from app.agents.symptom_agent import SymptomAgent
 from app.core.security import get_current_user
 from app.database.models import User
 from app.ml.inference.predictor import RealtimePredictor
-from app.schemas.analysis import AgentOutputResponse, SymptomAgentTestRequest
+from app.schemas.analysis import (
+    AgentOutputResponse,
+    MedicalHistoryAgentTestRequest,
+    SymptomAgentTestRequest,
+)
 
 logger = logging.getLogger("agents_api")
 
@@ -95,3 +100,57 @@ def test_symptom_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"SymptomAgent analysis failed: {str(exc)}",
         ) from exc
+
+
+@router.post(
+    "/medical-history/test",
+    response_model=AgentOutputResponse,
+    summary="Evaluate patient medical history and genetics using the Medical History Specialist Agent",
+)
+def test_medical_history_agent(
+    payload: MedicalHistoryAgentTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> AgentOutputResponse:
+    """Execute standalone clinical reasoning through the Medical History Specialist Agent.
+
+    Features:
+    - Evaluates chronic pre-existing disease burdens (hypertension, T2D, prior MI, CKD, dyslipidemia).
+    - Analyzes family pedigree for premature coronary artery disease (<55M / <65F).
+    - Audits pharmacotherapy regimen, compliance, and potential drug-symptom interactions.
+    - Assesses lifestyle habits (smoking status, sedentary behavior).
+    - Cross-references longitudinal risk profile with active presenting symptoms.
+    - Returns structured AgentOutputResponse with findings, confidence, reasoning, evidence, and challenges.
+    - Results are cached in Redis / In-Memory cache for identical inputs.
+    """
+    try:
+        context: Dict[str, Any] = {
+            "chronic_conditions": payload.chronic_conditions,
+            "current_medications": payload.current_medications,
+            "family_history": payload.family_history,
+            "past_surgeries": payload.past_surgeries,
+            "allergies": payload.allergies,
+            "smoking_status": payload.smoking_status,
+            "activity_level": payload.activity_level,
+            "notes": payload.notes,
+            "patient_demographics": {
+                "age": payload.age,
+                "sex": payload.sex,
+            },
+            "active_symptoms": payload.active_symptoms,
+        }
+
+        agent = MedicalHistoryAgent()
+        output = agent.analyze(
+            context=context,
+            provider=payload.provider,
+            use_cache=payload.use_cache,
+        )
+        return output
+
+    except Exception as exc:
+        logger.error("MedicalHistoryAgent execution failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"MedicalHistoryAgent analysis failed: {str(exc)}",
+        ) from exc
+

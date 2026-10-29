@@ -36,6 +36,7 @@ from app.schemas.analysis import (
     ConsensusVerdictSchema,
     GraphEdge,
     GraphNode,
+    MedicalHistoryAgentTestRequest,
     ReasoningGraphSchema,
     SymptomAgentTestRequest,
 )
@@ -104,6 +105,7 @@ __all__ = [
     "ReasoningGraphSchema",
     "AnalysisStartRequest",
     "SymptomAgentTestRequest",
+    "MedicalHistoryAgentTestRequest",
     "AnalysisSessionStatusResponse",
     "AnalysisSessionResponse",
     "DoctorCreate",

@@ -81,3 +81,63 @@ def test_symptom_agent_validation_bounds(client: TestClient, db_session):
         headers=headers,
     )
     assert res.status_code == 422
+
+
+def test_unauthenticated_medical_history_agent_rejected(client: TestClient):
+    """POST /api/v1/agents/medical-history/test must reject unauthenticated requests with 401."""
+    res = client.post(
+        "/api/v1/agents/medical-history/test",
+        json={"chronic_conditions": ["hypertension"]},
+    )
+    assert res.status_code == 401
+
+
+def test_authenticated_medical_history_agent_success(client: TestClient, db_session):
+    """POST /api/v1/agents/medical-history/test executes MedicalHistoryAgent and verifies caching."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_history@example.com")
+
+    payload = {
+        "chronic_conditions": ["hypertension", "type_2_diabetes", "hyperlipidemia"],
+        "current_medications": [
+            {"name": "Metformin", "dosage": "500mg", "frequency": "twice daily"},
+            {"name": "Lisinopril", "dosage": "10mg", "frequency": "once daily"},
+        ],
+        "family_history": [
+            {"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 50},
+        ],
+        "past_surgeries": ["cholecystectomy (2018)"],
+        "allergies": ["penicillin"],
+        "smoking_status": "current_smoker",
+        "activity_level": "sedentary",
+        "notes": "Patient reports poor diet and missed doses of Lisinopril.",
+        "age": 57,
+        "sex": "male",
+        "active_symptoms": ["chest_tightness"],
+        "provider": "mock",
+        "use_cache": True,
+    }
+
+    # 1. Execution (Cache miss)
+    res = client.post("/api/v1/agents/medical-history/test", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["agent_role"] == "Medical History Specialist"
+    assert "findings" in data and len(data["findings"]) > 0
+    assert 0.0 <= data["confidence"] <= 100.0
+    assert len(data["reasoning_chain"]) > 0
+    assert len(data["evidence"]) > 0
+    assert len(data["challenges"]) > 0
+    assert data["metadata_payload"]["provider_used"] == "mock"
+    assert data["metadata_payload"]["cached"] is False
+
+    # 2. Execution with identical payload (Cache hit)
+    res2 = client.post("/api/v1/agents/medical-history/test", json=payload, headers=headers)
+    assert res2.status_code == 200
+    data2 = res2.json()
+
+    assert data2["metadata_payload"]["cached"] is True
+    assert data2["metadata_payload"]["latency_ms"] == 0.0
+    assert data2["findings"] == data["findings"]
+    assert data2["confidence"] == data["confidence"]
+

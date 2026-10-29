@@ -82,7 +82,60 @@ class SymptomAgentTestRequest(BaseModel):
     use_cache: bool = Field(default=True, description="Enable response caching.")
 
 
+class MedicalHistoryAgentTestRequest(BaseModel):
+    """Request payload for standalone testing of the Medical History Specialist Agent."""
+
+    chronic_conditions: List[str] = Field(
+        default=["hypertension", "type_2_diabetes", "hyperlipidemia"],
+        description="Diagnosed pre-existing chronic conditions.",
+    )
+    current_medications: List[Dict[str, Any]] = Field(
+        default=[
+            {"name": "Metformin", "dosage": "500mg", "frequency": "twice daily"},
+            {"name": "Lisinopril", "dosage": "10mg", "frequency": "once daily"},
+            {"name": "Atorvastatin", "dosage": "20mg", "frequency": "once daily at bedtime"},
+        ],
+        description="Current prescriptions with dosages.",
+    )
+    family_history: List[Dict[str, Any]] = Field(
+        default=[
+            {"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 52},
+            {"relative": "mother", "condition": "type_2_diabetes", "age_at_onset": 60},
+        ],
+        description="Family pedigree records with condition and age at onset.",
+    )
+    past_surgeries: List[str] = Field(
+        default=["appendectomy (2012)"],
+        description="Past surgical history.",
+    )
+    allergies: List[str] = Field(
+        default=["penicillin"],
+        description="Known drug and environmental allergies.",
+    )
+    smoking_status: Optional[str] = Field(
+        default="current_smoker",
+        description="Smoking history ('never', 'former', 'current_smoker').",
+    )
+    activity_level: Optional[str] = Field(
+        default="sedentary",
+        description="Physical activity tier ('sedentary', 'low', 'moderate', 'high').",
+    )
+    notes: Optional[str] = Field(
+        default="Patient diagnosed with hypertension 8 years ago; reports inconsistent medication compliance on weekends.",
+        description="Clinical intake narrative or physician history notes.",
+    )
+    age: Optional[int] = Field(default=58, description="Patient age.")
+    sex: Optional[str] = Field(default="male", description="Biological sex ('male' or 'female').")
+    active_symptoms: Optional[List[str]] = Field(
+        default=["chest_tightness", "fatigue"],
+        description="Presenting symptoms for cross-examination.",
+    )
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider ('mock', 'groq', 'gemini').")
+    use_cache: bool = Field(default=True, description="Enable response caching.")
+
+
 class AnalysisSessionStatusResponse(BaseModel):
+
     """Polling status schema for client progress indicators."""
 
     session_id: str

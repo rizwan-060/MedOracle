@@ -223,3 +223,87 @@ def test_symptom_agent_execution_contract(symptom_agent: SymptomAgent):
     assert len(output.challenges) > 0
     assert output.metadata_payload["provider_used"] == "mock"
     assert output.metadata_payload["cached"] is False
+
+
+# =============================================================================
+# 6. MedicalHistoryAgent Specific Unit Tests
+# =============================================================================
+from app.agents.medical_history_agent import MedicalHistoryAgent
+
+
+@pytest.fixture
+def history_agent(mock_llm_service: LLMService) -> MedicalHistoryAgent:
+    """Instantiated MedicalHistoryAgent with mock LLM backend."""
+    return MedicalHistoryAgent(llm_service=mock_llm_service)
+
+
+def test_medical_history_agent_properties(history_agent: MedicalHistoryAgent):
+    """Verify MedicalHistoryAgent role and clinical guidelines."""
+    assert history_agent.agent_role == "Medical History Specialist"
+    assert "PREMATURE CORONARY ARTERY DISEASE" in history_agent.system_prompt
+    assert "Medical History Specialist" in history_agent.system_prompt
+
+
+def test_medical_history_agent_validation_empty_context(history_agent: MedicalHistoryAgent):
+    """Verify that context without any historical data raises AgentExecutionError."""
+    with pytest.raises(AgentExecutionError) as exc:
+        history_agent.analyze({})
+
+    assert "Context must provide at least one historical source" in str(exc.value)
+
+
+def test_medical_history_agent_premature_cad_alert(history_agent: MedicalHistoryAgent):
+    """Verify that premature first-degree CAD is flagged in the clinical briefing prompt."""
+    context = {
+        "chronic_conditions": ["hypertension"],
+        "current_medications": [{"name": "Amlodipine", "dosage": "5mg", "frequency": "daily"}],
+        "family_history": [
+            {"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 48},
+        ],
+        "lifestyle": {"smoking_status": "former", "activity_level": "moderate"},
+    }
+    prompt = history_agent.build_prompt(context)
+
+    assert "Premature First-Degree CAD Detected" in prompt
+    assert "Father (Myocardial Infarction at age 48)" in prompt
+
+
+def test_medical_history_agent_cardiometabolic_triad_alert(history_agent: MedicalHistoryAgent):
+    """Verify that co-existing HTN, Diabetes, and Dyslipidemia trigger Cardiometabolic Triad alert."""
+    context = {
+        "chronic_conditions": ["hypertension", "type_2_diabetes", "hyperlipidemia"],
+        "current_medications": [
+            {"name": "Metformin", "dosage": "1000mg", "frequency": "twice daily"},
+            {"name": "Lisinopril", "dosage": "20mg", "frequency": "daily"},
+        ],
+        "lifestyle": {"smoking_status": "current_smoker", "activity_level": "sedentary"},
+    }
+    prompt = history_agent.build_prompt(context)
+
+    assert "Cardiometabolic Triad Identified" in prompt
+    assert "Hypertension, Diabetes, and Dyslipidemia" in prompt
+
+
+def test_medical_history_agent_execution_contract(history_agent: MedicalHistoryAgent):
+    """Verify that MedicalHistoryAgent executes and produces valid AgentOutputResponse."""
+    context = {
+        "chronic_conditions": ["hypertension"],
+        "current_medications": [{"name": "Losartan", "dosage": "50mg", "frequency": "once daily"}],
+        "family_history": [{"relative": "mother", "condition": "stroke", "age_at_onset": 72}],
+        "smoking_status": "never",
+        "activity_level": "moderate",
+        "notes": "Patient diagnosed with stage 1 hypertension in 2021, good medication compliance.",
+        "active_symptoms": ["headache"],
+    }
+    output = history_agent.analyze(context)
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Medical History Specialist"
+    assert 0.0 <= output.confidence <= 100.0
+    assert len(output.findings) > 0
+    assert len(output.reasoning_chain) > 0
+    assert len(output.evidence) > 0
+    assert len(output.challenges) > 0
+    assert output.metadata_payload["provider_used"] == "mock"
+    assert output.metadata_payload["cached"] is False
+
