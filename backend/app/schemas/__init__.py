@@ -36,7 +36,11 @@ from app.schemas.analysis import (
     ConsensusVerdictSchema,
     GraphEdge,
     GraphNode,
+    LaboratoryAgentTestRequest,
+    MedicalHistoryAgentTestRequest,
     ReasoningGraphSchema,
+    RiskPredictionAgentTestRequest,
+    SymptomAgentTestRequest,
 )
 from app.schemas.doctor import (
     DoctorCreate,
@@ -102,6 +106,10 @@ __all__ = [
     "GraphEdge",
     "ReasoningGraphSchema",
     "AnalysisStartRequest",
+    "SymptomAgentTestRequest",
+    "MedicalHistoryAgentTestRequest",
+    "LaboratoryAgentTestRequest",
+    "RiskPredictionAgentTestRequest",
     "AnalysisSessionStatusResponse",
     "AnalysisSessionResponse",
     "DoctorCreate",
