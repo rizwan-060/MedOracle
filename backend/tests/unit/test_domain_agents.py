@@ -138,3 +138,88 @@ def test_base_agent_error_wrapping(clean_cache: CacheManager):
     assert "All upstream LLM models timed out" in str(exc_info.value)
     assert exc_info.value.agent_role == "Dummy Clinical Specialist"
     assert exc_info.value.original_exception is not None
+
+
+# =============================================================================
+# 5. SymptomAgent Specific Unit Tests
+# =============================================================================
+from app.agents.symptom_agent import ACUTE_RED_FLAGS, SymptomAgent
+
+
+@pytest.fixture
+def symptom_agent(mock_llm_service: LLMService) -> SymptomAgent:
+    """Instantiated SymptomAgent with mock LLM backend."""
+    return SymptomAgent(llm_service=mock_llm_service)
+
+
+def test_symptom_agent_properties(symptom_agent: SymptomAgent):
+    """Verify SymptomAgent role and persona guidelines."""
+    assert symptom_agent.agent_role == "Symptom Analysis Specialist"
+    assert "RED FLAGS" in symptom_agent.system_prompt
+    assert "Symptom Analysis Specialist" in symptom_agent.system_prompt
+
+
+def test_symptom_agent_validation_empty_context(symptom_agent: SymptomAgent):
+    """Verify that context missing any symptom signal is rejected."""
+    with pytest.raises(AgentExecutionError) as exc:
+        symptom_agent.analyze({})
+
+    assert "Context must provide at least one symptom source" in str(exc.value)
+
+
+def test_symptom_agent_red_flag_prompt_escalation(symptom_agent: SymptomAgent):
+    """Verify that acute emergency symptoms trigger safety escalation in the briefing prompt."""
+    context = {
+        "symptoms": ["chest pain", "severe diaphoresis"],
+        "severity": 9,
+        "duration_days": 1,
+        "notes": "Patient collapsed with substernal pressure",
+    }
+    prompt = symptom_agent.build_prompt(context)
+
+    assert "AUTOMATED SAFETY ESCALATION" in prompt
+    assert "Chest Pain" in prompt
+    assert "Substernal Pressure" in prompt
+
+
+def test_symptom_agent_nlp_and_ml_integration_prompt(symptom_agent: SymptomAgent):
+    """Verify that affirmed/negated NLP entities and ML differential candidates are structured into prompt."""
+    context = {
+        "symptoms": ["fatigue"],
+        "patient_demographics": {"age": 58, "sex": "female"},
+        "nlp_entities": [
+            {"canonical_symptom": "fatigue", "negated": False, "confidence": 0.95},
+            {"canonical_symptom": "fever", "negated": True, "confidence": 0.90},
+        ],
+        "differential_candidates": [
+            {"disease": "Type 2 Diabetes", "probability": 0.72},
+            {"disease": "Coronary Artery Disease", "probability": 0.18},
+        ],
+    }
+    prompt = symptom_agent.build_prompt(context)
+
+    assert "Age: 58 | Biological Sex: female" in prompt
+    assert "Affirmed Present:** fatigue (conf: 95%)" in prompt
+    assert "Explicitly Denied (NegEx Negated):** fever" in prompt
+    assert "Type 2 Diabetes**: 72.0%" in prompt
+
+
+def test_symptom_agent_execution_contract(symptom_agent: SymptomAgent):
+    """Verify that SymptomAgent executes and produces valid AgentOutputResponse."""
+    context = {
+        "symptoms": ["dyspnea", "fatigue"],
+        "severity": 6,
+        "duration_days": 7,
+        "notes": "Shortness of breath on walking two blocks.",
+    }
+    output = symptom_agent.analyze(context)
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Symptom Analysis Specialist"
+    assert 0.0 <= output.confidence <= 100.0
+    assert len(output.findings) > 0
+    assert len(output.reasoning_chain) > 0
+    assert len(output.evidence) > 0
+    assert len(output.challenges) > 0
+    assert output.metadata_payload["provider_used"] == "mock"
+    assert output.metadata_payload["cached"] is False

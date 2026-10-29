@@ -63,6 +63,25 @@ class AnalysisStartRequest(BaseModel):
     include_medical_history: bool = True
 
 
+class SymptomAgentTestRequest(BaseModel):
+    """Request payload for standalone testing of the Symptom Specialist Agent."""
+
+    symptoms: List[str] = Field(
+        default=["chest_pain", "breathlessness", "sweating"],
+        description="List of active canonical symptoms.",
+    )
+    severity: int = Field(default=8, ge=1, le=10, description="Severity on 1-10 scale.")
+    duration_days: int = Field(default=2, ge=0, description="Duration of symptoms in days.")
+    notes: Optional[str] = Field(
+        default="Substernal pressure worsening on mild exertion, patient denies cough or fever.",
+        description="Patient clinical narrative or physician notes.",
+    )
+    age: Optional[int] = Field(default=56, description="Patient age.")
+    sex: Optional[str] = Field(default="male", description="Biological sex ('male' or 'female').")
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider ('mock', 'groq', 'gemini').")
+    use_cache: bool = Field(default=True, description="Enable response caching.")
+
+
 class AnalysisSessionStatusResponse(BaseModel):
     """Polling status schema for client progress indicators."""
 

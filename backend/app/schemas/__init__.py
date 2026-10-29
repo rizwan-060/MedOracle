@@ -37,6 +37,7 @@ from app.schemas.analysis import (
     GraphEdge,
     GraphNode,
     ReasoningGraphSchema,
+    SymptomAgentTestRequest,
 )
 from app.schemas.doctor import (
     DoctorCreate,
@@ -102,6 +103,7 @@ __all__ = [
     "GraphEdge",
     "ReasoningGraphSchema",
     "AnalysisStartRequest",
+    "SymptomAgentTestRequest",
     "AnalysisSessionStatusResponse",
     "AnalysisSessionResponse",
     "DoctorCreate",
