@@ -424,3 +424,102 @@ def test_laboratory_agent_execution_contract(lab_agent: LaboratoryAgent):
     assert output.metadata_payload["cached"] is False
 
 
+# =============================================================================
+# 8. RiskPredictionAgent Specific Unit Tests
+# =============================================================================
+from app.agents.risk_prediction_agent import RiskPredictionAgent
+
+
+@pytest.fixture
+def risk_agent(mock_llm_service: LLMService) -> RiskPredictionAgent:
+    """Instantiated RiskPredictionAgent with mock LLM backend."""
+    return RiskPredictionAgent(llm_service=mock_llm_service)
+
+
+def test_risk_prediction_agent_properties(risk_agent: RiskPredictionAgent):
+    """Verify RiskPredictionAgent role and clinical guidelines."""
+    assert risk_agent.agent_role == "Risk Prediction Ensemble Specialist"
+    assert "Clinical Epidemiologist" in risk_agent.system_prompt
+    assert "Risk Prediction Ensemble Specialist" in risk_agent.system_prompt
+
+
+def test_risk_prediction_agent_missing_or_unavailable_data(risk_agent: RiskPredictionAgent):
+    """Verify that empty or unavailable risk scores execute gracefully under epistemic uncertainty."""
+    output = risk_agent.analyze({})
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Risk Prediction Ensemble Specialist"
+    assert output.confidence <= 35.0
+    assert any("modeling gap" in ev.lower() or "no quantitative" in ev.lower() for ev in output.evidence)
+    assert any("baseline" in ch.lower() or "biometric" in ch.lower() or "parameter" in ch.lower() for ch in output.challenges)
+
+    # Prompt includes guidance for missing models
+    prompt = risk_agent.build_prompt({})
+    assert "QUANTITATIVE RISK MODELS UNAVAILABLE" in prompt
+
+
+def test_risk_prediction_agent_discordance_flags_in_prompt(risk_agent: RiskPredictionAgent):
+    """Verify that model discrepancies between Framingham and ML trigger discordance alerts."""
+    context = {
+        "patient_demographics": {"age": 48, "sex": "male"},
+        "clinical_scores": {
+            "framingham_risk_percent": 6.5,  # Low risk due to age
+            "findrisc_score": 16,            # High risk
+            "ckd_epi_egfr": 78.0,
+        },
+        "ml_predictions": {
+            "cardiovascular_risk_percent": 34.0,  # 34.0 - 6.5 = 27.5% gap >= 25% discordance!
+            "diabetes_risk_percent": 22.0,        # FINDRISC high vs ML low discordance!
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.38},
+            ],
+        },
+    }
+    prompt = risk_agent.build_prompt(context)
+
+    assert "Cardiovascular Model Discordance" in prompt
+    assert "Metabolic Diabetes Model Discordance" in prompt
+
+
+def test_risk_prediction_agent_execution_contract(risk_agent: RiskPredictionAgent):
+    """Verify that RiskPredictionAgent executes and produces valid AgentOutputResponse."""
+    context = {
+        "patient_demographics": {"age": 58, "sex": "male"},
+        "clinical_scores": {
+            "framingham_risk_percent": 18.4,
+            "framingham_risk_category": "moderate",
+            "findrisc_score": 14,
+            "findrisc_risk_category": "moderate",
+            "ckd_epi_egfr": 72.0,
+            "ckd_stage": "G2",
+        },
+        "ml_predictions": {
+            "cardiovascular_risk_percent": 24.6,
+            "cardiovascular_risk_category": "high",
+            "diabetes_risk_percent": 38.2,
+            "diabetes_risk_category": "moderate",
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.42},
+                {"disease": "essential_hypertension", "probability": 0.31},
+            ],
+        },
+        "agent_findings": {
+            "symptom_findings": "Subacute exertional chest tightness radiating to the left shoulder.",
+            "medical_history_findings": "Premature paternal CAD history, 8-year history of hypertension.",
+            "laboratory_findings": "AHA Stage 2 hypertension, atherogenic dyslipidemia, elevated HbA1c (7.4%).",
+        },
+    }
+    output = risk_agent.analyze(context)
+
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Risk Prediction Ensemble Specialist"
+    assert 0.0 <= output.confidence <= 100.0
+    assert len(output.findings) > 0
+    assert len(output.reasoning_chain) > 0
+    assert len(output.evidence) > 0
+    assert len(output.challenges) > 0
+    assert output.metadata_payload["provider_used"] == "mock"
+    assert output.metadata_payload["cached"] is False
+
+
+

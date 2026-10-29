@@ -39,6 +39,7 @@ from app.schemas.analysis import (
     LaboratoryAgentTestRequest,
     MedicalHistoryAgentTestRequest,
     ReasoningGraphSchema,
+    RiskPredictionAgentTestRequest,
     SymptomAgentTestRequest,
 )
 from app.schemas.doctor import (
@@ -108,6 +109,7 @@ __all__ = [
     "SymptomAgentTestRequest",
     "MedicalHistoryAgentTestRequest",
     "LaboratoryAgentTestRequest",
+    "RiskPredictionAgentTestRequest",
     "AnalysisSessionStatusResponse",
     "AnalysisSessionResponse",
     "DoctorCreate",

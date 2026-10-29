@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.laboratory_agent import LaboratoryAgent
 from app.agents.medical_history_agent import MedicalHistoryAgent
+from app.agents.risk_prediction_agent import RiskPredictionAgent
 from app.agents.symptom_agent import SymptomAgent
 from app.core.security import get_current_user
 from app.database.models import User
@@ -21,6 +22,7 @@ from app.schemas.analysis import (
     AgentOutputResponse,
     LaboratoryAgentTestRequest,
     MedicalHistoryAgentTestRequest,
+    RiskPredictionAgentTestRequest,
     SymptomAgentTestRequest,
 )
 
@@ -215,5 +217,53 @@ def test_laboratory_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"LaboratoryAgent analysis failed: {str(exc)}",
         ) from exc
+
+
+@router.post(
+    "/risk-prediction/test",
+    response_model=AgentOutputResponse,
+    summary="Evaluate quantitative risk ensemble using the Risk Prediction Ensemble Specialist Agent",
+)
+def test_risk_prediction_agent(
+    payload: RiskPredictionAgentTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> AgentOutputResponse:
+    """Execute standalone clinical reasoning through the Risk Prediction Ensemble Specialist Agent.
+
+    Features:
+    - Ensembles deterministic clinical formulas (Framingham 10-Yr CVD, FINDRISC 10-Yr Diabetes, CKD-EPI eGFR).
+    - Synthesizes trained machine learning predictions (Gradient Boosting CVD, Random Forest Diabetes, Naive Bayes 41-class).
+    - Detects automated model discrepancies and clinical discordance (>= 25% gap).
+    - Integrates upstream specialist domain findings (Symptom, Medical History, Laboratory).
+    - Handles missing or unrecorded quantitative risk vectors gracefully under epistemic uncertainty.
+    - Returns structured AgentOutputResponse with findings, confidence, reasoning, evidence, and challenges.
+    - Results are cached in Redis / In-Memory cache for identical inputs.
+    """
+    try:
+        context: Dict[str, Any] = {
+            "patient_demographics": {
+                "age": payload.age,
+                "sex": payload.sex,
+            },
+            "clinical_scores": payload.clinical_scores,
+            "ml_predictions": payload.ml_predictions,
+            "agent_findings": payload.agent_findings,
+        }
+
+        agent = RiskPredictionAgent()
+        output = agent.analyze(
+            context=context,
+            provider=payload.provider,
+            use_cache=payload.use_cache,
+        )
+        return output
+
+    except Exception as exc:
+        logger.error("RiskPredictionAgent execution failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"RiskPredictionAgent analysis failed: {str(exc)}",
+        ) from exc
+
 
 
