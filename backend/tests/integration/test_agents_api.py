@@ -141,3 +141,33 @@ def test_authenticated_medical_history_agent_success(client: TestClient, db_sess
     assert data2["findings"] == data["findings"]
     assert data2["confidence"] == data["confidence"]
 
+
+def test_authenticated_medical_history_agent_empty_history_graceful(client: TestClient, db_session):
+    """POST /api/v1/agents/medical-history/test handles empty/unavailable history under epistemic uncertainty."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_empty_history@example.com")
+
+    payload = {
+        "chronic_conditions": [],
+        "current_medications": [],
+        "family_history": [],
+        "past_surgeries": [],
+        "allergies": [],
+        "smoking_status": None,
+        "activity_level": None,
+        "notes": None,
+        "age": 45,
+        "sex": "female",
+        "provider": "mock",
+        "use_cache": False,
+    }
+
+    res = client.post("/api/v1/agents/medical-history/test", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["agent_role"] == "Medical History Specialist"
+    assert data["confidence"] <= 45.0
+    assert any("surveillance gap" in ev.lower() or "no prior" in ev.lower() for ev in data["evidence"])
+    assert any("baseline" in ch.lower() or "intake" in ch.lower() for ch in data["challenges"])
+
+

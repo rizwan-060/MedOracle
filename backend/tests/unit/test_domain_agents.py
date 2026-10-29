@@ -244,12 +244,24 @@ def test_medical_history_agent_properties(history_agent: MedicalHistoryAgent):
     assert "Medical History Specialist" in history_agent.system_prompt
 
 
-def test_medical_history_agent_validation_empty_context(history_agent: MedicalHistoryAgent):
-    """Verify that context without any historical data raises AgentExecutionError."""
-    with pytest.raises(AgentExecutionError) as exc:
-        history_agent.analyze({})
+def test_medical_history_agent_missing_or_unavailable_history(history_agent: MedicalHistoryAgent):
+    """Verify that empty or unavailable history executes gracefully under epistemic uncertainty."""
+    output = history_agent.analyze({})
 
-    assert "Context must provide at least one historical source" in str(exc.value)
+    assert isinstance(output, AgentOutputResponse)
+    assert output.agent_role == "Medical History Specialist"
+    # Epistemic uncertainty penalty enforces confidence <= 45.0
+    assert output.confidence <= 45.0
+    # Explicitly records surveillance gap in evidence
+    assert any("surveillance gap" in ev.lower() or "no prior" in ev.lower() for ev in output.evidence)
+    # Explicitly challenges to conduct baseline intake/screening
+    assert any("baseline" in ch.lower() or "intake" in ch.lower() for ch in output.challenges)
+
+    # Briefing prompt also includes the clinical guidance notice
+    prompt = history_agent.build_prompt({})
+    assert "MEDICAL HISTORY UNAVAILABLE / UNRECORDED" in prompt
+    assert "Do NOT assume absence of recorded disease equals confirmed absence of pathology" in prompt
+
 
 
 def test_medical_history_agent_premature_cad_alert(history_agent: MedicalHistoryAgent):

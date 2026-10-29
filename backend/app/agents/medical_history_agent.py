@@ -74,10 +74,8 @@ class MedicalHistoryAgent(BaseClinicalAgent):
             "- challenges: 2-4 critical clinical doubts, rule-outs, or required lab/imaging tests needed to resolve historical ambiguity."
         )
 
-    def validate_context(self, context: Dict[str, Any]) -> None:
-        """Verify context provides at least one historical or clinical context source."""
-        super().validate_context(context)
-
+    def has_recorded_history(self, context: Dict[str, Any]) -> bool:
+        """Check whether any longitudinal medical, medication, family, or lifestyle data is present."""
         chronic = context.get("chronic_conditions")
         meds = context.get("current_medications")
         family = context.get("family_history")
@@ -87,21 +85,52 @@ class MedicalHistoryAgent(BaseClinicalAgent):
         notes = context.get("notes") or context.get("history_notes")
         history_obj = context.get("medical_history")
 
-        has_chronic = bool(chronic)
-        has_meds = bool(meds)
-        has_family = bool(family)
-        has_surgeries = bool(surgeries)
-        has_allergies = bool(allergies)
-        has_lifestyle = bool(lifestyle) or bool(context.get("smoking_status")) or bool(context.get("activity_level"))
-        has_notes = bool(notes)
-        has_history_obj = isinstance(history_obj, dict) and any(history_obj.values())
+        return bool(
+            chronic
+            or meds
+            or family
+            or surgeries
+            or allergies
+            or lifestyle
+            or context.get("smoking_status")
+            or context.get("activity_level")
+            or notes
+            or (isinstance(history_obj, dict) and any(history_obj.values()))
+        )
 
-        if not (has_chronic or has_meds or has_family or has_surgeries or has_allergies or has_lifestyle or has_notes or has_history_obj):
-            raise AgentExecutionError(
-                self.agent_role,
-                "Context must provide at least one historical source: 'chronic_conditions', "
-                "'current_medications', 'family_history', 'past_surgeries', 'lifestyle', or 'notes'.",
-            )
+    def validate_context(self, context: Dict[str, Any]) -> None:
+        """Verify context format.
+
+        Permits empty or missing history contexts to support de novo patient presentations,
+        emergency intake, or unrecorded historical profiles without crashing the pipeline.
+        """
+        super().validate_context(context)
+
+    def analyze(
+        self,
+        context: Dict[str, Any],
+        provider: Optional[str] = None,
+        use_cache: bool = True,
+    ) -> AgentOutputResponse:
+        """Analyze medical history or handle unrecorded longitudinal data gracefully."""
+        output = super().analyze(context=context, provider=provider, use_cache=use_cache)
+
+        # If medical history is entirely unavailable or empty, enforce epistemic uncertainty adjustments
+        if not self.has_recorded_history(context):
+            # Cap confidence score to reflect high epistemic uncertainty from missing records
+            if output.confidence > 45.0:
+                output.confidence = 35.0
+
+            # Ensure evidence and challenges reflect surveillance gap
+            missing_evidence_marker = "No prior longitudinal medical history, medications, or family pedigree on record (surveillance gap)."
+            if missing_evidence_marker not in output.evidence:
+                output.evidence.insert(0, missing_evidence_marker)
+
+            baseline_challenge = "Conduct comprehensive baseline clinical intake, medication reconciliation, and screening panels to establish historical reference."
+            if not any("baseline" in c.lower() or "intake" in c.lower() or "screening" in c.lower() for c in output.challenges):
+                output.challenges.insert(0, baseline_challenge)
+
+        return output
 
     def build_prompt(self, context: Dict[str, Any]) -> str:
         """Construct structured clinical briefing detailing longitudinal history for LLM inference."""
@@ -112,6 +141,23 @@ class MedicalHistoryAgent(BaseClinicalAgent):
         age = demo.get("age", context.get("age", "Unknown"))
         sex = demo.get("sex", context.get("sex", "Unknown"))
         lines.append(f"**Patient Demographics:** Age: {age} | Biological Sex: {sex}\n")
+
+        # 2. Check if longitudinal history is present or completely unrecorded
+        if not self.has_recorded_history(context):
+            lines.append("## ⚠️ CLINICAL STATUS: MEDICAL HISTORY UNAVAILABLE / UNRECORDED")
+            lines.append(
+                "- **Status:** No prior longitudinal records, chronic diagnoses, medication lists, or family pedigree data are on file.\n"
+                "- **Clinical Presentation:** De novo presentation, healthy baseline, or historical records currently unavailable.\n"
+                "- **Epistemic Uncertainty Guidance:**\n"
+                "  1. Do NOT assume absence of recorded disease equals confirmed absence of pathology.\n"
+                "  2. Apply a strict confidence penalty (confidence between 25.0 and 40.0) reflecting high epistemic uncertainty.\n"
+                "  3. In `findings`, synthesize that the patient presents with an unrecorded longitudinal profile.\n"
+                "  4. In `reasoning_chain`, explicitly note the surveillance gap and inability to adjust for hereditary or pharmacological baseline.\n"
+                "  5. In `evidence`, state that no pre-existing conditions, active medications, or family history are recorded.\n"
+                "  6. In `challenges`, demand an in-person medical intake interview, comprehensive medication reconciliation, and baseline screening labs."
+            )
+            lines.append("")
+
 
         # Extract nested medical history object if provided
         mh = context.get("medical_history") or {}
@@ -173,15 +219,15 @@ class MedicalHistoryAgent(BaseClinicalAgent):
 
         # 5. Lifestyle, Social History & Allergies
         lifestyle = context.get("lifestyle") or {}
-        smoking = lifestyle.get("smoking_status") or context.get("smoking_status", "unspecified")
-        activity = lifestyle.get("activity_level") or context.get("activity_level", "unspecified")
+        smoking = lifestyle.get("smoking_status") or context.get("smoking_status") or "unspecified"
+        activity = lifestyle.get("activity_level") or context.get("activity_level") or "unspecified"
         surgeries = context.get("past_surgeries") or mh.get("past_surgeries") or []
         allergies = context.get("allergies") or mh.get("allergies") or []
         notes = context.get("notes") or mh.get("notes") or context.get("history_notes", "")
 
         lines.append("## Lifestyle & Clinical Baseline")
-        lines.append(f"- **Smoking Status:** {smoking.replace('_', ' ').title()}")
-        lines.append(f"- **Physical Activity Level:** {activity.replace('_', ' ').title()}")
+        lines.append(f"- **Smoking Status:** {str(smoking).replace('_', ' ').title()}")
+        lines.append(f"- **Physical Activity Level:** {str(activity).replace('_', ' ').title()}")
         if surgeries:
             lines.append(f"- **Past Surgical History:** {', '.join(str(s) for s in surgeries)}")
         if allergies:
