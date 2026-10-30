@@ -1,8 +1,0 @@
-# MedOracle Code Owners
-# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-#
-# Any pull request merging into main or protected branches will automatically
-# require review and explicit approval from @rizwan-060 before merging.
-
-# Require approval from @rizwan-060 for all files across the repository
-* @rizwan-060
