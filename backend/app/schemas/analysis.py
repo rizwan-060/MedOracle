@@ -196,6 +196,85 @@ class RiskPredictionAgentTestRequest(BaseModel):
     use_cache: bool = Field(default=True, description="Enable response caching.")
 
 
+class ClinicalGraphPipelineTestRequest(BaseModel):
+    """Request payload for testing the LangGraph multi-agent orchestration pipeline."""
+
+    patient_demographics: Optional[Dict[str, Any]] = Field(
+        default={"age": 58, "sex": "male"},
+        description="Patient baseline demographics.",
+    )
+    symptoms_data: Optional[Dict[str, Any]] = Field(
+        default={
+            "symptoms": ["chest_pain", "breathlessness", "fatigue"],
+            "severity": 8,
+            "duration_days": 3,
+            "notes": "Patient complains of heaviness in chest radiating to left arm, denies fever.",
+        },
+        description="Active symptom report and narrative.",
+    )
+    medical_history_data: Optional[Dict[str, Any]] = Field(
+        default={
+            "chronic_conditions": ["hypertension", "type_2_diabetes"],
+            "current_medications": [{"name": "Lisinopril", "dosage": "10mg"}],
+            "family_history": [{"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 52}],
+            "smoking_status": "current_smoker",
+        },
+        description="Medical, family, and pharmacological history.",
+    )
+    laboratory_data: Optional[Dict[str, Any]] = Field(
+        default={
+            "systolic_bp": 146.0,
+            "diastolic_bp": 92.0,
+            "total_cholesterol_mg_dl": 228.0,
+            "hdl_cholesterol_mg_dl": 38.0,
+            "fasting_blood_glucose_mg_dl": 142.0,
+            "hba1c_percent": 7.5,
+            "estimated_gfr": 74.0,
+        },
+        description="Laboratory biomarker panel.",
+    )
+    clinical_scores: Optional[Dict[str, Any]] = Field(
+        default={
+            "framingham_risk_percent": 19.2,
+            "framingham_risk_category": "moderate",
+            "findrisc_score": 15,
+            "findrisc_risk_category": "high",
+            "ckd_epi_egfr": 74.0,
+        },
+        description="Calculated deterministic clinical scores.",
+    )
+    ml_predictions: Optional[Dict[str, Any]] = Field(
+        default={
+            "cardiovascular_risk_percent": 26.5,
+            "cardiovascular_risk_category": "high",
+            "diabetes_risk_percent": 42.0,
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.44},
+            ],
+        },
+        description="Trained machine learning predictions.",
+    )
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider ('mock', 'groq', 'gemini').")
+    use_cache: bool = Field(default=True, description="Enable response caching.")
+
+
+class ClinicalGraphPipelineTestResponse(BaseModel):
+    """Response payload returned by the LangGraph multi-agent pipeline."""
+
+    session_id: str
+    status: str
+    current_phase: str
+    completed_at: Optional[str] = None
+    agent_outputs: List[AgentOutputResponse] = Field(default_factory=list)
+    symptom_output: Optional[Dict[str, Any]] = None
+    medical_history_output: Optional[Dict[str, Any]] = None
+    laboratory_output: Optional[Dict[str, Any]] = None
+    risk_prediction_output: Optional[Dict[str, Any]] = None
+    errors: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+
 
 class AnalysisSessionStatusResponse(BaseModel):
 
