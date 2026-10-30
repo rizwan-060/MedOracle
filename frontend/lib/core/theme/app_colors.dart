@@ -174,4 +174,53 @@ abstract final class AppColors {
     colors: <Color>[Color(0x4D4D738F), Color(0x004D738F)],
     stops: <double>[0.0, 0.55],
   );
+
+  //
+  // ---------------------------------------------------------------------------
+  // Onboarding Design Tokens (from Lovable Reference)
+  // ---------------------------------------------------------------------------
+  //
+  /// Brand circle and primary CTA maroon (#A82D38)
+  static const Color onboardingMaroon = Color(0xFFA82D38);
+
+  /// Overline categories (WELCOME, A COMPLETE PICTURE, LOOK AHEAD) (#C95D3B)
+  static const Color onboardingOverline = Color(0xFFC95D3B);
+
+  /// Titles: #1B2533 (Deep charcoal / slate)
+  static const Color onboardingTitle = Color(0xFF1B2533);
+
+  /// Subtitles & body descriptions: #64748B
+  static const Color onboardingBody = Color(0xFF64748B);
+
+  /// Background ambient glows
+  static const Color onboardingAuraTopLeft = Color(0xFFFBF0ED);
+  static const Color onboardingAuraBottomRight = Color(0xFFFCF4EE);
+
+  /// Soft pink pill background for icons & illustrative badge (#FCEEEB)
+  static const Color onboardingBadgeFill = Color(0xFFFCEEEB);
+
+  /// Silhouette body tone (#F7E5E1)
+  static const Color onboardingSilhouette = Color(0xFFF7E5E1);
+  static const Color onboardingSilhouetteStroke = Color(0xFFE8C9C1);
+
+  /// ECG & active chart line (#A82D38)
+  static const Color onboardingEcgLine = Color(0xFFA82D38);
+
+  /// Inactive chart trajectory path & dashed lines (#94A3B8)
+  static const Color onboardingInactiveLine = Color(0xFF94A3B8);
+
+  /// Slider active track (#DE6B48)
+  static const Color onboardingSliderActive = Color(0xFFDE6B48);
+  static const Color onboardingSliderInactive = Color(0xFFE2E8F0);
+
+  /// Pagination dots
+  static const Color onboardingDotActive = Color(0xFFA82D38);
+  static const Color onboardingDotInactive = Color(0xFFCBD5E1);
+
+  /// Subtle card borders & dividers
+  static const Color onboardingCardBorder = Color(0xFFEDE7E1);
+  static const Color onboardingCardSurface = Color(0xFFFFFFFF);
+  static const Color onboardingSkipBorder = Color(0xFFE2E8F0);
+  static const Color onboardingSkipText = Color(0xFF475569);
 }
+

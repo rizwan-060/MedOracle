@@ -32,7 +32,7 @@ abstract final class AppTheme {
       colorScheme: scheme,
       fontFamily: AppTextStyles.fontFamily,
       scaffoldBackgroundColor: AppColors.canvasBackground,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: InkRipple.splashFactory,
       dividerTheme: const DividerThemeData(
         color: AppColors.borderSubtle,
         thickness: 1,

@@ -1,7 +1,11 @@
 /// Route paths and names for the MedOracle router.
 abstract final class RouteNames {
+  // --- Splash & Onboarding ----------------------------------------------------
+  static const String splash = '/';
+  static const String onboarding = '/onboarding';
+
   // --- Auth -------------------------------------------------------------------
-  static const String auth = '/';
+  static const String auth = '/auth';
 
   // --- Home / Dashboard -------------------------------------------------------
   static const String dashboard = '/dashboard';

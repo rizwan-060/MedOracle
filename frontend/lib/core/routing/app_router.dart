@@ -12,13 +12,16 @@ import '../../features/intake_wizard/screens/medications_family_screen.dart';
 import '../../features/intake_wizard/screens/review_confirm_screen.dart';
 import '../../features/intake_wizard/screens/risk_trajectory_screen.dart';
 import '../../features/intake_wizard/screens/symptoms_screen.dart';
+import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/simulation/screens/simulate_lifestyle_screen.dart';
+import '../../features/splash/screens/splash_screen.dart';
 import 'route_names.dart';
 
 /// Application router.
 ///
-/// Authentication is the entry point at `'/'`, routing forward to `/dashboard`.
+/// Splash at `'/'` transitions to Onboarding at `'/onboarding'`, followed by
+/// Auth at `'/auth'` and Home Dashboard at `'/dashboard'`.
 ///
 /// Intake wizard:
 /// ```text
@@ -44,14 +47,27 @@ import 'route_names.dart';
 /// ```
 GoRouter createAppRouter() {
   return GoRouter(
-    initialLocation: RouteNames.auth,
+    initialLocation: RouteNames.splash,
     routes: <RouteBase>[
+      // --- Splash & Onboarding ----------------------------------------------
+      GoRoute(
+        path: RouteNames.splash,
+        builder: (BuildContext context, GoRouterState state) =>
+            const SplashScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboarding,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingScreen(),
+      ),
+
       // --- Auth -------------------------------------------------------------
       GoRoute(
         path: RouteNames.auth,
         builder: (BuildContext context, GoRouterState state) =>
             const AuthScreen(),
       ),
+
 
       // --- Home Dashboard ---------------------------------------------------
       GoRoute(
