@@ -17,15 +17,13 @@ frontend/
 │   │   ├── theme/           # AppColors, AppTextStyles, AppTheme
 │   │   └── widgets/         # Globally shared widgets (GlassPill, CTAs, Cards, etc.)
 │   ├── data/                # Data layer
-│   │   ├── models/          # Domain data models (PatientProfile, Doctor, etc.)
-│   │   ├── providers/       # Repository providers
-│   │   └── repositories/    # Intake and API repositories
+│   │   └── models/          # Domain data models (Doctor, etc.)
 │   ├── features/            # Feature-first modular screens & widgets
 │   │   ├── assessment/      # AI Diagnostics & Consensus Output Screens (Reports, Reasoning, Trajectory)
 │   │   ├── auth/            # Authentication & Onboarding
 │   │   ├── dashboard/       # Home Dashboard & Metric Overview
 │   │   ├── doctors/         # Specialist Care Finder & Recommendations
-│   │   ├── intake/          # 5-Step Patient Intake Flow (Profile, Clinical, Meds, Symptoms, Labs, Review)
+│   │   ├── intake/          # 5-Step Clinical Intake Flow (Clinical Status, Meds, Symptoms, Labs, Review)
 │   │   └── simulation/      # Counterfactual Lifestyle Simulator
 │   └── main.dart            # Application entry point
 └── test/                    # Unit and widget tests
@@ -64,9 +62,8 @@ All routes are defined statically in `RouteNames` (`lib/core/routing/route_names
 / (Auth)
 └── /dashboard (Home Dashboard)
     │
-    ├── /intake/step-1     -> Step1DemographicsAndBiometricsInputScreen (Demographics, Body, Lifestyle)
-    ├── /intake/step-2a    -> Step2aChronicConditionsAndHistoryInputScreen (Conditions & Surgeries)
-    ├── /intake/step-2b    -> Step2bMedicationsAndFamilyHistoryInputScreen (Medications & Family)
+    ├── /intake/step-1     -> Step1ChronicConditionsAndHistoryInputScreen (Chronic Conditions & Surgeries)
+    ├── /intake/step-2     -> Step2MedicationsAndFamilyHistoryInputScreen (Medications & Family History)
     ├── /intake/step-3     -> Step3SymptomsAndSeverityInputScreen (Active Symptoms & Severity)
     ├── /intake/step-4     -> Step4VitalsAndBloodTestsInputScreen (Vitals & Lab Biomarkers)
     └── /intake/step-5     -> Step5DataReviewAndSubmissionScreen (Summary & Submission)

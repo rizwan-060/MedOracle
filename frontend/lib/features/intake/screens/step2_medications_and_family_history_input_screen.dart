@@ -15,10 +15,11 @@ import '../widgets/two_column_row.dart';
 import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
-/// Descriptive alias for [MedicationsFamilyScreen].
+/// Descriptive aliases for [MedicationsFamilyScreen].
+typedef Step2MedicationsAndFamilyHistoryInputScreen = MedicationsFamilyScreen;
 typedef Step2bMedicationsAndFamilyHistoryInputScreen = MedicationsFamilyScreen;
 
-/// Step 2B of the intake wizard — medications and family history.
+/// Step 2 of the intake wizard — medications and family history.
 class MedicationsFamilyScreen extends ConsumerWidget {
   const MedicationsFamilyScreen({super.key});
 
@@ -200,7 +201,7 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                       onTap: () => context.go(RouteNames.step3Symptoms),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(RouteNames.step2Clinical),
+                      onTap: () => context.go(RouteNames.step1Clinical),
                     ),
                   ],
                 ),
@@ -212,3 +213,4 @@ class MedicationsFamilyScreen extends ConsumerWidget {
     );
   }
 }
+

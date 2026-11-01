@@ -156,9 +156,9 @@ class HomeDashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Primary call to action: begins a new intake at Step 1 (Profile).
+  /// Primary call to action: begins a new intake at Step 1 (Clinical Status).
   void _startNewAssessment(BuildContext context) {
-    context.go(RouteNames.step1Profile);
+    context.go(RouteNames.step1Clinical);
   }
 
   /// Opens the results hub with the latest report.

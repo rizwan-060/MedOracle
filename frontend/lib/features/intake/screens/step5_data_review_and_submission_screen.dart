@@ -7,7 +7,6 @@ import '../../../core/routing/route_names.dart';
 import '../providers/clinical_status_provider.dart';
 import '../providers/labs_vitals_provider.dart';
 import '../providers/medications_family_provider.dart';
-import '../providers/review_provider.dart';
 import '../providers/symptoms_provider.dart';
 import '../widgets/edit_icon_button.dart';
 import '../widgets/key_value_row.dart';
@@ -31,7 +30,6 @@ class ReviewConfirmScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ReviewProfileSummary profile = ref.watch(reviewProfileProvider);
     final ClinicalStatusState clinical =
         ref.watch(clinicalStatusProvider);
     final MedicationsFamilyState meds =
@@ -57,43 +55,13 @@ class ReviewConfirmScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── Profile & Demographics ──
-                    SectionCard(
-                      title: 'Profile & Demographics',
-                      trailing: EditIconButton(
-                        tooltip: 'Edit Profile & Demographics',
-                        onTap: () => context.go(RouteNames.step1Profile),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          KeyValueRow(label: 'Age', value: profile.age, first: true),
-                          KeyValueRow(
-                            label: 'Height',
-                            value: labs.heightCm,
-                            unit: 'cm',
-                          ),
-                          KeyValueRow(
-                            label: 'Weight',
-                            value: labs.weightKg,
-                            unit: 'kg',
-                          ),
-                          KeyValueRow(
-                            label: 'Smoking',
-                            value: profile.smokingStatus,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
                     // ── Clinical History ──
                     SectionCard(
                       title: 'Clinical History',
                       trailing: EditIconButton(
                         tooltip: 'Edit Clinical History',
                         onTap: () =>
-                            context.go(RouteNames.step2Clinical),
+                            context.go(RouteNames.step1Clinical),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -136,11 +104,11 @@ class ReviewConfirmScreen extends ConsumerWidget {
                             const _EmptyGroup()
                           else
                             for (final MedicationEntry med in meds.medications)
-                                KeyValueRow(
-                                  label: med.name,
-                                  value:
-                                      '${med.dosage} · ${med.frequency}',
-                                ),
+                              KeyValueRow(
+                                label: med.name,
+                                value:
+                                    '${med.dosage} · ${med.frequency}',
+                              ),
                           const ReviewSubHeader(
                             'Family History',
                             dividerAbove: true,

@@ -15,14 +15,15 @@ import '../widgets/wizard_header.dart';
 import '../widgets/wizard_next_back_buttons.dart';
 
 /// Descriptive alias for [ClinicalStatusScreen].
+typedef Step1ChronicConditionsAndHistoryInputScreen = ClinicalStatusScreen;
 typedef Step2aChronicConditionsAndHistoryInputScreen = ClinicalStatusScreen;
 
-/// Step 2A of the intake wizard — clinical history:
+/// Step 1 of the intake wizard — clinical history:
 /// chronic conditions, past surgeries, allergies, and free-text notes.
 class ClinicalStatusScreen extends ConsumerWidget {
   const ClinicalStatusScreen({super.key});
 
-  static const String routePath = RouteNames.step2Clinical;
+  static const String routePath = RouteNames.step1Clinical;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,7 +39,7 @@ class ClinicalStatusScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             WizardHeader(
-              currentStep: 2,
+              currentStep: 1,
               totalSteps: 5,
               onSaveExit: () => context.go(RouteNames.dashboard),
             ),
@@ -111,7 +112,7 @@ class ClinicalStatusScreen extends ConsumerWidget {
                           context.go(RouteNames.step2Medications),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(RouteNames.step1Profile),
+                      onTap: () => context.go(RouteNames.dashboard),
                     ),
                   ],
                 ),
@@ -123,3 +124,4 @@ class ClinicalStatusScreen extends ConsumerWidget {
     );
   }
 }
+
