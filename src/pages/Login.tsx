@@ -3,6 +3,9 @@ import { PrimaryButton } from '../components/PrimaryButton'
 
 export default function Login() {
   const navigate = useNavigate()
+  const handleLogin = () => {
+    navigate('/dashboard')
+  }
   return (
     <div className='box-border flex h-[844px] w-[390px] flex-col overflow-hidden bg-cream font-sans text-slate'>
       <header className='rounded-b-[28px] bg-slate px-5 pb-20 pt-4 text-white'>
@@ -51,7 +54,7 @@ export default function Login() {
           <button type='button' className='h-9 text-[13.5px] font-medium text-slate'>Forgot Password?</button>
         </div>
         <div className='mt-4'>
-          <PrimaryButton onClick={() => navigate('/dashboard')}>Log In</PrimaryButton>
+          <button type='button' onClick={handleLogin} className='flex h-14 w-full items-center justify-center rounded-full bg-terracotta text-[16px] font-semibold text-white shadow-[0_12px_22px_-10px_rgba(181,88,58,0.7)]'>Log In</button>
         </div>
         <div className='mt-8 flex items-center gap-3 text-[12.5px] text-slate/80'>
           <i className='h-px flex-1 bg-slate/20'></i>

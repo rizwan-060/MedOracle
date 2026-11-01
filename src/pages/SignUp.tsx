@@ -1,8 +1,10 @@
 ﻿import { useNavigate } from 'react-router-dom'
-import { PrimaryButton } from '../components/PrimaryButton'
 
 export default function SignUp() {
   const navigate = useNavigate()
+  const handleSignUp = () => {
+    navigate('/dashboard')
+  }
   return (
     <div className='box-border flex h-[844px] w-[390px] flex-col overflow-hidden bg-cream font-sans text-slate'>
       <header className='rounded-b-[28px] bg-slate px-5 pb-20 pt-4 text-white'>
@@ -67,7 +69,7 @@ export default function SignUp() {
           </label>
         </div>
         <div className='mt-6'>
-          <PrimaryButton onClick={() => navigate('/dashboard')}>Sign Up</PrimaryButton>
+          <button type='button' onClick={handleSignUp} className='flex h-14 w-full items-center justify-center rounded-full bg-terracotta text-[16px] font-semibold text-white shadow-[0_12px_22px_-10px_rgba(181,88,58,0.7)]'>Sign Up</button>
         </div>
         <p className='mt-auto pt-6 text-center text-[12.5px] leading-5 text-slate/80'>
           By signing up, you agree to our <b className='font-semibold text-slate'>Terms</b> and <b className='font-semibold text-slate'>Privacy Policy</b>.
@@ -76,4 +78,3 @@ export default function SignUp() {
     </div>
   )
 }
-
