@@ -1,0 +1,42 @@
+﻿module.exports = {
+  content: ['./src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      colors: {
+        canvas: '#FAF9F5',
+        card: '#FFFFFF',
+        textPrimary: '#2C2520',
+        headerText: '#4D738F',
+        primaryAccent: '#E04E26',
+        alertMedium: '#E89A3E',
+        borderSubtle: '#D6CFC4',
+        slate: '#4D738F',
+        ink: '#1E2A33',
+        cream: '#FAF9F5',
+        terracotta: '#B5583A',
+        surface: '#FFFDF8',
+        sheet: '#F9F6EF',
+        soft: '#FFFEFA',
+        bpCard: '#6A91A8',
+        ember: '#B5583A',
+        emberAlt: '#C84C27',
+        emberAlt2: '#E04E26',
+      },
+      fontFamily: {
+        sans: ['Lexend', 'system-ui', 'sans-serif'],
+        serif: ['Newsreader', 'Georgia', 'serif'],
+      },
+      borderRadius: {
+        DEFAULT: '12px',
+        sm: '8px',
+        md: '12px',
+        lg: '16px',
+        xl: '20px',
+        '2xl': '24px',
+        '3xl': '28px',
+        '4xl': '32px',
+      },
+    },
+  },
+  plugins: [],
+};
