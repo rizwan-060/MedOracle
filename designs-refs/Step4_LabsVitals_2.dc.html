@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Step 4 Labs and Vitals cards 2 and 4 open</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet">
+<style>
+*, ::before, ::after {
+  --tw-border-spacing-x: 0;
+  --tw-border-spacing-y: 0;
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  --tw-pan-x:  ;
+  --tw-pan-y:  ;
+  --tw-pinch-zoom:  ;
+  --tw-scroll-snap-strictness: proximity;
+  --tw-gradient-from-position:  ;
+  --tw-gradient-via-position:  ;
+  --tw-gradient-to-position:  ;
+  --tw-ordinal:  ;
+  --tw-slashed-zero:  ;
+  --tw-numeric-figure:  ;
+  --tw-numeric-spacing:  ;
+  --tw-numeric-fraction:  ;
+  --tw-ring-inset:  ;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: #fff;
+  --tw-ring-color: rgb(59 130 246 / 0.5);
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-blur:  ;
+  --tw-brightness:  ;
+  --tw-contrast:  ;
+  --tw-grayscale:  ;
+  --tw-hue-rotate:  ;
+  --tw-invert:  ;
+  --tw-saturate:  ;
+  --tw-sepia:  ;
+  --tw-drop-shadow:  ;
+  --tw-backdrop-blur:  ;
+  --tw-backdrop-brightness:  ;
+  --tw-backdrop-contrast:  ;
+  --tw-backdrop-grayscale:  ;
+  --tw-backdrop-hue-rotate:  ;
+  --tw-backdrop-invert:  ;
+  --tw-backdrop-opacity:  ;
+  --tw-backdrop-saturate:  ;
+  --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
+}
+
+::backdrop {
+  --tw-border-spacing-x: 0;
+  --tw-border-spacing-y: 0;
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+  --tw-pan-x:  ;
+  --tw-pan-y:  ;
+  --tw-pinch-zoom:  ;
+  --tw-scroll-snap-strictness: proximity;
+  --tw-gradient-from-position:  ;
+  --tw-gradient-via-position:  ;
+  --tw-gradient-to-position:  ;
+  --tw-ordinal:  ;
+  --tw-slashed-zero:  ;
+  --tw-numeric-figure:  ;
+  --tw-numeric-spacing:  ;
+  --tw-numeric-fraction:  ;
+  --tw-ring-inset:  ;
+  --tw-ring-offset-width: 0px;
+  --tw-ring-offset-color: #fff;
+  --tw-ring-color: rgb(59 130 246 / 0.5);
+  --tw-ring-offset-shadow: 0 0 #0000;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  --tw-blur:  ;
+  --tw-brightness:  ;
+  --tw-contrast:  ;
+  --tw-grayscale:  ;
+  --tw-hue-rotate:  ;
+  --tw-invert:  ;
+  --tw-saturate:  ;
+  --tw-sepia:  ;
+  --tw-drop-shadow:  ;
+  --tw-backdrop-blur:  ;
+  --tw-backdrop-brightness:  ;
+  --tw-backdrop-contrast:  ;
+  --tw-backdrop-grayscale:  ;
+  --tw-backdrop-hue-rotate:  ;
+  --tw-backdrop-invert:  ;
+  --tw-backdrop-opacity:  ;
+  --tw-backdrop-saturate:  ;
+  --tw-backdrop-sepia:  ;
+  --tw-contain-size:  ;
+  --tw-contain-layout:  ;
+  --tw-contain-paint:  ;
+  --tw-contain-style:  ;
+}
+
+/*
+! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com
+*/
+
+/*
+1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)
+2. Allow adding a border to an element by just adding a border-width. (https://github.com/tailwindcss/tailwindcss/pull/116)
+*/
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  /* 1 */
+  border-width: 0;
+  /* 2 */
+  border-style: solid;
+  /* 2 */
+  border-color: #e5e7eb;
+  /* 2 */
+}
+
+::before,
+::after {
+  --tw-content: '';
+}
+
+/*
+1. Use a consistent sensible line-height in all browsers.
+2. Prevent adjustments of font size after orientation changes in iOS.
+3. Use a more readable tab size.
+4. Use the user's configured `sans` font-family by default.
+5. Use the user's configured `sans` font-feature-settings by default.
+6. Use the user's configured `sans` font-variation-settings by default.
+7. Disable tap highlights on iOS
+*/
+
+html,
+:host {
+  line-height: 1.5;
+  /* 1 */
+  -webkit-text-size-adjust: 100%;
+  /* 2 */
+  -moz-tab-size: 4;
+  /* 3 */
+  -o-tab-size: 4;
+     tab-size: 4;
+  /* 3 */
+  font-family: Lexend, system-ui, sans-serif;
+  /* 4 */
+  font-feature-settings: normal;
+  /* 5 */
+  font-variation-settings: normal;
+  /* 6 */
+  -webkit-tap-highlight-color: transparent;
+  /* 7 */
+}
+
+/*
+1. Remove the margin in all browsers.
+2. Inherit line-height from `html` so users can set them as a class directly on the `html` element.
+*/
+
+body {
+  margin: 0;
+  /* 1 */
+  line-height: inherit;
+  /* 2 */
+}
+
+/*
+1. Add the correct height in Firefox.
+2. Correct the inheritance of border color in Firefox. (https://bugzilla.mozilla.org/show_bug.cgi?id=190655)
+3. Ensure horizontal rules are visible by default.
+*/
+
+hr {
+  height: 0;
+  /* 1 */
+  color: inherit;
+  /* 2 */
+  border-top-width: 1px;
+  /* 3 */
+}
+
+/*
+Add the correct text decoration in Chrome, Edge, and Safari.
+*/
+
+abbr:where([title]) {
+  -webkit-text-decoration: underline dotted;
+          text-decoration: underline dotted;
+}
+
+/*
+Remove the default font size and weight for headings.
+*/
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/*
+Reset links to optimize for opt-in styling instead of opt-out.
+*/
+
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+/*
+Add the correct font weight in Edge and Safari.
+*/
+
+b,
+strong {
+  font-weight: bolder;
+}
+
+/*
+1. Use the user's configured `mono` font-family by default.
+2. Use the user's configured `mono` font-feature-settings by default.
+3. Use the user's configured `mono` font-variation-settings by default.
+4. Correct the odd `em` font sizing in all browsers.
+*/
+
+code,
+kbd,
+samp,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* 1 */
+  font-feature-settings: normal;
+  /* 2 */
+  font-variation-settings: normal;
+  /* 3 */
+  font-size: 1em;
+  /* 4 */
+}
+
+/*
+Add the correct font size in all browsers.
+*/
+
+small {
+  font-size: 80%;
+}
+
+/*
+Prevent `sub` and `sup` elements from affecting the line height in all browsers.
+*/
+
+sub,
+sup {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+sub {
+  bottom: -0.25em;
+}
+
+sup {
+  top: -0.5em;
+}
+
+/*
+1. Remove text indentation from table contents in Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=999088, https://bugs.webkit.org/show_bug.cgi?id=201297)
+2. Correct table border color inheritance in all Chrome and Safari. (https://bugs.chromium.org/p/chromium/issues/detail?id=935729, https://bugs.webkit.org/show_bug.cgi?id=195016)
+3. Remove gaps between table borders by default.
+*/
+
+table {
+  text-indent: 0;
+  /* 1 */
+  border-color: inherit;
+  /* 2 */
+  border-collapse: collapse;
+  /* 3 */
+}
+
+/*
+1. Change the font styles in all browsers.
+2. Remove the margin in Firefox and Safari.
+3. Remove default padding in all browsers.
+*/
+
+button,
+input,
+optgroup,
+select,
+textarea {
+  font-family: inherit;
+  /* 1 */
+  font-feature-settings: inherit;
+  /* 1 */
+  font-variation-settings: inherit;
+  /* 1 */
+  font-size: 100%;
+  /* 1 */
+  font-weight: inherit;
+  /* 1 */
+  line-height: inherit;
+  /* 1 */
+  letter-spacing: inherit;
+  /* 1 */
+  color: inherit;
+  /* 1 */
+  margin: 0;
+  /* 2 */
+  padding: 0;
+  /* 3 */
+}
+
+/*
+Remove the inheritance of text transform in Edge and Firefox.
+*/
+
+button,
+select {
+  text-transform: none;
+}
+
+/*
+1. Correct the inability to style clickable types in iOS and Safari.
+2. Remove default button styles.
+*/
+
+button,
+input:where([type='button']),
+input:where([type='reset']),
+input:where([type='submit']) {
+  -webkit-appearance: button;
+  /* 1 */
+  background-color: transparent;
+  /* 2 */
+  background-image: none;
+  /* 2 */
+}
+
+/*
+Use the modern Firefox focus style for all focusable elements.
+*/
+
+:-moz-focusring {
+  outline: auto;
+}
+
+/*
+Remove the additional `:invalid` styles in Firefox. (https://github.com/mozilla/gecko-dev/blob/2f9eacd9d3d995c937b4251a5557d95d494c9be1/layout/style/res/forms.css#L728-L737)
+*/
+
+:-moz-ui-invalid {
+  box-shadow: none;
+}
+
+/*
+Add the correct vertical alignment in Chrome and Firefox.
+*/
+
+progress {
+  vertical-align: baseline;
+}
+
+/*
+Correct the cursor style of increment and decrement buttons in Safari.
+*/
+
+::-webkit-inner-spin-button,
+::-webkit-outer-spin-button {
+  height: auto;
+}
+
+/*
+1. Correct the odd appearance in Chrome and Safari.
+2. Correct the outline style in Safari.
+*/
+
+[type='search'] {
+  -webkit-appearance: textfield;
+  /* 1 */
+  outline-offset: -2px;
+  /* 2 */
+}
+
+/*
+Remove the inner padding in Chrome and Safari on macOS.
+*/
+
+::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+
+/*
+1. Correct the inability to style clickable types in iOS and Safari.
+2. Change font properties to `inherit` in Safari.
+*/
+
+::-webkit-file-upload-button {
+  -webkit-appearance: button;
+  /* 1 */
+  font: inherit;
+  /* 2 */
+}
+
+/*
+Add the correct display in Chrome and Safari.
+*/
+
+summary {
+  display: list-item;
+}
+
+/*
+Removes the default spacing and border for appropriate elements.
+*/
+
+blockquote,
+dl,
+dd,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+hr,
+figure,
+p,
+pre {
+  margin: 0;
+}
+
+fieldset {
+  margin: 0;
+  padding: 0;
+}
+
+legend {
+  padding: 0;
+}
+
+ol,
+ul,
+menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+Reset default styling for dialogs.
+*/
+
+dialog {
+  padding: 0;
+}
+
+/*
+Prevent resizing textareas horizontally by default.
+*/
+
+textarea {
+  resize: vertical;
+}
+
+/*
+1. Reset the default placeholder opacity in Firefox. (https://github.com/tailwindlabs/tailwindcss/issues/3300)
+2. Set the default placeholder color to the user's configured gray 400 color.
+*/
+
+input::-moz-placeholder, textarea::-moz-placeholder {
+  opacity: 1;
+  /* 1 */
+  color: #9ca3af;
+  /* 2 */
+}
+
+input::placeholder,
+textarea::placeholder {
+  opacity: 1;
+  /* 1 */
+  color: #9ca3af;
+  /* 2 */
+}
+
+/*
+Set the default cursor for buttons.
+*/
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+/*
+Make sure disabled buttons don't get the pointer cursor.
+*/
+
+:disabled {
+  cursor: default;
+}
+
+/*
+1. Make replaced elements `display: block` by default. (https://github.com/mozdevs/cssremedy/issues/14)
+2. Add `vertical-align: middle` to align replaced elements more sensibly by default. (https://github.com/jensimmons/cssremedy/issues/14#issuecomment-634934210)
+   This can trigger a poorly considered lint error in some tools but is included by design.
+*/
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  /* 1 */
+  vertical-align: middle;
+  /* 2 */
+}
+
+/*
+Constrain images and videos to the parent width and preserve their intrinsic aspect ratio. (https://github.com/mozdevs/cssremedy/issues/14)
+*/
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Make elements with the HTML hidden attribute stay hidden by default */
+
+[hidden]:where(:not([hidden="until-found"])) {
+  display: none;
+}
+
+.mt-0\.5 {
+  margin-top: 0.125rem;
+}
+
+.mt-1 {
+  margin-top: 0.25rem;
+}
+
+.mt-1\.5 {
+  margin-top: 0.375rem;
+}
+
+.mt-3 {
+  margin-top: 0.75rem;
+}
+
+.mt-6 {
+  margin-top: 1.5rem;
+}
+
+.box-border {
+  box-sizing: border-box;
+}
+
+.flex {
+  display: flex;
+}
+
+.grid {
+  display: grid;
+}
+
+.h-1 {
+  height: 0.25rem;
+}
+
+.h-10 {
+  height: 2.5rem;
+}
+
+.h-11 {
+  height: 2.75rem;
+}
+
+.h-12 {
+  height: 3rem;
+}
+
+.h-20 {
+  height: 5rem;
+}
+
+.h-4 {
+  height: 1rem;
+}
+
+.h-5 {
+  height: 1.25rem;
+}
+
+.h-9 {
+  height: 2.25rem;
+}
+
+.min-h-\[44px\] {
+  min-height: 44px;
+}
+
+.w-10 {
+  width: 2.5rem;
+}
+
+.w-12 {
+  width: 3rem;
+}
+
+.w-4 {
+  width: 1rem;
+}
+
+.w-5 {
+  width: 1.25rem;
+}
+
+.w-\[390px\] {
+  width: 390px;
+}
+
+.w-px {
+  width: 1px;
+}
+
+.min-w-0 {
+  min-width: 0px;
+}
+
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.flex-\[2\] {
+  flex: 2;
+}
+
+.shrink-0 {
+  flex-shrink: 0;
+}
+
+.grid-cols-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.grid-cols-\[1fr_auto_1fr\] {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-end {
+  align-items: flex-end;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 {
+  gap: 0.25rem;
+}
+
+.gap-1\.5 {
+  gap: 0.375rem;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-3 {
+  gap: 0.75rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.gap-5 {
+  gap: 1.25rem;
+}
+
+.gap-8 {
+  gap: 2rem;
+}
+
+.justify-self-end {
+  justify-self: end;
+}
+
+.rounded {
+  border-radius: 0.25rem;
+}
+
+.rounded-2xl {
+  border-radius: 1rem;
+}
+
+.rounded-3xl {
+  border-radius: 1.5rem;
+}
+
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.rounded-b-\[28px\] {
+  border-bottom-right-radius: 28px;
+  border-bottom-left-radius: 28px;
+}
+
+.border {
+  border-width: 1px;
+}
+
+.border-2 {
+  border-width: 2px;
+}
+
+.border-b-2 {
+  border-bottom-width: 2px;
+}
+
+.border-t {
+  border-top-width: 1px;
+}
+
+.border-dashed {
+  border-style: dashed;
+}
+
+.border-cream\/60 {
+  border-color: rgb(250 249 245 / 0.6);
+}
+
+.border-slate\/10 {
+  border-color: rgb(77 115 143 / 0.1);
+}
+
+.border-slate\/15 {
+  border-color: rgb(77 115 143 / 0.15);
+}
+
+.border-slate\/20 {
+  border-color: rgb(77 115 143 / 0.2);
+}
+
+.border-slate\/30 {
+  border-color: rgb(77 115 143 / 0.3);
+}
+
+.border-slate\/40 {
+  border-color: rgb(77 115 143 / 0.4);
+}
+
+.border-white\/40 {
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+.bg-\[\#557C93\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(85 124 147 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#6A91A8\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(106 145 168 / var(--tw-bg-opacity, 1));
+}
+
+.bg-cream {
+  --tw-bg-opacity: 1;
+  background-color: rgb(250 249 245 / var(--tw-bg-opacity, 1));
+}
+
+.bg-cream\/25 {
+  background-color: rgb(250 249 245 / 0.25);
+}
+
+.bg-ember {
+  --tw-bg-opacity: 1;
+  background-color: rgb(181 88 58 / var(--tw-bg-opacity, 1));
+}
+
+.bg-slate {
+  --tw-bg-opacity: 1;
+  background-color: rgb(77 115 143 / var(--tw-bg-opacity, 1));
+}
+
+.bg-white {
+  --tw-bg-opacity: 1;
+  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
+}
+
+.bg-white\/15 {
+  background-color: rgb(255 255 255 / 0.15);
+}
+
+.bg-white\/30 {
+  background-color: rgb(255 255 255 / 0.3);
+}
+
+.p-5 {
+  padding: 1.25rem;
+}
+
+.px-1 {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.px-2\.5 {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+}
+
+.px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.px-3\.5 {
+  padding-left: 0.875rem;
+  padding-right: 0.875rem;
+}
+
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.px-5 {
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.py-0\.5 {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+}
+
+.py-1\.5 {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.pb-1 {
+  padding-bottom: 0.25rem;
+}
+
+.pb-1\.5 {
+  padding-bottom: 0.375rem;
+}
+
+.pb-3 {
+  padding-bottom: 0.75rem;
+}
+
+.pb-5 {
+  padding-bottom: 1.25rem;
+}
+
+.pb-8 {
+  padding-bottom: 2rem;
+}
+
+.pt-4 {
+  padding-top: 1rem;
+}
+
+.pt-6 {
+  padding-top: 1.5rem;
+}
+
+.pt-7 {
+  padding-top: 1.75rem;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.font-sans {
+  font-family: Lexend, system-ui, sans-serif;
+}
+
+.font-serif {
+  font-family: Newsreader, Georgia, serif;
+}
+
+.text-\[11\.5px\] {
+  font-size: 11.5px;
+}
+
+.text-\[11px\] {
+  font-size: 11px;
+}
+
+.text-\[12\.5px\] {
+  font-size: 12.5px;
+}
+
+.text-\[12px\] {
+  font-size: 12px;
+}
+
+.text-\[13\.5px\] {
+  font-size: 13.5px;
+}
+
+.text-\[13px\] {
+  font-size: 13px;
+}
+
+.text-\[14px\] {
+  font-size: 14px;
+}
+
+.text-\[16px\] {
+  font-size: 16px;
+}
+
+.text-\[18px\] {
+  font-size: 18px;
+}
+
+.text-\[21px\] {
+  font-size: 21px;
+}
+
+.text-\[26px\] {
+  font-size: 26px;
+}
+
+.text-\[52px\] {
+  font-size: 52px;
+}
+
+.font-light {
+  font-weight: 300;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.tabular-nums {
+  --tw-numeric-spacing: tabular-nums;
+  font-variant-numeric: var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);
+}
+
+.leading-5 {
+  line-height: 1.25rem;
+}
+
+.leading-6 {
+  line-height: 1.5rem;
+}
+
+.leading-8 {
+  line-height: 2rem;
+}
+
+.leading-\[56px\] {
+  line-height: 56px;
+}
+
+.tracking-\[\.16em\] {
+  letter-spacing: .16em;
+}
+
+.tracking-wide {
+  letter-spacing: 0.025em;
+}
+
+.text-cream {
+  --tw-text-opacity: 1;
+  color: rgb(250 249 245 / var(--tw-text-opacity, 1));
+}
+
+.text-cream\/70 {
+  color: rgb(250 249 245 / 0.7);
+}
+
+.text-slate {
+  --tw-text-opacity: 1;
+  color: rgb(77 115 143 / var(--tw-text-opacity, 1));
+}
+
+.text-slate\/40 {
+  color: rgb(77 115 143 / 0.4);
+}
+
+.text-slate\/70 {
+  color: rgb(77 115 143 / 0.7);
+}
+
+.text-slate\/80 {
+  color: rgb(77 115 143 / 0.8);
+}
+
+.text-slate\/85 {
+  color: rgb(77 115 143 / 0.85);
+}
+
+.text-white {
+  --tw-text-opacity: 1;
+  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+}
+
+.shadow-\[0_12px_28px_-16px_rgba\(77\2c 115\2c 143\2c 0\.45\)\2c 0_2px_6px_rgba\(77\2c 115\2c 143\2c 0\.06\)\] {
+  --tw-shadow: 0 12px 28px -16px rgba(77,115,143,0.45),0 2px 6px rgba(77,115,143,0.06);
+  --tw-shadow-colored: 0 12px 28px -16px var(--tw-shadow-color), 0 2px 6px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+.shadow-\[0_18px_30px_-16px_rgba\(47\2c 78\2c 100\2c \.7\)\] {
+  --tw-shadow: 0 18px 30px -16px rgba(74,113,137,.55);
+  --tw-shadow-colored: 0 18px 30px -16px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+body{margin:0;background:#FAF9F5;font-family:Lexend,system-ui,sans-serif}
+</style>
+</helmet>
+<div class="box-border flex w-[390px] flex-col bg-cream font-sans text-slate"><header class="rounded-b-[28px] bg-slate px-5 pb-3 pt-4 text-white"><div class="grid grid-cols-[1fr_auto_1fr] items-center"><span class="flex items-center gap-1.5 text-[11px] font-medium"><svg class="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5 L6.5 12 L13 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>Autosaved</span><span class="flex items-center gap-1.5 text-[16px] font-semibold"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2 L17 5 V10 C17 14 14 17 10 18 C6 17 3 14 3 10 V5 Z" stroke="currentColor" stroke-width="1.5"></path><path d="M10 7 V13 M7 10 H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>MedOracle</span><span class="justify-self-end rounded-full border border-white/40 bg-white/15 px-3 py-1.5 text-[12px] font-medium">Save &amp; exit</span></div><div class="mt-3 grid grid-cols-5 gap-1.5" role="img" aria-label="Step 4 of 5"><i class="h-1 rounded bg-white"></i><i class="h-1 rounded bg-white"></i><i class="h-1 rounded bg-white"></i><i class="h-1 rounded bg-white"></i><i class="h-1 rounded bg-white/30"></i></div></header><main class="flex flex-1 flex-col gap-5 px-5 pb-8 pt-7"><div class="px-1"><div class="flex items-center gap-2"><h2 class="font-serif text-[26px] font-semibold leading-8 text-slate" style="color: #1e252b">Labs &amp; Vitals</h2><span class="rounded-full border border-slate/30 px-2.5 py-0.5 text-[11px] font-medium text-slate/80">Optional</span></div><p class="mt-1.5 text-[13.5px] font-light leading-5 text-slate/85">Add what you have and skip the rest. Tap a row to open it.</p></div>
+<section class="rounded-3xl border border-slate/20 bg-white p-5 shadow-[0_12px_28px_-16px_rgba(77,115,143,0.45),0_2px_6px_rgba(77,115,143,0.06)]"><div class="flex min-h-[44px] items-center justify-between gap-3"><div class="min-w-0"><h3 class="font-serif text-[21px] font-semibold leading-6 text-slate" style="color:#111">Body Measurements</h3><p class="mt-0.5 text-[12.5px] font-light text-slate/70">2 of 3 added</p></div><span class="flex h-9 shrink-0 items-center gap-1 rounded-full border border-slate/30 px-3.5 text-[13px] font-medium text-slate"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5 L10 12.5 L15 7.5"></path></g></svg>Open</span></div></section><section class="rounded-3xl border border-slate/20 bg-white p-5 shadow-[0_12px_28px_-16px_rgba(77,115,143,0.45),0_2px_6px_rgba(77,115,143,0.06)]"><div class="flex min-h-[44px] items-center justify-between gap-3"><div class="min-w-0"><h3 class="font-serif text-[21px] font-semibold leading-6 text-slate" style="color:#111">Heart Vitals</h3><p class="mt-0.5 text-[12.5px] font-light text-slate/70">2 of 2 added</p></div><span class="flex h-9 shrink-0 items-center gap-1 rounded-full border border-slate/30 px-3.5 text-[13px] font-medium text-slate"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 7.5 L15 12.5"></path></g></svg>Close</span></div><div class="mt-6 flex flex-col gap-8 border-t border-slate/10 pt-6"><div class="rounded-3xl bg-[#6A91A8] px-4 pb-5 pt-4 text-cream shadow-[0_18px_30px_-16px_rgba(74,113,137,.55)]"><div class="flex items-center justify-between text-[11px] font-medium tracking-[.16em] text-cream/70"><span class="flex items-center gap-1.5"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16 C4 12 3 8.5 5 6.5 C6.5 5 8.8 5.4 10 7 C11.2 5.4 13.5 5 15 6.5 C17 8.5 16 12 10 16 Z"></path></g></svg>BLOOD PRESSURE</span><span>mmHg</span></div><div class="mt-3 flex items-center rounded-2xl bg-[#557C93] px-2 py-4"><div class="flex flex-1 flex-col items-center"><span class="text-[11px] font-medium tracking-[.16em] text-cream/70">SYS</span><span class="mt-1 text-[52px] font-light leading-[56px] tabular-nums tracking-wide text-cream">120</span><div class="mt-3 flex gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cream/60 text-cream"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10 H16"></path></g></svg></span><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cream/60 text-cream"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4 V16 M4 10 H16"></path></g></svg></span></div></div><span class="h-20 w-px bg-cream/25"></span><div class="flex flex-1 flex-col items-center"><span class="text-[11px] font-medium tracking-[.16em] text-cream/70">DIA</span><span class="mt-1 text-[52px] font-light leading-[56px] tabular-nums tracking-wide text-cream">80</span><div class="mt-3 flex gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cream/60 text-cream"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10 H16"></path></g></svg></span><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cream/60 text-cream"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4 V16 M4 10 H16"></path></g></svg></span></div></div></div><p class="mt-3 text-center text-[11.5px] font-light text-cream/70">Use − and + to match the reading on your cuff</p></div></div></section><section class="rounded-3xl border border-slate/20 bg-white p-5 shadow-[0_12px_28px_-16px_rgba(77,115,143,0.45),0_2px_6px_rgba(77,115,143,0.06)]"><div class="flex min-h-[44px] items-center justify-between gap-3"><div class="min-w-0"><h3 class="font-serif text-[21px] font-semibold leading-6 text-slate" style="color:#111">Blood Test Results</h3><p class="mt-0.5 text-[12.5px] font-light text-slate/70">3 of 6 added</p></div><span class="flex h-9 shrink-0 items-center gap-1 rounded-full border border-slate/30 px-3.5 text-[13px] font-medium text-slate"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5 L10 12.5 L15 7.5"></path></g></svg>Open</span></div></section><section class="rounded-3xl border border-slate/20 bg-white p-5 shadow-[0_12px_28px_-16px_rgba(77,115,143,0.45),0_2px_6px_rgba(77,115,143,0.06)]"><div class="flex min-h-[44px] items-center justify-between gap-3"><div class="min-w-0"><h3 class="font-serif text-[21px] font-semibold leading-6 text-slate" style="color:#111">Lab Record Details</h3><p class="mt-0.5 text-[12.5px] font-light text-slate/70">Not added yet</p></div><span class="flex h-9 shrink-0 items-center gap-1 rounded-full border border-slate/30 px-3.5 text-[13px] font-medium text-slate"><svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 L10 7.5 L15 12.5"></path></g></svg>Close</span></div><div class="mt-6 flex flex-col gap-8 border-t border-slate/10 pt-6"><div><div class="text-[14px] font-medium text-slate">Test date</div><div class="mt-1 flex items-end gap-3 border-b-2 border-slate/30 pb-1.5"><span class="flex-1 text-[18px] leading-8 text-slate/40">MM / DD / YYYY</span><span class="pb-1 text-slate/70"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="13" height="12" rx="2.5"></rect><path d="M3.5 8.5 H16.5 M7 3 V6 M13 3 V6"></path></g></svg></span></div></div><div><div class="text-[14px] font-medium text-slate">Lab name</div><div class="mt-1 flex items-end gap-3 border-b-2 border-slate/30 pb-1.5"><span class="flex-1 text-[18px] leading-8 text-slate/40">Name of lab or clinic</span></div></div><div><div class="text-[14px] font-medium text-slate">Photo of your report</div><div class="mt-3 flex items-center gap-4 rounded-2xl border-2 border-dashed border-slate/40 px-4 py-4"><span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate/30 text-slate"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5 H6 L7.5 5.5 H12.5 L14 7.5 H16.5 V15 H3.5 Z"></path><circle cx="10" cy="11" r="2.6"></circle></g></svg></span><div class="min-w-0 flex-1"><p class="text-[14px] font-medium text-slate">Attach or take a photo</p><p class="mt-0.5 text-[12px] font-light text-slate/70">JPG or PNG, up to 10 MB</p></div><span class="shrink-0 rounded-full border border-slate/40 px-3.5 py-1.5 text-[13px] font-medium text-slate">Upload</span></div></div></div></section></main>
+<footer class="flex items-center gap-3 border-t border-slate/15 bg-white px-5 py-3"><span class="flex h-11 flex-1 items-center justify-center rounded-full border border-slate/40 text-[14px] font-medium text-slate">Back</span><span class="flex h-11 flex-[2] items-center justify-center rounded-full bg-ember text-[14px] font-medium text-white">Next: Review &amp; Confirm</span></footer></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body></html>
