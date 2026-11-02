@@ -167,3 +167,98 @@ def test_authenticated_contradiction_test_undiagnosed_diabetes(client: TestClien
     issue = next(i for i in result["issues"] if "MED-BIO-004" in i["issue_id"])
     assert issue["severity"] == "moderate"
     assert "undiagnosed" in issue["physiological_rationale"].lower()
+
+
+def test_unauthenticated_debate_test_rejected(client: TestClient) -> None:
+    """POST /api/v1/consensus/debate/test must reject unauthenticated requests with 401."""
+    res = client.post(
+        "/api/v1/consensus/debate/test",
+        json={},
+    )
+    assert res.status_code == 401
+
+
+def test_authenticated_debate_test_default_payload(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/debate/test executes full 2-round multi-agent debate."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_eval_debate_1@example.com")
+
+    res = client.post(
+        "/api/v1/consensus/debate/test",
+        json={},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["status"] == "success"
+    assert data["execution_time_ms"] >= 0.0
+
+    transcript = data["debate_transcript"]
+    contradiction = data["contradiction_result"]
+
+    assert contradiction["contradictions_detected"] is True
+    assert transcript["total_rounds_executed"] == 2
+    assert len(transcript["challenges"]) >= 3
+    assert len(transcript["rebuttals"]) >= 3
+    assert transcript["convergence_status"] in ["converged", "partial_convergence", "unresolved_divergence"]
+    assert "concession" in transcript["summary"].lower() or "debate" in transcript["summary"].lower() or "challenge" in transcript["summary"].lower()
+
+    # Verify structured fields in challenges and rebuttals
+    first_challenge = transcript["challenges"][0]
+    assert first_challenge["challenging_agent"]
+    assert first_challenge["challenged_agent"]
+    assert len(first_challenge["physiological_rationale"]) > 5
+
+    first_rebuttal = transcript["rebuttals"][0]
+    assert first_rebuttal["disposition"] in ["defend", "revise", "concede", "unsupported", "inconclusive"]
+    assert first_rebuttal["responding_agent"]
+
+
+def test_authenticated_debate_test_concordant_scenario(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/debate/test produces immediate consensus on concordant input."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_eval_debate_2@example.com")
+
+    payload = {
+        "symptoms_data": {
+            "symptoms": ["mild_fatigue"],
+            "severity": 2,
+        },
+        "medical_history_data": {
+            "chronic_conditions": [],
+            "current_medications": [],
+        },
+        "laboratory_data": {
+            "systolic_bp": 118.0,
+            "diastolic_bp": 76.0,
+            "cardiac_troponin_ng_ml": 0.005,
+        },
+        "clinical_scores": {
+            "framingham_risk_percent": 3.8,
+            "framingham_risk_category": "low",
+            "target_outcome": "10_year_incident_cvd",
+            "prediction_horizon": "10_years",
+        },
+        "ml_predictions": {
+            "cardiovascular_risk_percent": 5.2,
+            "cardiovascular_risk_category": "low",
+            "target_outcome": "10_year_incident_cvd",
+            "prediction_horizon": "10_years",
+            "calibrated": True,
+        },
+    }
+
+    res = client.post(
+        "/api/v1/consensus/debate/test",
+        json=payload,
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+
+    transcript = data["debate_transcript"]
+    contradiction = data["contradiction_result"]
+    assert contradiction["contradictions_detected"] is False
+    assert transcript["total_rounds_executed"] == 1
+    assert transcript["convergence_status"] == "no_contradictions"
+    assert len(transcript["challenges"]) == 0
+    assert len(transcript["rebuttals"]) == 0
