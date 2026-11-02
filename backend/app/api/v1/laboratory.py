@@ -7,10 +7,54 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.database.models import User
 from app.database.repositories import LabResultRepository
+import time
 from app.database.session import get_db
-from app.schemas.laboratory import LabResultCreate, LabResultResponse
+from app.schemas.laboratory import (
+    BiomarkerNormalizationBatchRequest,
+    BiomarkerNormalizationBatchResponse,
+    LabResultCreate,
+    LabResultResponse,
+)
+from app.services.biomarker_normalizer import BiomarkerEntityNormalizer
 
 router = APIRouter(prefix="/laboratory", tags=["Laboratory"])
+
+
+@router.post(
+    "/biomarkers/normalize",
+    response_model=BiomarkerNormalizationBatchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Normalize OCR-extracted laboratory biomarkers and perform canonical unit conversions (Step 8.4.3)",
+)
+def normalize_biomarkers(
+    payload: BiomarkerNormalizationBatchRequest,
+    current_user: User = Depends(get_current_user),
+) -> BiomarkerNormalizationBatchResponse:
+    """Normalize raw OCR-extracted laboratory items, convert units, and validate against clinical registries.
+
+    Features:
+    - Resolves raw test names (e.g. 'Fasting B.S.', 'S. Creatinine') to canonical MedOracle IDs.
+    - Strictly delineates non-interchangeable biomarkers (BNP vs. NT-proBNP; Troponin I vs. T; hs vs. standard).
+    - Converts SI and traditional clinical units (mmol/L -> mg/dL, µmol/L -> mg/dL, g/L -> g/dL).
+    - Retains full provenance: raw strings, conversion multipliers, laboratory reference intervals, and audit caveats.
+    - Returns clean canonical_biomarkers_dict ready for immediate consumption by downstream ML/risk models.
+    """
+    start_time = time.perf_counter()
+
+    batch_result = BiomarkerEntityNormalizer.normalize_batch(
+        extracted_items=[item.model_dump() for item in payload.extracted_items],
+        patient_id=payload.patient_id or current_user.id,
+        source_document_id=payload.source_document_id,
+        source_document_url=payload.source_document_url,
+        lab_name=payload.lab_name,
+        specimen_collection_date=payload.specimen_collection_date,
+        report_date=payload.report_date,
+    )
+
+    execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    batch_result["execution_time_ms"] = execution_time_ms
+
+    return BiomarkerNormalizationBatchResponse(**batch_result)
 
 
 @router.post("/", response_model=LabResultResponse, status_code=status.HTTP_201_CREATED)

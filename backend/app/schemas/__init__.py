@@ -17,7 +17,15 @@ from app.schemas.patient import (
     PatientProfileUpdate,
 )
 from app.schemas.symptoms import SymptomReportCreate, SymptomReportResponse
-from app.schemas.laboratory import LabResultCreate, LabResultResponse
+from app.schemas.laboratory import (
+    BiomarkerNormalizationBatchRequest,
+    BiomarkerNormalizationBatchResponse,
+    BiomarkerValues,
+    LabResultCreate,
+    LabResultResponse,
+    NormalizedBiomarkerRecord,
+    RawExtractedBiomarkerItem,
+)
 from app.schemas.risk import (
     CkdEpiRequest,
     CkdEpiResponse,
