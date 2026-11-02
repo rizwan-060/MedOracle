@@ -26,3 +26,9 @@ Always import and use `AppColors` from `lib/core/theme/app_colors.dart`. Do NOT 
 ## 4. Typography Standards for Mobile
 - **Headings:** **Instrument Serif** (`28.0` screen titles, `24.0` card titles).
 - **Body & Inputs:** **Lexend** (`14.0` labels/body, `12.0` helpers).
+
+## 5. Mandatory Session Wrap-Up Protocol (Ollama Safety Shutdown)
+Whenever the user indicates they are concluding a session or saying goodbye (e.g., "goodbye", "bye", "that's it for today", "continue tomorrow", "good night"):
+- **ALWAYS** check whether `ollama` or `ollama app` processes are active (`Get-Process -Name "*ollama*"`).
+- If running, immediately force terminate them (`Stop-Process -Name "*ollama*" -Force`) to protect system stability, prevent RAM/VRAM exhaustion, and avoid laptop slowdown or blue screen errors.
+- Confirm termination in the response.
