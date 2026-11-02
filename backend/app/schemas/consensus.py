@@ -598,23 +598,81 @@ class DebateTestRequest(BaseModel):
         description="Optional list of upstream agent outputs.",
     )
     symptoms_data: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            "symptoms": ["chest_pain", "breathlessness", "palpitations"],
+            "severity": 8,
+            "duration_days": 2,
+            "duration_hours": 48.0,
+            "notes": "Patient describes acute substernal chest pressure radiating to left shoulder on exertion.",
+        },
         description="Presenting symptoms data (defaults to sample if omitted).",
     )
     medical_history_data: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            "chronic_conditions": ["hypertension", "hyperlipidemia"],
+            "current_medications": [
+                {
+                    "name": "Atorvastatin",
+                    "dosage": "40mg",
+                    "frequency": "daily",
+                    "treatment_duration_weeks": 24,
+                    "adherence": "consistent",
+                },
+                {
+                    "name": "Lisinopril",
+                    "dosage": "20mg",
+                    "frequency": "daily",
+                    "treatment_duration_weeks": 52,
+                    "adherence": "consistent",
+                },
+            ],
+            "family_history": [{"relative": "father", "condition": "myocardial_infarction", "age_at_onset": 50}],
+            "smoking_status": "current_smoker",
+        },
         description="Patient medical and medication history.",
     )
     laboratory_data: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            "systolic_bp": 154.0,
+            "diastolic_bp": 96.0,
+            "total_cholesterol_mg_dl": 275.0,
+            "hdl_cholesterol_mg_dl": 35.0,
+            "ldl_cholesterol_mg_dl": 195.0,
+            "fasting_blood_glucose_mg_dl": 105.0,
+            "hba1c_percent": 5.6,
+            "cardiac_troponin_ng_ml": 0.01,
+            "cardiac_troponin_assay": "hs_cTnI",
+            "serial_troponin_completed": True,
+            "resting_ecg": "normal_sinus_rhythm",
+            "test_date": "2026-11-01",
+        },
         description="Objective laboratory biomarkers and vitals.",
     )
     clinical_scores: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            "framingham_risk_percent": 14.5,
+            "framingham_risk_category": "moderate",
+            "target_outcome": "10_year_incident_cvd",
+            "prediction_horizon": "10_years",
+            "findrisc_score": 6,
+            "findrisc_risk_category": "low",
+        },
         description="Deterministic risk equation scores.",
     )
     ml_predictions: Optional[Dict[str, Any]] = Field(
-        default=None,
+        default={
+            "cardiovascular_risk_percent": 45.2,
+            "cardiovascular_risk_category": "high",
+            "target_outcome": "angiographic_coronary_artery_disease_presence",
+            "prediction_horizon": "cross_sectional",
+            "calibrated": False,
+            "diabetes_risk_percent": 12.0,
+            "diabetes_risk_category": "low",
+            "top_differential_conditions": [
+                {"disease": "coronary_artery_disease", "probability": 0.52},
+                {"disease": "essential_hypertension", "probability": 0.28},
+            ],
+        },
         description="Supervised ML model predictions.",
     )
 
