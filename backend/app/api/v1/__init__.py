@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 from app.api.v1.agents import router as agents_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.consensus import router as consensus_router
 from app.api.v1.laboratory import router as laboratory_router
 from app.api.v1.medical_history import router as medical_history_router
 from app.api.v1.llm import router as llm_router
@@ -25,6 +26,8 @@ v1_router.include_router(predictions_router)
 v1_router.include_router(nlp_router)
 v1_router.include_router(llm_router)
 v1_router.include_router(agents_router)
+v1_router.include_router(consensus_router)
+
 
 
 @v1_router.get("/", tags=["API v1"])
