@@ -1,6 +1,7 @@
 """MedOracle Multi-Agent Clinical Decision-Support Package (Step 10)."""
 
 from app.agents.base import AgentExecutionError, BaseClinicalAgent
+from app.agents.consensus import ContradictionDetector
 from app.agents.laboratory_agent import LaboratoryAgent
 from app.agents.medical_history_agent import MedicalHistoryAgent
 from app.agents.risk_prediction_agent import RiskPredictionAgent
@@ -14,6 +15,8 @@ __all__ = [
     "LaboratoryAgent",
     "RiskPredictionAgent",
     "ACUTE_RED_FLAGS",
+    "ContradictionDetector",
 ]
+
 
 

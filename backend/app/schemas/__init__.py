@@ -79,6 +79,14 @@ from app.schemas.llm import (
     LLMStatusResponse,
     LLMTestRequest,
 )
+from app.schemas.consensus import (
+    ContradictionCategory,
+    ContradictionIssue,
+    ContradictionMatrixResult,
+    ContradictionSeverity,
+    ContradictionTestRequest,
+    ContradictionTestResponse,
+)
 
 __all__ = [
     "UserRegister",
@@ -143,4 +151,10 @@ __all__ = [
     "LLMStatusResponse",
     "LLMTestRequest",
     "LLMClinicalTestOutput",
+    "ContradictionSeverity",
+    "ContradictionCategory",
+    "ContradictionIssue",
+    "ContradictionMatrixResult",
+    "ContradictionTestRequest",
+    "ContradictionTestResponse",
 ]
