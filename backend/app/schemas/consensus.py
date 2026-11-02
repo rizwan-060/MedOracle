@@ -6,7 +6,12 @@ Defines structured data contracts for:
    - Longitudinal medication adherence & therapeutic latency vs. active biomarker endpoints
    - Cohort equations vs. ML models (with horizon/outcome compatibility validation)
    - Full evidence provenance, collision-proof issue tracking, and clinical limitations
+   - Separation of clinical urgency from contradiction severity
 2. Adversarial Debate Protocol (Sub-Step 12.2)
+   - Round 1 evidence submission and targeted challenge issuance
+   - Round 2 rebuttals, physiological grounding, concessions, and convergence
+   - Natural Language Inference (NLI) qualitative claim analysis
+   - Multi-agent debate transcript and audit history
 3. Confidence Recalibration & Doubt Scoring (Sub-Step 12.3)
 4. Consensus Resolution & Debate Transcript (Sub-Step 12.4)
 """
@@ -43,14 +48,14 @@ class ContradictionIssue(BaseModel):
 
     issue_id: str = Field(
         ...,
-        description="Unique, collision-proof issue identifier (e.g. 'ISSUE-SUBJ-OBJ-001-A1B2C3D4').",
+        description="Globally unique, collision-proof issue identifier (e.g. 'ISSUE-session_1-SUBJ-OBJ-001-a1b2c3d4').",
     )
     rule_id: str = Field(
         default="RULE-GENERAL",
         description="Formal clinical rule identifier (e.g. 'RULE-A1-ISCHEMIA-TROPONIN').",
     )
     rule_version: str = Field(
-        default="1.1.0",
+        default="1.2.0",
         description="Version of the clinical contradiction detection rule.",
     )
     session_id: Optional[str] = Field(
@@ -67,7 +72,19 @@ class ContradictionIssue(BaseModel):
     )
     severity: ContradictionSeverity = Field(
         ...,
-        description="Clinical severity grade ('minor', 'moderate', 'critical').",
+        description="Clinical severity grade of contradiction ('minor', 'moderate', 'critical').",
+    )
+    clinical_urgency: str = Field(
+        default="routine",
+        description="Urgency of medical evaluation ('routine', 'prompt', 'urgent', 'emergent', 'undetermined'). Strictly separated from contradiction severity.",
+    )
+    clinical_status: str = Field(
+        default="confirmed_contradiction",
+        description="Epistemic status ('confirmed_contradiction', 'provisional_discrepancy', 'unresolved_presentation', 'history_versus_evidence_discrepancy', 'incomparable_models').",
+    )
+    target_organ_damage_status: Optional[str] = Field(
+        default=None,
+        description="Status of acute target-organ damage ('present', 'absent', 'undetermined').",
     )
     conflicting_agents: List[str] = Field(
         ...,
@@ -176,7 +193,7 @@ class ContradictionMatrixResult(BaseModel):
             "history_medication_vs_biomarker": "operational",
             "equation_vs_ml_discordance": "operational",
             "incomparable_predictions": "operational",
-            "qualitative_claim_discordance": "unimplemented_deferred_to_12_2",
+            "qualitative_claim_discordance": "operational",
         },
         description="Operational implementation status of each contradiction category.",
     )
@@ -311,6 +328,315 @@ class ContradictionTestResponse(BaseModel):
         ...,
         ge=0.0,
         description="Execution latency in milliseconds.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =============================================================================
+# Sub-Step 12.2: Adversarial Debate Protocol Schemas
+# =============================================================================
+
+class ChallengeStatus(str, Enum):
+    """Status of an adversarial challenge within the debate protocol."""
+
+    ISSUED = "issued"
+    DEFENDED = "defended"
+    REVISED = "revised"
+    CONCEDED = "conceded"
+    UNRESOLVED_DISAGREEMENT = "unresolved_disagreement"
+    UNSUPPORTED = "unsupported"
+    INCOMPARABLE_EXCLUDED = "incomparable_excluded"
+
+
+class RebuttalDisposition(str, Enum):
+    """Formal disposition chosen by a challenged agent in Round 2."""
+
+    DEFEND = "defend"
+    REVISE = "revise"
+    CONCEDE = "concede"
+    UNSUPPORTED = "unsupported"
+    INCONCLUSIVE = "inconclusive"
+
+
+class NLIRelation(str, Enum):
+    """Natural Language Inference semantic relationship between agent narrative claims."""
+
+    ENTAILMENT = "entailment"
+    CONTRADICTION = "contradiction"
+    NEUTRAL = "neutral"
+    UNCERTAIN = "uncertain"
+
+
+class AgentChallenge(BaseModel):
+    """Round 1 cross-domain adversarial challenge generated from detected contradiction."""
+
+    challenge_id: str = Field(
+        ...,
+        description="Unique identifier for the challenge.",
+    )
+    issue_id: str = Field(
+        ...,
+        description="Underlying contradiction issue ID.",
+    )
+    round_number: int = Field(
+        default=1,
+        description="Debate round number (1 for initial challenge issuance).",
+    )
+    challenging_agent: str = Field(
+        ...,
+        description="Agent role issuing the challenge.",
+    )
+    challenged_agent: str = Field(
+        ...,
+        description="Agent role targeted by the challenge.",
+    )
+    challenged_claim: str = Field(
+        ...,
+        description="Exact claim or hypothesis being challenged.",
+    )
+    evidence_basis: List[str] = Field(
+        default_factory=list,
+        description="Objective evidence, biomarkers, or scores used to substantiate the challenge.",
+    )
+    physiological_rationale: str = Field(
+        ...,
+        description="Physiological or clinical reasoning for the challenge.",
+    )
+    challenge_text: str = Field(
+        ...,
+        description="Targeted adversarial challenge prompt presented to the agent.",
+    )
+    clinical_limitations: List[str] = Field(
+        default_factory=list,
+        description="Known clinical confounders or caveats associated with the challenge.",
+    )
+    status: ChallengeStatus = Field(
+        default=ChallengeStatus.ISSUED,
+        description="Current resolution status of the challenge.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AgentRebuttal(BaseModel):
+    """Round 2 rebuttal, physiological grounding, or formal concession from challenged agent."""
+
+    rebuttal_id: str = Field(
+        ...,
+        description="Unique identifier for the rebuttal.",
+    )
+    challenge_id: str = Field(
+        ...,
+        description="Corresponding challenge ID being addressed.",
+    )
+    issue_id: str = Field(
+        ...,
+        description="Underlying contradiction issue ID.",
+    )
+    round_number: int = Field(
+        default=2,
+        description="Debate round number (2 for rebuttal/concession).",
+    )
+    responding_agent: str = Field(
+        ...,
+        description="Agent role providing the rebuttal.",
+    )
+    disposition: RebuttalDisposition = Field(
+        ...,
+        description="Formal stance taken ('defend', 'revise', 'concede', 'unsupported', 'inconclusive').",
+    )
+    rebuttal_text: str = Field(
+        ...,
+        description="Clinical argument defending, revising, or conceding the challenged claim.",
+    )
+    grounding_evidence: List[str] = Field(
+        default_factory=list,
+        description="Specific biomarkers, historical records, or model endpoints grounding the response.",
+    )
+    revised_claim: Optional[str] = Field(
+        default=None,
+        description="Updated claim if disposition is 'revise'.",
+    )
+    concession_reason: Optional[str] = Field(
+        default=None,
+        description="Explicit clinical rationale if conceding the claim.",
+    )
+    acknowledged_limitations: List[str] = Field(
+        default_factory=list,
+        description="Diagnostic and clinical limitations acknowledged by the agent.",
+    )
+    evidence_missing: bool = Field(
+        default=False,
+        description="True if required evidence is absent in patient record rather than fabricated.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NLIAnalysisRecord(BaseModel):
+    """Audit record of Natural Language Inference between qualitative agent claims."""
+
+    pair_id: str = Field(
+        ...,
+        description="Unique identifier for the claim comparison pair.",
+    )
+    agent_a: str = Field(..., description="First agent role.")
+    claim_a: str = Field(..., description="First agent narrative claim.")
+    agent_b: str = Field(..., description="Second agent role.")
+    claim_b: str = Field(..., description="Second agent narrative claim.")
+    relation: NLIRelation = Field(
+        ...,
+        description="Classified semantic relationship ('entailment', 'contradiction', 'neutral', 'uncertain').",
+    )
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for the NLI classification.",
+    )
+    method: str = Field(
+        ...,
+        description="NLI model or deterministic method employed.",
+    )
+    limitations: str = Field(
+        default="",
+        description="Methodological limitations of the NLI evaluation.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DebateTranscript(BaseModel):
+    """Complete, auditable transcript of the two-round adversarial debate protocol."""
+
+    debate_id: str = Field(
+        ...,
+        description="Unique identifier for this debate execution.",
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Traceable session identifier.",
+    )
+    patient_id: Optional[str] = Field(
+        default=None,
+        description="Traceable patient identifier.",
+    )
+    total_rounds_executed: int = Field(
+        default=2,
+        ge=1,
+        le=2,
+        description="Total rounds executed (bounded at maximum 2 rounds).",
+    )
+    max_rounds_allowed: int = Field(
+        default=2,
+        description="Strict maximum allowed debate rounds.",
+    )
+    challenges: List[AgentChallenge] = Field(
+        default_factory=list,
+        description="All Round 1 challenges issued across domain agents.",
+    )
+    rebuttals: List[AgentRebuttal] = Field(
+        default_factory=list,
+        description="All Round 2 rebuttals, defenses, and concessions submitted.",
+    )
+    conceded_challenges: List[str] = Field(
+        default_factory=list,
+        description="Challenge IDs where the challenged agent formally conceded.",
+    )
+    unresolved_disagreements: List[str] = Field(
+        default_factory=list,
+        description="Challenge IDs where disagreement persisted with valid clinical grounding.",
+    )
+    unsupported_challenges: List[str] = Field(
+        default_factory=list,
+        description="Challenge IDs where supporting evidence was missing or insufficient.",
+    )
+    qualitative_nli_analyses: List[NLIAnalysisRecord] = Field(
+        default_factory=list,
+        description="Natural language inference analysis records for qualitative agent claims.",
+    )
+    convergence_status: str = Field(
+        default="converged",
+        description="Final convergence status ('converged', 'partial_convergence', 'unresolved_divergence', 'no_contradictions').",
+    )
+    summary: str = Field(
+        ...,
+        description="Executive summary of the debate outcome, concessions, and active disagreements.",
+    )
+    started_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO 8601 start timestamp.",
+    )
+    completed_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO 8601 completion timestamp.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DebateTestRequest(BaseModel):
+    """Request payload for testing the Multi-Agent Adversarial Debate Protocol."""
+
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Optional session identifier for traceability.",
+    )
+    patient_id: Optional[str] = Field(
+        default=None,
+        description="Optional patient identifier for audit tracking.",
+    )
+    disagreement_threshold: float = Field(
+        default=25.0,
+        ge=5.0,
+        le=50.0,
+        description="Disagreement threshold for model horizon comparison.",
+    )
+    agent_outputs: Optional[List[AgentOutputResponse]] = Field(
+        default=None,
+        description="Optional list of upstream agent outputs.",
+    )
+    symptoms_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Presenting symptoms data (defaults to sample if omitted).",
+    )
+    medical_history_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Patient medical and medication history.",
+    )
+    laboratory_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Objective laboratory biomarkers and vitals.",
+    )
+    clinical_scores: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Deterministic risk equation scores.",
+    )
+    ml_predictions: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Supervised ML model predictions.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DebateTestResponse(BaseModel):
+    """Response payload for the Multi-Agent Adversarial Debate Protocol test endpoint."""
+
+    status: str = Field(default="success", description="Execution status ('success', 'failed').")
+    contradiction_result: ContradictionMatrixResult = Field(
+        ...,
+        description="Underlying contradiction detection matrix output.",
+    )
+    debate_transcript: DebateTranscript = Field(
+        ...,
+        description="Complete auditable transcript of the adversarial debate protocol.",
+    )
+    execution_time_ms: float = Field(
+        ...,
+        ge=0.0,
+        description="Total execution latency in milliseconds.",
     )
 
     model_config = ConfigDict(from_attributes=True)

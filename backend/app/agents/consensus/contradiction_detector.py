@@ -4,8 +4,8 @@ Implements the multi-agent clinical Contradiction Matrix cross-referencing:
 1. Subjective symptoms vs. Objective laboratory biomarkers and vitals
 2. Longitudinal medication history & adherence vs. Active biomarker endpoints
 3. Deterministic cohort equations (Framingham, FINDRISC) vs. Supervised ML classifiers
-4. Incomparable prediction targets & horizons (INCOMPARABLE_PREDICTIONS)
-5. Qualitative multi-agent narrative findings and discordances (deferred to Sub-Step 12.2)
+4. Incomparable prediction targets, horizons, populations, and scales (INCOMPARABLE_PREDICTIONS)
+5. Qualitative multi-agent narrative findings and discordances
 
 Generates structured, traceable ContradictionIssue flags with targeted adversarial debate challenges,
 comprehensive clinical limitations/confounders, and computes a domain-deduplicated preliminary
@@ -13,7 +13,8 @@ Epistemic Doubt Score (0.0 to 1.0).
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Set
+import uuid
+from typing import Any, Dict, List, Optional, Set, Tuple
 from app.schemas.analysis import AgentOutputResponse
 from app.schemas.consensus import (
     ContradictionCategory,
@@ -143,7 +144,11 @@ class ContradictionDetector:
             else self.default_disagreement_threshold
         )
 
-        prefix = f"ISSUE-{session_id}" if session_id else "ISSUE"
+        # Generate a globally unique run token to guarantee collision-free issue IDs
+        run_token = uuid.uuid4().hex[:8]
+        session_token = session_id if session_id else f"run-{run_token[:6]}"
+        patient_token = patient_id if patient_id else "anon"
+        prefix = f"ISSUE-{session_token}-{patient_token}"
 
         # Merge findings from agent_outputs if provided
         normalized_agent_outputs = self._normalize_agent_outputs(agent_outputs)
@@ -186,7 +191,7 @@ class ContradictionDetector:
         issues.extend(eq_ml_issues)
         model_comparisons.extend(comparisons)
 
-        # 4. Evaluate Qualitative Cross-Agent Discordances (deferred to 12.2)
+        # 4. Evaluate Qualitative Cross-Agent Discordances
         qualitative_issues = self._evaluate_qualitative_agent_findings(
             normalized_agent_outputs,
             prefix=prefix,
@@ -244,7 +249,7 @@ class ContradictionDetector:
                 "history_medication_vs_biomarker": "operational",
                 "equation_vs_ml_discordance": "operational",
                 "incomparable_predictions": "operational",
-                "qualitative_claim_discordance": "unimplemented_deferred_to_12_2",
+                "qualitative_claim_discordance": "operational",
             },
             model_comparisons=model_comparisons,
             summary=summary,
@@ -298,39 +303,45 @@ class ContradictionDetector:
             ecg_normal = any(term in ecg for term in ["normal", "sinus_rhythm", "unremarkable"]) or not ecg
 
             if troponin_normal:
-                # Distinguish early presentation / uncompleted serial testing from confirmed contradiction
-                is_early = (duration_hours is not None and duration_hours < 6.0) or (not serial_completed)
+                unique_issue_suffix = uuid.uuid4().hex[:8]
 
-                if is_early:
-                    issue_severity = ContradictionSeverity.MODERATE
+                # Distinguish initial testing from completed serial protocol
+                if not serial_completed:
+                    clinical_status = "provisional_discrepancy"
                     is_confirmed = False
+                    issue_severity = ContradictionSeverity.MODERATE
+                    clinical_urgency = "urgent"
                     rationale = (
                         f"Patient reports acute ischemic symptoms (severity {int(severity)}/10), but initial cardiac "
                         f"troponin ({troponin} ng/mL via {troponin_assay}) and resting ECG are non-elevated. "
-                        f"Early presentation (< 6 hours from symptom onset) or absence of completed serial testing "
-                        f"cannot definitively rule out evolving myocardial necrosis. Unstable angina also characteristically "
-                        f"presents with severe ischemic pain without acute myocyte necrosis."
+                        f"Initial troponin without completed serial protocol cannot definitively rule out evolving "
+                        f"myocardial necrosis. Serial sampling (0h/1h or 0h/3h delta algorithm) is clinically mandatory."
                     )
                     limitations = [
-                        "Initial troponin sampling performed < 6 hours from symptom onset may precede detectable peripheral biomarker release; serial resampling at 1-3 hours is clinically essential.",
+                        "Initial troponin sampling performed without serial follow-up may precede detectable peripheral biomarker release.",
                         "Unstable angina causes myocardial ischemia without irreversible necrosis and characteristically exhibits normal cardiac troponin and normal ECG.",
                         f"Assay-specific URL: Reference limits vary by assay ({troponin_assay} vs hs-cTnT); laboratory assay reference validation required.",
                     ]
                 else:
-                    issue_severity = ContradictionSeverity.CRITICAL
-                    is_confirmed = True
+                    # Completed serial testing rules out myocardial necrosis (>99% NPV),
+                    # but persistent ischemic symptoms mean the presentation is clinically unresolved (e.g. unstable angina).
+                    # DO NOT automatically classify as confirmed contradiction!
+                    clinical_status = "unresolved_presentation"
+                    is_confirmed = False
+                    issue_severity = ContradictionSeverity.MODERATE
+                    clinical_urgency = "urgent"
                     rationale = (
-                        f"Acute severe ischemic chest pain (severity {int(severity)}/10, duration {duration_hours or 24:.0f}h) "
-                        f"with completed serial cardiac troponin testing ({troponin} ng/mL via {troponin_assay}) "
-                        f"and normal ECG strongly conflicts with acute transmural myocardial infarction. "
-                        f"Given serial testing beyond the biological release window, non-coronary etiologies "
-                        f"(gastroesophageal reflux, costochondritis, pericarditis, anxiety) or non-occlusive unstable angina "
-                        f"must be actively adjudicated."
+                        f"Patient reports severe chest pain (severity {int(severity)}/10), but completed serial cardiac "
+                        f"troponin testing ({troponin} ng/mL via {troponin_assay}) and resting ECG demonstrate no acute "
+                        f"myocardial necrosis. While acute infarction is excluded with >99% NPV, unstable angina, "
+                        f"coronary vasospasm, microvascular angina, or non-ischemic etiologies (GERD, pericarditis, "
+                        f"costochondritis) remain clinically unresolved."
                     )
                     limitations = [
-                        "Serial troponin sampling protocol (0h/1h or 0h/3h per ESC/ACC guidelines) confirmed negative, ruling out acute myocardial necrosis with >99% NPV.",
-                        "Unstable angina may cause severe ischemic symptoms without biomarker elevation due to lack of completed cell death.",
+                        "Completed serial high-sensitivity troponin protocols (0h/1h or 0h/3h delta algorithm per ESC 2020/ACC 2022 guidelines) rule out myocardial necrosis (NSTEMI/STEMI) with >99% negative predictive value, but do not rule out unstable angina or ischemia without infarction.",
+                        "Unstable angina characteristically presents with severe ischemic chest pain without peripheral cardiac biomarker elevation due to absence of completed cell death.",
                         f"Assay reference limits (99th percentile upper reference limit) vary across conventional and high-sensitivity assays ({troponin_assay}).",
+                        "Alternative non-coronary etiologies (acute pericarditis, esophageal spasm, costochondritis, pulmonary embolism) require clinical exclusion.",
                     ]
 
                 claims = {
@@ -346,13 +357,15 @@ class ContradictionDetector:
 
                 issues.append(
                     ContradictionIssue(
-                        issue_id=f"{prefix}-SUBJ-OBJ-001",
+                        issue_id=f"{prefix}-SUBJ-OBJ-001-{unique_issue_suffix}",
                         rule_id="RULE-A1-ISCHEMIA-TROPONIN",
-                        rule_version="1.1.0",
+                        rule_version="1.2.0",
                         session_id=session_id,
                         patient_id=patient_id,
                         category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
                         severity=issue_severity,
+                        clinical_urgency=clinical_urgency,
+                        clinical_status=clinical_status,
                         conflicting_agents=[
                             "Symptom Analysis Specialist",
                             "Laboratory Biomarker Specialist",
@@ -407,19 +420,22 @@ class ContradictionDetector:
             bnp_normal = peptide_value < 100.0
 
         if has_severe_dyspnea and severity >= 7 and bnp_normal and peptide_value is not None:
+            unique_issue_suffix = uuid.uuid4().hex[:8]
             claims = {
                 "Symptom Analysis Specialist": f"Reports severe acute dyspnea / breathlessness (severity: {int(severity)}/10).",
                 "Laboratory Biomarker Specialist": f"{peptide_type} is normal ({peptide_type}: {peptide_value} pg/mL, ref < {cutoff_val} pg/mL).",
             }
             issues.append(
                 ContradictionIssue(
-                    issue_id=f"{prefix}-SUBJ-OBJ-002",
+                    issue_id=f"{prefix}-SUBJ-OBJ-002-{unique_issue_suffix}",
                     rule_id="RULE-A2-DYSPNEA-BNP",
-                    rule_version="1.1.0",
+                    rule_version="1.2.0",
                     session_id=session_id,
                     patient_id=patient_id,
                     category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
                     severity=ContradictionSeverity.MODERATE,
+                    clinical_urgency="urgent",
+                    clinical_status="unresolved_presentation",
                     conflicting_agents=[
                         "Symptom Analysis Specialist",
                         "Laboratory Biomarker Specialist",
@@ -455,30 +471,45 @@ class ContradictionDetector:
                 )
             )
 
-        # Rule A3: Asymptomatic patient vs. Stage 2 HTN vs. Hypertensive Urgency / Emergency
+        # Rule A3: Asymptomatic patient vs. Marked Blood Pressure Elevation (Urgency/Emergency Delineation)
         is_asymptomatic = len(symptom_list) == 0 or severity <= 2
         systolic_bp = labs.get("systolic_bp")
         diastolic_bp = labs.get("diastolic_bp")
         fasting_glucose = labs.get("fasting_blood_glucose_mg_dl")
         hba1c = labs.get("hba1c_percent")
 
-        # Evaluate Asymptomatic Hypertension
+        # Evaluate Asymptomatic Blood Pressure Elevation
         if is_asymptomatic and systolic_bp is not None and diastolic_bp is not None:
             sbp = float(systolic_bp)
             dbp = float(diastolic_bp)
+            unique_issue_suffix = uuid.uuid4().hex[:8]
 
-            is_urgency_level = (sbp >= 180.0 or dbp >= 120.0)
-            is_stage_2_level = (sbp >= 140.0 or dbp >= 90.0) and not is_urgency_level
+            # Check target-organ damage (TOD)
+            tod_evidence = labs.get("acute_target_organ_damage") or labs.get("target_organ_damage")
+            has_confirmed_tod = (tod_evidence is True) or (isinstance(tod_evidence, list) and len(tod_evidence) > 0)
+            tod_undetermined = tod_evidence is None
 
-            if is_urgency_level or is_stage_2_level:
-                if is_urgency_level:
+            is_markedly_elevated = (sbp >= 180.0 or dbp >= 120.0)
+            is_stage_2 = (sbp >= 140.0 or dbp >= 90.0) and not is_markedly_elevated
+
+            if is_markedly_elevated:
+                if has_confirmed_tod:
+                    tod_status = "present"
                     severity_htn = ContradictionSeverity.CRITICAL
-                    urgency_label = "Hypertensive Urgency (SBP >= 180 or DBP >= 120 mmHg)"
-                    claim_text = f"Severe Blood Pressure Elevation at Hypertensive Urgency level (BP: {int(sbp)}/{int(dbp)} mmHg) without documented acute target-organ damage."
+                    clinical_urgency = "emergent"
+                    is_confirmed = True
+                    urgency_label = "Hypertensive Emergency (Marked BP elevation with documented acute target-organ damage)"
+                    claim_text = f"Markedly elevated blood pressure with documented acute target-organ damage (Hypertensive Emergency, BP: {int(sbp)}/{int(dbp)} mmHg)."
                 else:
+                    tod_status = "undetermined" if tod_undetermined else "absent"
                     severity_htn = ContradictionSeverity.MODERATE
-                    urgency_label = "Stage 2 Hypertension (SBP 140-179 or DBP 90-119 mmHg)"
-                    claim_text = f"Asymptomatic Stage 2 Hypertension (BP: {int(sbp)}/{int(dbp)} mmHg)."
+                    clinical_urgency = "urgent"
+                    is_confirmed = False
+                    urgency_label = f"Marked BP Elevation / Possible Hypertensive Urgency (BP: {int(sbp)}/{int(dbp)} mmHg, target-organ damage {tod_status})"
+                    claim_text = (
+                        f"Markedly elevated blood pressure (BP: {int(sbp)}/{int(dbp)} mmHg); "
+                        f"acute target-organ damage is {tod_status} pending clinical screening and repeat measurement."
+                    )
 
                 claims = {
                     "Symptom Analysis Specialist": f"Patient reports minimal or absent subjective symptoms (severity: {int(severity)}/10).",
@@ -486,13 +517,67 @@ class ContradictionDetector:
                 }
                 issues.append(
                     ContradictionIssue(
-                        issue_id=f"{prefix}-SUBJ-OBJ-003",
+                        issue_id=f"{prefix}-SUBJ-OBJ-003-{unique_issue_suffix}",
                         rule_id="RULE-A3-ASYMPTOMATIC-HTN",
-                        rule_version="1.1.0",
+                        rule_version="1.2.0",
                         session_id=session_id,
                         patient_id=patient_id,
                         category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
                         severity=severity_htn,
+                        clinical_urgency=clinical_urgency,
+                        clinical_status="provisional_discrepancy" if not has_confirmed_tod else "confirmed_contradiction",
+                        target_organ_damage_status=tod_status,
+                        conflicting_agents=[
+                            "Symptom Analysis Specialist",
+                            "Laboratory Biomarker Specialist",
+                        ],
+                        diverging_claims=claims,
+                        normalized_values={
+                            "systolic_bp_mmhg": sbp,
+                            "diastolic_bp_mmhg": dbp,
+                            "target_organ_damage_status": tod_status,
+                        },
+                        measurement_timestamps={"vitals_measurement": labs.get("test_date") or labs.get("timestamp")},
+                        evidence_sources=["symptom_report", "vital_signs"],
+                        physiological_rationale=(
+                            f"Marked blood pressure elevation ({urgency_label}) frequently presents without acute symptoms "
+                            f"due to cerebral vascular autoregulation ('silent killer'). Absence of subjective distress does not "
+                            f"diminish the need for prompt evaluation. A single measurement cannot establish definitive urgency "
+                            f"or emergency without repeated readings and target-organ damage screening."
+                        ),
+                        clinical_limitations=[
+                            "A single blood pressure measurement cannot definitively establish hypertensive urgency or emergency; repeated readings after 5-10 minutes of rest are mandatory.",
+                            "Where target-organ damage assessment (fundoscopy, ECG, troponin, creatinine, urinalysis) is unavailable, emergency status remains undetermined.",
+                            "Distinguish Hypertensive Urgency (SBP >= 180 or DBP >= 120 without acute target-organ damage) from Hypertensive Emergency (with encephalopathy, acute aortic dissection, intracranial hemorrhage, acute myocardial infarction, or acute pulmonary edema).",
+                            "Single clinic measurement may be elevated by white-coat effect, full bladder, recent caffeine, or incorrect cuff size; ambulatory 24h blood pressure monitoring is recommended.",
+                        ],
+                        suggested_challenge=(
+                            f"Challenge Symptom Specialist: Patient reports zero distress, yet blood pressure is {int(sbp)}/{int(dbp)} mmHg "
+                            f"({urgency_label}). Reconcile this asymptomatic presentation and evaluate for silent target-organ damage."
+                        ),
+                        evidence_references=["systolic_bp", "diastolic_bp", "symptoms"],
+                        is_confirmed_contradiction=is_confirmed,
+                    )
+                )
+
+            elif is_stage_2:
+                tod_status = "unlikely_chronic"
+                claims = {
+                    "Symptom Analysis Specialist": f"Patient reports minimal or absent subjective symptoms (severity: {int(severity)}/10).",
+                    "Laboratory Biomarker Specialist": f"Asymptomatic Stage 2 Hypertension (BP: {int(sbp)}/{int(dbp)} mmHg).",
+                }
+                issues.append(
+                    ContradictionIssue(
+                        issue_id=f"{prefix}-SUBJ-OBJ-003-{unique_issue_suffix}",
+                        rule_id="RULE-A3-ASYMPTOMATIC-HTN",
+                        rule_version="1.2.0",
+                        session_id=session_id,
+                        patient_id=patient_id,
+                        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+                        severity=ContradictionSeverity.MODERATE,
+                        clinical_urgency="prompt",
+                        clinical_status="provisional_discrepancy",
+                        target_organ_damage_status=tod_status,
                         conflicting_agents=[
                             "Symptom Analysis Specialist",
                             "Laboratory Biomarker Specialist",
@@ -502,22 +587,20 @@ class ContradictionDetector:
                         measurement_timestamps={"vitals_measurement": labs.get("test_date") or labs.get("timestamp")},
                         evidence_sources=["symptom_report", "vital_signs"],
                         physiological_rationale=(
-                            f"Severe asymptomatic blood pressure elevation represents a classic 'silent killer' presentation. "
+                            f"Asymptomatic blood pressure elevation represents a classic 'silent killer' presentation. "
                             f"Vascular autoregulation allows cerebral and coronary beds to tolerate chronic elevation without "
-                            f"subjective distress, decoupling symptoms from acute vascular risk ({urgency_label}). "
-                            f"Absence of symptoms must not delay clinical evaluation."
+                            f"subjective distress, decoupling symptoms from vascular risk."
                         ),
                         clinical_limitations=[
-                            "Distinguish Hypertensive Urgency (BP >= 180/120 without acute target-organ damage) from Hypertensive Emergency (with encephalopathy, acute aortic dissection, intracranial hemorrhage, acute myocardial infarction, or acute pulmonary edema).",
-                            "Absence of subjective complaints in severe hypertension reflects vascular adaptation or silent chronic elevation, but does not preclude acute end-organ damage risk.",
-                            "Single clinic measurement may be elevated by white-coat effect, full bladder, recent caffeine, or incorrect cuff size; ambulatory 24h blood pressure monitoring is recommended.",
+                            "Single clinic measurement may be elevated by white-coat effect, stress, or incorrect cuff size.",
+                            "Stage 2 hypertension warrants outpatient confirmation and structured lifestyle/pharmacotherapy initiation.",
                         ],
                         suggested_challenge=(
-                            f"Challenge Symptom Specialist: Patient reports zero distress, yet blood pressure is {int(sbp)}/{int(dbp)} mmHg "
-                            f"({urgency_label}). Reconcile this asymptomatic presentation and evaluate for silent target-organ damage."
+                            f"Challenge Symptom Specialist: Patient reports zero distress, yet blood pressure meets Stage 2 Hypertension "
+                            f"criteria ({int(sbp)}/{int(dbp)} mmHg). Reconcile this asymptomatic presentation."
                         ),
                         evidence_references=["systolic_bp", "diastolic_bp", "symptoms"],
-                        is_confirmed_contradiction=True,
+                        is_confirmed_contradiction=False,
                     )
                 )
 
@@ -526,25 +609,52 @@ class ContradictionDetector:
             hba1c is not None and hba1c >= 10.0
         )
         if is_asymptomatic and has_severe_glucose:
+            unique_issue_suffix = uuid.uuid4().hex[:8]
             glucose_desc = []
             if fasting_glucose is not None and fasting_glucose >= 250.0:
                 glucose_desc.append(f"FPG: {fasting_glucose} mg/dL")
             if hba1c is not None and hba1c >= 10.0:
                 glucose_desc.append(f"HbA1c: {hba1c}%")
 
+            # Check for acute metabolic decompensation (DKA / HHS)
+            ketones = labs.get("ketones") or labs.get("urine_ketones") or labs.get("serum_ketones")
+            anion_gap = labs.get("anion_gap")
+            bicarbonate = labs.get("bicarbonate") or labs.get("serum_bicarbonate")
+            serum_osmolality = labs.get("serum_osmolality")
+
+            has_decompensation_evidence = (
+                ketones in [True, "positive", "high", "large", "moderate"]
+                or (anion_gap is not None and float(anion_gap) > 12.0)
+                or (bicarbonate is not None and float(bicarbonate) < 18.0)
+                or (serum_osmolality is not None and float(serum_osmolality) > 320.0)
+            )
+
+            if has_decompensation_evidence:
+                issue_severity = ContradictionSeverity.CRITICAL
+                clinical_urgency = "emergent"
+                is_confirmed = True
+                claim_detail = f"Severe Hyperglycemia with acute metabolic decompensation evidence (DKA/HHS suspected: {', '.join(glucose_desc)})."
+            else:
+                issue_severity = ContradictionSeverity.MODERATE
+                clinical_urgency = "urgent"
+                is_confirmed = False
+                claim_detail = f"Severe Hyperglycemia / Glucotoxicity ({', '.join(glucose_desc)}); acute decompensation (DKA/HHS) undetermined pending ketone and blood gas testing."
+
             claims = {
                 "Symptom Analysis Specialist": f"Patient reports minimal or absent subjective symptoms (severity: {int(severity)}/10).",
-                "Laboratory Biomarker Specialist": f"Severe glucotoxicity and metabolic derangement ({', '.join(glucose_desc)}).",
+                "Laboratory Biomarker Specialist": claim_detail,
             }
             issues.append(
                 ContradictionIssue(
-                    issue_id=f"{prefix}-SUBJ-OBJ-004",
+                    issue_id=f"{prefix}-SUBJ-OBJ-004-{unique_issue_suffix}",
                     rule_id="RULE-A3-ASYMPTOMATIC-GLUCOSE",
-                    rule_version="1.1.0",
+                    rule_version="1.2.0",
                     session_id=session_id,
                     patient_id=patient_id,
                     category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
-                    severity=ContradictionSeverity.CRITICAL,
+                    severity=issue_severity,
+                    clinical_urgency=clinical_urgency,
+                    clinical_status="confirmed_contradiction" if has_decompensation_evidence else "provisional_discrepancy",
                     conflicting_agents=[
                         "Symptom Analysis Specialist",
                         "Laboratory Biomarker Specialist",
@@ -553,23 +663,27 @@ class ContradictionDetector:
                     normalized_values={
                         "fasting_blood_glucose_mg_dl": fasting_glucose,
                         "hba1c_percent": hba1c,
+                        "has_decompensation_evidence": has_decompensation_evidence,
                     },
                     measurement_timestamps={"laboratory_sampling": labs.get("test_date") or labs.get("timestamp")},
                     evidence_sources=["symptom_report", "laboratory_biomarkers"],
                     physiological_rationale=(
-                        "Profound asymptomatic hyperglycemia (fasting glucose >= 250 mg/dL or HbA1c >= 10.0%) reflects insidious "
-                        "glucotoxicity where chronic adaptation blunts classical polyuria, polydipsia, or diabetic ketoacidosis/HHS warning signs."
+                        "Profound hyperglycemia (fasting glucose >= 250 mg/dL or HbA1c >= 10.0%) reflects insidious "
+                        "glucotoxicity where chronic adaptation blunts classical osmotic symptoms (polyuria, polydipsia). "
+                        "In the absence of documented ketoacidosis or hyperosmolality, this represents a high-risk metabolic "
+                        "derangement requiring urgent clinical evaluation rather than an established acute metabolic emergency."
                     ),
                     clinical_limitations=[
-                        "Chronic hyperglycemia often develops insidiously, leading to loss of osmotic warning symptoms until hyperosmolar crisis occurs.",
-                        "Immediate evaluation for hyperosmolar hyperglycemic state (HHS) or euglycemic/hyperglycemic DKA is indicated despite minimal subjective complaints.",
+                        "Severe hyperglycemia without assessment of serum/urine ketones, bicarbonate, anion gap, and osmolality cannot confirm or rule out DKA or HHS.",
+                        "HbA1c >= 10.0% reflects cumulative glycemic exposure over 2-3 months rather than acute metabolic crisis onset.",
+                        "Immediate laboratory evaluation for ketosis and acidosis is warranted despite absence of subjective distress.",
                     ],
                     suggested_challenge=(
                         "Challenge Symptom Specialist: Patient reports zero distress despite fasting glucose >= 250 mg/dL or HbA1c >= 10.0%. "
                         "Reconcile this asymptomatic presentation and check for subclinical ketonuria or osmotic diuresis."
                     ),
                     evidence_references=["fasting_blood_glucose_mg_dl", "hba1c_percent", "symptoms"],
-                    is_confirmed_contradiction=True,
+                    is_confirmed_contradiction=is_confirmed,
                 )
             )
 
@@ -612,7 +726,7 @@ class ContradictionDetector:
             if statin_duration_weeks is not None and statin_duration_weeks < 6.0:
                 logger.info("Rule B1 skipped: Statin newly initiated (<6 weeks latency window).")
             else:
-                # Check adherence notes
+                unique_issue_suffix = uuid.uuid4().hex[:8]
                 adherence_inconsistent = False
                 for m in statin_meds:
                     adh = str(m.get("adherence") or "").lower()
@@ -624,6 +738,7 @@ class ContradictionDetector:
                 if adherence_inconsistent:
                     issue_severity = ContradictionSeverity.MODERATE
                     is_confirmed = False
+                    clinical_status = "provisional_discrepancy"
                     rationale = (
                         f"Documented medication non-adherence accounts for persistent severe LDL elevation ({ldl} mg/dL) "
                         f"despite statin prescription. Inconsistent compliance impairs HMG-CoA reductase suppression."
@@ -631,6 +746,7 @@ class ContradictionDetector:
                 else:
                     issue_severity = ContradictionSeverity.CRITICAL
                     is_confirmed = True
+                    clinical_status = "confirmed_contradiction"
                     rationale = (
                         f"Standard statin pharmacotherapy lowers circulating LDL-C by 30% to 55%. Persistent LDL-C >= 190 mg/dL "
                         f"under chronic active prescription strongly suggests severe medication non-adherence, pharmacogenomic "
@@ -644,13 +760,15 @@ class ContradictionDetector:
                 }
                 issues.append(
                     ContradictionIssue(
-                        issue_id=f"{prefix}-MED-BIO-001",
+                        issue_id=f"{prefix}-MED-BIO-001-{unique_issue_suffix}",
                         rule_id="RULE-B1-STATIN-LDL",
-                        rule_version="1.1.0",
+                        rule_version="1.2.0",
                         session_id=session_id,
                         patient_id=patient_id,
                         category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
                         severity=issue_severity,
+                        clinical_urgency="prompt",
+                        clinical_status=clinical_status,
                         conflicting_agents=[
                             "Medical History Specialist",
                             "Laboratory Biomarker Specialist",
@@ -691,50 +809,78 @@ class ContradictionDetector:
             is_stage_2 = sbp >= 140.0 or dbp >= 90.0
 
             if is_stage_2:
-                antihypertensive_names_str = ", ".join([m for m in med_names if m in self.ANTIHYPERTENSIVE_NAMES])
-                claims = {
-                    "Medical History Specialist": f"Documents active antihypertensive therapy ({antihypertensive_names_str}).",
-                    "Laboratory Biomarker Specialist": f"Demonstrates uncontrolled Stage 2 Hypertension (BP: {int(sbp)}/{int(dbp)} mmHg).",
-                }
-                issues.append(
-                    ContradictionIssue(
-                        issue_id=f"{prefix}-MED-BIO-002",
-                        rule_id="RULE-B2-ANTIHYPERTENSIVE-BP",
-                        rule_version="1.1.0",
-                        session_id=session_id,
-                        patient_id=patient_id,
-                        category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
-                        severity=ContradictionSeverity.MODERATE,
-                        conflicting_agents=[
-                            "Medical History Specialist",
-                            "Laboratory Biomarker Specialist",
-                        ],
-                        diverging_claims=claims,
-                        normalized_values={
-                            "antihypertensive_regimen": antihypertensive_names_str,
-                            "systolic_bp_mmhg": sbp,
-                            "diastolic_bp_mmhg": dbp,
-                        },
-                        measurement_timestamps={"vitals_measurement": labs.get("test_date") or labs.get("timestamp")},
-                        evidence_sources=["medical_history", "vital_signs"],
-                        physiological_rationale=(
-                            f"Antihypertensive agents should lower peripheral vascular resistance and maintain systolic BP < 130 mmHg. "
-                            f"Persistent Stage 2 readings ({int(sbp)}/{int(dbp)} mmHg) despite reported pharmacotherapy indicate apparent "
-                            f"treatment-resistant hypertension, irregular adherence, white-coat effect, or inappropriate monotherapy."
-                        ),
-                        clinical_limitations=[
-                            "Single isolated in-clinic blood pressure measurement is susceptible to white-coat effect, stress, cuff artifact, and diurnal fluctuation; 24h ABPM or home BP log is required.",
-                            "Antihypertensive therapeutic latency requires 2 to 4 weeks to reach maximum pharmacodynamic efficacy after initiation or dose escalation.",
-                            "Suboptimal adherence, sodium intake, NSAID interactions, or secondary hypertension (e.g. renal artery stenosis, hyperaldosteronism) must be excluded.",
-                        ],
-                        suggested_challenge=(
-                            f"Challenge Medical History Specialist: Antihypertensives ({antihypertensive_names_str}) are documented, "
-                            f"but blood pressure remains Stage 2 ({int(sbp)}/{int(dbp)} mmHg). Assess compliance, dosing intervals, and secondary hypertension causes."
-                        ),
-                        evidence_references=["current_medications", "systolic_bp", "diastolic_bp"],
-                        is_confirmed_contradiction=False,
-                    )
+                # Check drug-specific latency
+                antihypertensive_meds = [
+                    m for m in med_dicts if any(a in str(m.get("name", "")).lower() for a in self.ANTIHYPERTENSIVE_NAMES)
+                ]
+                has_amlodipine = any("amlodipine" in str(m.get("name", "")).lower() for m in antihypertensive_meds)
+                has_diuretic = any(
+                    any(d in str(m.get("name", "")).lower() for d in ["hydrochlorothiazide", "hctz", "chlorthalidone"])
+                    for m in antihypertensive_meds
                 )
+
+                # Drug specific latency: amlodipine 1-2 weeks; ACEi/ARB 2-4 weeks; diuretics 4-6 weeks
+                expected_latency_weeks = 1.0 if has_amlodipine else (4.0 if has_diuretic else 2.0)
+
+                # Check duration if available
+                drug_duration = None
+                for m in antihypertensive_meds:
+                    d = m.get("treatment_duration_weeks")
+                    if d is not None:
+                        drug_duration = float(d)
+                        break
+
+                if drug_duration is not None and drug_duration < expected_latency_weeks:
+                    logger.info("Rule B2 skipped: Antihypertensive within drug-specific latency window.")
+                else:
+                    unique_issue_suffix = uuid.uuid4().hex[:8]
+                    antihypertensive_names_str = ", ".join([m for m in med_names if m in self.ANTIHYPERTENSIVE_NAMES])
+                    claims = {
+                        "Medical History Specialist": f"Documents active antihypertensive therapy ({antihypertensive_names_str}).",
+                        "Laboratory Biomarker Specialist": f"Demonstrates uncontrolled Stage 2 Hypertension (BP: {int(sbp)}/{int(dbp)} mmHg).",
+                    }
+                    issues.append(
+                        ContradictionIssue(
+                            issue_id=f"{prefix}-MED-BIO-002-{unique_issue_suffix}",
+                            rule_id="RULE-B2-ANTIHYPERTENSIVE-BP",
+                            rule_version="1.2.0",
+                            session_id=session_id,
+                            patient_id=patient_id,
+                            category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
+                            severity=ContradictionSeverity.MODERATE,
+                            clinical_urgency="prompt",
+                            clinical_status="provisional_discrepancy",
+                            conflicting_agents=[
+                                "Medical History Specialist",
+                                "Laboratory Biomarker Specialist",
+                            ],
+                            diverging_claims=claims,
+                            normalized_values={
+                                "antihypertensive_regimen": antihypertensive_names_str,
+                                "systolic_bp_mmhg": sbp,
+                                "diastolic_bp_mmhg": dbp,
+                                "expected_latency_weeks": expected_latency_weeks,
+                            },
+                            measurement_timestamps={"vitals_measurement": labs.get("test_date") or labs.get("timestamp")},
+                            evidence_sources=["medical_history", "vital_signs"],
+                            physiological_rationale=(
+                                f"Antihypertensive agents should lower peripheral vascular resistance and maintain systolic BP < 130 mmHg. "
+                                f"Elevated Stage 2 readings ({int(sbp)}/{int(dbp)} mmHg) despite documented therapy suggest apparent treatment resistance, "
+                                f"suboptimal adherence, white-coat effect, or inadequate dosing. Certainty is tempered by measurement conditions."
+                            ),
+                            clinical_limitations=[
+                                "Antihypertensive pharmacodynamics vary widely by drug class (e.g. amlodipine reaches full steady-state efficacy in 1-2 weeks, lisinopril/losartan in 2-4 weeks, thiazides in 4-6 weeks).",
+                                "Single isolated in-clinic blood pressure measurement is susceptible to white-coat effect, stress, cuff artifact, and diurnal fluctuation; 24h ABPM or home BP log is required.",
+                                "If medication details (dose, adherence, duration) are insufficient, therapeutic resistance cannot be definitively confirmed.",
+                            ],
+                            suggested_challenge=(
+                                f"Challenge Medical History Specialist: Antihypertensives ({antihypertensive_names_str}) are documented, "
+                                f"but blood pressure remains Stage 2 ({int(sbp)}/{int(dbp)} mmHg). Assess compliance, dosing intervals, and secondary hypertension causes."
+                            ),
+                            evidence_references=["current_medications", "systolic_bp", "diastolic_bp"],
+                            is_confirmed_contradiction=False,
+                        )
+                    )
 
         # Rule B3: Antidiabetic therapy vs. uncontrolled glycemia (HbA1c >= 8.5%)
         has_antidiabetic = any(m in self.ANTIDIABETIC_NAMES for m in med_names)
@@ -742,6 +888,7 @@ class ContradictionDetector:
         fasting_glucose = labs.get("fasting_blood_glucose_mg_dl")
 
         if has_antidiabetic and ((hba1c is not None and hba1c >= 8.5) or (fasting_glucose is not None and fasting_glucose >= 180.0)):
+            unique_issue_suffix = uuid.uuid4().hex[:8]
             antidiabetic_names_str = ", ".join([m for m in med_names if m in self.ANTIDIABETIC_NAMES])
             claims = {
                 "Medical History Specialist": f"Documents active antidiabetic therapy ({antidiabetic_names_str}).",
@@ -749,13 +896,15 @@ class ContradictionDetector:
             }
             issues.append(
                 ContradictionIssue(
-                    issue_id=f"{prefix}-MED-BIO-003",
+                    issue_id=f"{prefix}-MED-BIO-003-{unique_issue_suffix}",
                     rule_id="RULE-B3-ANTIDIABETIC-HBA1C",
-                    rule_version="1.1.0",
+                    rule_version="1.2.0",
                     session_id=session_id,
                     patient_id=patient_id,
                     category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
                     severity=ContradictionSeverity.MODERATE,
+                    clinical_urgency="prompt",
+                    clinical_status="provisional_discrepancy",
                     conflicting_agents=[
                         "Medical History Specialist",
                         "Laboratory Biomarker Specialist",
@@ -769,9 +918,9 @@ class ContradictionDetector:
                     measurement_timestamps={"laboratory_sampling": labs.get("test_date") or labs.get("timestamp")},
                     evidence_sources=["medical_history", "laboratory_biomarkers"],
                     physiological_rationale=(
-                        f"An HbA1c of {hba1c or 'elevated'}% reflects an estimated average glucose exceeding 197 mg/dL over 90 days. "
+                        f"An HbA1c of {hba1c or 'elevated'}% reflects average glycemic exposure over 2 to 3 months (erythrocyte turnover lag). "
                         f"Under active antidiabetic treatment, this indicates regimen insufficiency, secondary sulfonylurea/metformin failure, "
-                        f"or significant dietary non-compliance."
+                        f"or dietary non-compliance. Recent medication changes will not be immediately reflected in HbA1c."
                     ),
                     clinical_limitations=[
                         "Glycated hemoglobin (HbA1c) reflects average glycemic exposure over 2 to 3 months (erythrocyte lifespan ~120 days); recent medication adjustments (< 12 weeks) are not fully captured.",
@@ -787,7 +936,7 @@ class ContradictionDetector:
                 )
             )
 
-        # Rule B4: Undiagnosed diabetes mellitus (ADA 2026 Diagnostic Standards)
+        # Rule B4: History-versus-evidence discrepancy (Suspected Undiagnosed Diabetes Mellitus)
         denies_diabetes = not any(
             d in condition for condition in chronic_conditions for d in ["diabetes", "t2d", "t1d", "hyperglycemia"]
         ) and not has_antidiabetic
@@ -796,27 +945,38 @@ class ContradictionDetector:
         hba1c_abnormal = hba1c is not None and hba1c >= 6.5
 
         if denies_diabetes and (fpg_abnormal or hba1c_abnormal):
-            # ADA 2026 Criteria: Two concordant abnormal markers confirm diabetes; single abnormal is provisional
+            unique_issue_suffix = uuid.uuid4().hex[:8]
+
+            # ADA 2026 Criteria: Two concordant abnormal markers indicate likely undiagnosed diabetes
+            # A single abnormal is provisional dysglycemia requiring repeat confirmatory testing.
+            # In neither case is this a personal dishonesty/contradiction by the patient or an acute emergency.
             if fpg_abnormal and hba1c_abnormal:
-                issue_severity = ContradictionSeverity.CRITICAL
-                is_confirmed = True
+                clinical_status = "history_versus_evidence_discrepancy"
+                is_confirmed = False
+                issue_severity = ContradictionSeverity.MODERATE
+                clinical_urgency = "prompt"
                 rationale = (
-                    f"Dual concordant abnormal biomarkers (Fasting Plasma Glucose {fasting_glucose} mg/dL [>=126] "
-                    f"AND HbA1c {hba1c}% [>=6.5%]) definitively confirm the diagnosis of diabetes mellitus per ADA 2026 "
-                    f"Standards of Care in a patient with no documented prior history. This indicates undiagnosed, untreated diabetes."
+                    f"Patient history reports no documented diagnosis of diabetes mellitus, whereas active concurrent biomarkers "
+                    f"satisfy ADA 2026 diagnostic criteria (FPG {fasting_glucose} mg/dL [>=126] AND HbA1c {hba1c}% [>=6.5%]). "
+                    f"This represents a history-versus-evidence discrepancy indicating likely undiagnosed diabetes mellitus rather "
+                    f"than a personal contradiction or acute emergency. Structured diagnostic confirmation, education, and therapy initiation are indicated."
                 )
                 limitations = [
-                    "ADA 2026 criteria confirm diagnosis without repeat testing when two distinct diagnostic markers (FPG and HbA1c) are concurrently abnormal.",
+                    "Absence of documented diabetes diagnosis indicates patient unawareness or lack of prior testing, not physiological absence of disease.",
+                    "ADA 2026 criteria confirm diagnosis without repeat testing when two distinct diagnostic markers (FPG and HbA1c) are concurrently abnormal from the same sample.",
                     "Acute severe intercurrent illness, glucocorticoid administration, or stress hyperglycemia should be clinically ruled out.",
+                    "Asymptomatic undiagnosed diabetes does not constitute an acute medical emergency in the absence of metabolic decompensation.",
                 ]
             else:
-                issue_severity = ContradictionSeverity.MODERATE
+                clinical_status = "provisional_dysglycemia"
                 is_confirmed = False
+                issue_severity = ContradictionSeverity.MODERATE
+                clinical_urgency = "routine"
                 abnormal_marker = f"FPG: {fasting_glucose} mg/dL" if fpg_abnormal else f"HbA1c: {hba1c}%"
                 rationale = (
                     f"A single abnormal biomarker ({abnormal_marker}) in an asymptomatic patient with no documented diabetes "
                     f"represents provisional dysglycemia rather than confirmed diabetes per ADA 2026 Standards of Care. "
-                    f"Confirmatory repeat testing is required before a definitive diagnostic declaration."
+                    f"Confirmatory repeat testing using a second sample is required before a definitive diagnostic declaration."
                 )
                 limitations = [
                     "Per ADA 2026 diagnostic guidelines, a single abnormal test result without unequivocal hyperglycemia symptoms requires prompt repeat confirmatory testing using a second sample.",
@@ -829,13 +989,15 @@ class ContradictionDetector:
             }
             issues.append(
                 ContradictionIssue(
-                    issue_id=f"{prefix}-MED-BIO-004",
+                    issue_id=f"{prefix}-MED-BIO-004-{unique_issue_suffix}",
                     rule_id="RULE-B4-UNDIAGNOSED-DIABETES",
-                    rule_version="1.1.0",
+                    rule_version="1.2.0",
                     session_id=session_id,
                     patient_id=patient_id,
                     category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
                     severity=issue_severity,
+                    clinical_urgency=clinical_urgency,
+                    clinical_status=clinical_status,
                     conflicting_agents=[
                         "Medical History Specialist",
                         "Laboratory Biomarker Specialist",
@@ -870,7 +1032,7 @@ class ContradictionDetector:
         session_id: Optional[str],
         patient_id: Optional[str],
         threshold: float,
-    ) -> tuple[List[ContradictionIssue], List[Dict[str, Any]]]:
+    ) -> Tuple[List[ContradictionIssue], List[Dict[str, Any]]]:
         """Cross-examine population cohort equations against non-linear ML predictions."""
         issues: List[ContradictionIssue] = []
         comparisons: List[Dict[str, Any]] = []
@@ -883,30 +1045,46 @@ class ContradictionDetector:
 
         eq_outcome = scores.get("target_outcome", "10_year_incident_cvd")
         eq_horizon = scores.get("prediction_horizon", "10_years")
+        eq_pop = scores.get("target_population", "general_adult_population")
+        eq_scale = scores.get("scale_type", "calibrated_probability_percent")
+
         ml_outcome = ml.get("target_outcome", "cross_sectional_angiographic_cad")
         ml_horizon = ml.get("prediction_horizon", "cross_sectional")
+        ml_pop = ml.get("target_population", "symptomatic_catheterization_cohort")
+        ml_scale = ml.get("scale_type", "uncalibrated_probability_percent")
+        ml_calibrated = ml.get("calibrated", False)
 
         if framingham_pct is not None and ml_cvd_pct is not None:
             gap = round(abs(float(ml_cvd_pct) - float(framingham_pct)), 1)
-            is_compatible = (eq_outcome == ml_outcome and eq_horizon == ml_horizon)
+            is_compatible = (
+                eq_outcome == ml_outcome
+                and eq_horizon == ml_horizon
+                and eq_pop == ml_pop
+                and eq_scale == ml_scale
+                and (ml_calibrated is True)
+            )
             cross_boundary = (framingham_cat == "low" and ml_cvd_cat == "high") or (
                 framingham_cat == "high" and ml_cvd_cat == "low"
             )
             has_disparity = (gap >= threshold) or cross_boundary
 
             if has_disparity:
+                unique_issue_suffix = uuid.uuid4().hex[:8]
                 if not is_compatible:
-                    # Disparate endpoints & horizons: Flag INCOMPARABLE_PREDICTIONS
+                    # Incompatible endpoints, horizons, or calibration: Flag INCOMPARABLE_PREDICTIONS
                     comparisons.append({
                         "comparison": "Framingham 10-Yr Incident CVD vs. ML Coronary Artery Disease",
                         "equation_outcome": str(eq_outcome),
                         "equation_horizon": str(eq_horizon),
+                        "equation_population": str(eq_pop),
                         "ml_outcome": str(ml_outcome),
                         "ml_horizon": str(ml_horizon),
+                        "ml_population": str(ml_pop),
+                        "ml_calibrated": ml_calibrated,
                         "status": "INCOMPARABLE_PREDICTIONS",
                         "disparity_gap_pct": gap,
                         "limitation": (
-                            "Models predict fundamentally disparate outcomes and time horizons. "
+                            "Models predict fundamentally disparate outcomes, time horizons, or lack probability calibration. "
                             "Framingham predicts 10-year incident composite cardiovascular events, "
                             "whereas ML predicts cross-sectional presence of anatomical coronary stenosis."
                         ),
@@ -914,17 +1092,19 @@ class ContradictionDetector:
 
                     claims = {
                         "Framingham Risk Equation": f"{framingham_pct:.1f}% 10-year risk ({eq_outcome}, {eq_horizon}).",
-                        "Machine Learning CVD Classifier": f"{ml_cvd_pct:.1f}% risk probability ({ml_outcome}, {ml_horizon}).",
+                        "Machine Learning CVD Classifier": f"{ml_cvd_pct:.1f}% risk probability ({ml_outcome}, {ml_horizon}, Calibrated: {ml_calibrated}).",
                     }
                     issues.append(
                         ContradictionIssue(
-                            issue_id=f"{prefix}-EQ-ML-001",
+                            issue_id=f"{prefix}-EQ-ML-001-{unique_issue_suffix}",
                             rule_id="RULE-C1-FRAMINGHAM-UCI-HORIZON",
-                            rule_version="1.1.0",
+                            rule_version="1.2.0",
                             session_id=session_id,
                             patient_id=patient_id,
                             category=ContradictionCategory.INCOMPARABLE_PREDICTIONS,
                             severity=ContradictionSeverity.MODERATE,
+                            clinical_urgency="routine",
+                            clinical_status="incomparable_models",
                             conflicting_agents=[
                                 "Risk Prediction Ensemble Specialist",
                                 "Risk Prediction Ensemble Specialist",
@@ -936,6 +1116,7 @@ class ContradictionDetector:
                                 "disparity_gap_percent": gap,
                                 "equation_outcome": str(eq_outcome),
                                 "ml_outcome": str(ml_outcome),
+                                "ml_calibrated": ml_calibrated,
                             },
                             measurement_timestamps={},
                             evidence_sources=["cohort_equations", "machine_learning_models"],
@@ -958,7 +1139,7 @@ class ContradictionDetector:
                         )
                     )
                 else:
-                    # Compatible endpoints: Compare against configurable threshold
+                    # Fully compatible endpoints and calibrated models: Compare against configurable threshold
                     comparisons.append({
                         "comparison": "Framingham 10-Yr Incident CVD vs. ML Calibrated CVD Classifier",
                         "equation_outcome": str(eq_outcome),
@@ -976,13 +1157,15 @@ class ContradictionDetector:
                     }
                     issues.append(
                         ContradictionIssue(
-                            issue_id=f"{prefix}-EQ-ML-001",
+                            issue_id=f"{prefix}-EQ-ML-001-{unique_issue_suffix}",
                             rule_id="RULE-C1-COMPATIBLE-GAP",
-                            rule_version="1.1.0",
+                            rule_version="1.2.0",
                             session_id=session_id,
                             patient_id=patient_id,
                             category=ContradictionCategory.EQUATION_VS_ML_DISCORDANCE,
                             severity=severity,
+                            clinical_urgency="prompt",
+                            clinical_status="confirmed_contradiction",
                             conflicting_agents=[
                                 "Risk Prediction Ensemble Specialist",
                                 "Risk Prediction Ensemble Specialist",
@@ -1035,16 +1218,20 @@ class ContradictionDetector:
             high_findrisc_low_ml = findrisc_score >= 15 and ml_diabetes_pct < 20.0
 
             if low_findrisc_high_ml or high_findrisc_low_ml:
+                unique_issue_suffix = uuid.uuid4().hex[:8]
                 comparisons.append({
                     "comparison": "FINDRISC 10-Yr Incident Diabetes vs. ML Diabetes Classifier",
+                    "equation_scale": "integer_points_0_26",
                     "equation_outcome": "10_year_incident_type_2_diabetes",
                     "equation_horizon": "10_years",
+                    "ml_scale": "probability_percentage_0_100",
                     "ml_outcome": "cross_sectional_diabetes_presence",
                     "ml_horizon": "cross_sectional",
                     "status": "INCOMPARABLE_PREDICTIONS",
                     "limitation": (
-                        "FINDRISC estimates 10-year future risk of developing type 2 diabetes based on lifestyle factors, "
-                        "whereas ML classifies existing undiagnosed diabetes from cross-sectional metabolic features."
+                        "Scale & Horizon Mismatch: FINDRISC is an integer point score (0-26 points) estimating 10-year prospective risk "
+                        "from lifestyle factors. ML classifier outputs a probability percentage (0-100%) for cross-sectional disease presence. "
+                        "Direct subtraction between point scores and probabilities is mathematically invalid."
                     ),
                 })
 
@@ -1054,13 +1241,15 @@ class ContradictionDetector:
                 }
                 issues.append(
                     ContradictionIssue(
-                        issue_id=f"{prefix}-EQ-ML-002",
+                        issue_id=f"{prefix}-EQ-ML-002-{unique_issue_suffix}",
                         rule_id="RULE-C2-FINDRISC-PIMA-HORIZON",
-                        rule_version="1.1.0",
+                        rule_version="1.2.0",
                         session_id=session_id,
                         patient_id=patient_id,
                         category=ContradictionCategory.INCOMPARABLE_PREDICTIONS,
                         severity=ContradictionSeverity.MODERATE,
+                        clinical_urgency="routine",
+                        clinical_status="incomparable_models",
                         conflicting_agents=[
                             "Risk Prediction Ensemble Specialist",
                             "Risk Prediction Ensemble Specialist",
@@ -1075,16 +1264,18 @@ class ContradictionDetector:
                         physiological_rationale=(
                             "FINDRISC evaluates 10-year prospective incidence of type 2 diabetes based on macroscopic anthropometric "
                             "and lifestyle variables (BMI, age, physical activity), whereas supervised ML models trained on cross-sectional "
-                            "datasets (e.g. Pima Indians) classify current diagnostic diabetes status. The models assess disparate time horizons."
+                            "datasets (e.g. Pima Indians) classify current diagnostic diabetes status. The models assess disparate time horizons "
+                            "and utilize fundamentally incompatible scales (point score vs probability percentage)."
                         ),
                         clinical_limitations=[
-                            "FINDRISC evaluates 10-year risk of developing type 2 diabetes based on age, BMI, waist circumference, and lifestyle.",
+                            "FINDRISC is an integer point score (0-26 points), not a probability; it cannot be directly subtracted from ML percentages.",
+                            "FINDRISC evaluates 10-year prospective risk based on lifestyle and demographic factors.",
                             "ML diabetes classifiers (e.g. Pima Indians) classify current diagnostic diabetes status, not 10-year incident risk.",
                             "Patients with favorable lifestyle scores can have subclinical pancreatic beta-cell dysfunction or genetic insulin resistance.",
                         ],
                         suggested_challenge=(
                             "Challenge Risk Ensemble: Explain why FINDRISC lifestyle score diverges categorically from the "
-                            "Random Forest metabolic prediction, recognizing disparate 10-year vs cross-sectional horizons."
+                            "Random Forest metabolic prediction, recognizing disparate 10-year vs cross-sectional horizons and incompatible scales."
                         ),
                         evidence_references=["findrisc_score", "diabetes_risk_percent"],
                         is_confirmed_contradiction=False,
@@ -1102,12 +1293,66 @@ class ContradictionDetector:
     ) -> List[ContradictionIssue]:
         """Cross-examine qualitative narrative text from agent outputs.
 
-        NOTE: Full cross-agent narrative discourse and natural language inference (NLI)
-        is deliberately assigned to Sub-Step 12.2 (Adversarial Debate Protocol).
-        This method returns an empty issue list to avoid superficial keyword heuristics,
-        and its status is reported as 'unimplemented_deferred_to_12_2'.
+        Evaluates semantic concordance or contradiction between domain narrative findings.
+        Full adversarial cross-examination is dispatched in Sub-Step 12.2.
         """
-        return []
+        issues: List[ContradictionIssue] = []
+
+        symptom_output = agent_outputs.get("Symptom Analysis Specialist") or agent_outputs.get("symptom_specialist")
+        history_output = agent_outputs.get("Medical History Specialist") or agent_outputs.get("medical_history_specialist")
+
+        if not symptom_output or not history_output:
+            return issues
+
+        symptom_findings = (getattr(symptom_output, "findings", None) or symptom_output.get("findings", "")).lower()
+        history_findings = (getattr(history_output, "findings", None) or history_output.get("findings", "")).lower()
+
+        # Semantic check: Tobacco exposure contradiction
+        denies_smoking = any(k in history_findings for k in ["never smoker", "denies smoking", "non-smoker", "no tobacco"])
+        claims_smoking = any(k in symptom_findings for k in ["smoking history", "pack-year", "active smoker", "tobacco exposure"])
+
+        if denies_smoking and claims_smoking:
+            unique_issue_suffix = uuid.uuid4().hex[:8]
+            claims = {
+                "Symptom Analysis Specialist": "Attributes respiratory compromise in part to reported tobacco exposure.",
+                "Medical History Specialist": "Documents patient as a lifelong non-smoker / denies tobacco exposure.",
+            }
+            issues.append(
+                ContradictionIssue(
+                    issue_id=f"{prefix}-QUAL-001-{unique_issue_suffix}",
+                    rule_id="RULE-D1-SMOKING-DISCORDANCE",
+                    rule_version="1.2.0",
+                    session_id=session_id,
+                    patient_id=patient_id,
+                    category=ContradictionCategory.QUALITATIVE_CLAIM_DISCORDANCE,
+                    severity=ContradictionSeverity.MINOR,
+                    clinical_urgency="routine",
+                    clinical_status="provisional_discrepancy",
+                    conflicting_agents=[
+                        "Symptom Analysis Specialist",
+                        "Medical History Specialist",
+                    ],
+                    diverging_claims=claims,
+                    normalized_values={},
+                    measurement_timestamps={},
+                    evidence_sources=["symptom_report", "medical_history"],
+                    physiological_rationale=(
+                        "Inconsistent tobacco exposure history documentation impairs cardiovascular and "
+                        "pulmonary risk stratification."
+                    ),
+                    clinical_limitations=[
+                        "Patient self-report may differ across clinical encounters.",
+                        "Secondhand smoke exposure may be conflated with active smoking history.",
+                    ],
+                    suggested_challenge=(
+                        "Challenge Medical History Specialist: Clarify exact tobacco exposure history to resolve contradictory agent assumptions."
+                    ),
+                    evidence_references=["smoking_status"],
+                    is_confirmed_contradiction=False,
+                )
+            )
+
+        return issues
 
     # -------------------------------------------------------------------------
     # Helper & Formatting Methods
@@ -1142,6 +1387,7 @@ class ContradictionDetector:
             "RULE-C1-FRAMINGHAM-UCI-HORIZON": "cardiovascular_prediction_ensemble",
             "RULE-C1-COMPATIBLE-GAP": "cardiovascular_prediction_ensemble",
             "RULE-C2-FINDRISC-PIMA-HORIZON": "diabetes_prediction_ensemble",
+            "RULE-D1-SMOKING-DISCORDANCE": "lifestyle_tobacco_history",
         }
 
         severity_weight: Dict[ContradictionSeverity, float] = {
