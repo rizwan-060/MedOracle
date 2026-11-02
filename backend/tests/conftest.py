@@ -27,15 +27,34 @@ def test_settings() -> Settings:
 
 
 @pytest.fixture
-def client(monkeypatch, test_settings: Settings):
-    """Fixture returning a TestClient with an in-memory SQLite database."""
-    # Create SQLite engine with StaticPool so all connections share the memory DB
-    test_engine = create_engine(
+def test_engine():
+    """Fixture returning an in-memory SQLite engine with StaticPool."""
+    engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=test_engine)
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db_session(test_engine):
+    """Fixture returning an active SQLAlchemy database session bound to test_engine."""
+    TestingSessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False
+    )
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def client(monkeypatch, test_settings: Settings, test_engine):
+    """Fixture returning a TestClient bound to test_engine."""
     TestingSessionLocal = sessionmaker(
         autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False
     )
@@ -55,5 +74,3 @@ def client(monkeypatch, test_settings: Settings):
 
     with TestClient(app) as test_client:
         yield test_client
-
-    Base.metadata.drop_all(bind=test_engine)
