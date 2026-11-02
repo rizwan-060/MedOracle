@@ -43,7 +43,7 @@ def test_contradiction_detection(
     """
     start_time = time.perf_counter()
     try:
-        detector = ContradictionDetector()
+        detector = ContradictionDetector(default_disagreement_threshold=payload.disagreement_threshold)
         result = detector.evaluate_contradictions(
             symptoms_data=payload.symptoms_data,
             medical_history_data=payload.medical_history_data,
@@ -51,6 +51,9 @@ def test_contradiction_detection(
             clinical_scores=payload.clinical_scores,
             ml_predictions=payload.ml_predictions,
             agent_outputs=payload.agent_outputs,
+            session_id=payload.session_id,
+            patient_id=payload.patient_id,
+            disagreement_threshold=payload.disagreement_threshold,
         )
 
         execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
