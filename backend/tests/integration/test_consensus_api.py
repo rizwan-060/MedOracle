@@ -346,3 +346,257 @@ def test_authenticated_recalibration_concordant_scenario(client: TestClient, db_
     assert recal["global_epistemic_doubt_score"] <= 0.15
 
 
+def test_cross_tenant_recalibration_forbidden(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/recalibrate must reject cross-tenant patient access with 403."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_recal_tenant@example.com")
+
+    payload = {
+        "patient_id": "00000000-0000-0000-0000-000000000099",
+        "symptoms_data": {"symptoms": ["chest_pain"], "severity": 8},
+    }
+
+    res = client.post("/api/v1/consensus/recalibrate", json=payload, headers=headers)
+    assert res.status_code == 403
+    assert "Cross-tenant access forbidden" in res.json()["detail"]
+
+
+def test_authenticated_owner_patient_profile_access_allowed(client: TestClient, db_session) -> None:
+    """Authenticated user accessing their own database-backed PatientProfile succeeds with 200."""
+    from app.database.repositories import PatientProfileRepository
+    user_a, headers_a = _create_authenticated_doctor(db_session, email="user_owner_a@example.com")
+
+    # Create PatientProfile in DB belonging to User A
+    profile_repo = PatientProfileRepository(db_session)
+    profile_a = profile_repo.create_or_update(
+        user_id=user_a.id,
+        gender="male",
+        height_cm=180.0,
+        weight_kg=78.0,
+    )
+
+    payload = {
+        "patient_id": profile_a.id,
+        "symptoms_data": {"symptoms": ["chest_pain"], "severity": 6},
+    }
+
+    res = client.post("/api/v1/consensus/recalibrate", json=payload, headers=headers_a)
+    assert res.status_code == 200
+    assert res.json()["status"] == "success"
+
+
+def test_cross_tenant_patient_profile_access_denied(client: TestClient, db_session) -> None:
+    """User A attempting to process data using User B's persistent database PatientProfile is rejected with 403."""
+    from app.database.repositories import PatientProfileRepository
+    user_a, headers_a = _create_authenticated_doctor(db_session, email="user_attacker_a@example.com")
+    user_b, _ = _create_authenticated_doctor(db_session, email="user_victim_b@example.com")
+
+    # Create PatientProfile in DB belonging to User B
+    profile_repo = PatientProfileRepository(db_session)
+    profile_b = profile_repo.create_or_update(
+        user_id=user_b.id,
+        gender="female",
+        height_cm=165.0,
+        weight_kg=60.0,
+    )
+
+    # User A tries to pass User B's profile ID
+    payload = {
+        "patient_id": profile_b.id,
+        "symptoms_data": {"symptoms": ["chest_pain"], "severity": 8},
+    }
+
+    res = client.post("/api/v1/consensus/recalibrate", json=payload, headers=headers_a)
+    assert res.status_code == 403
+    assert "Cross-tenant access forbidden" in res.json()["detail"]
+
+
+def test_cross_tenant_access_denied_on_contradiction_and_debate(client: TestClient, db_session) -> None:
+    """Cross-tenant access is consistently blocked on /contradictions/test and /debate/test endpoints."""
+    from app.database.repositories import PatientProfileRepository
+    user_a, headers_a = _create_authenticated_doctor(db_session, email="dr_sec_a@example.com")
+    user_b, _ = _create_authenticated_doctor(db_session, email="dr_sec_b@example.com")
+
+    profile_repo = PatientProfileRepository(db_session)
+    profile_b = profile_repo.create_or_update(
+        user_id=user_b.id,
+        gender="male",
+        height_cm=170.0,
+        weight_kg=75.0,
+    )
+
+    payload = {"patient_id": profile_b.id}
+
+    # 1. Contradictions endpoint
+    res1 = client.post("/api/v1/consensus/contradictions/test", json=payload, headers=headers_a)
+    assert res1.status_code == 403
+    assert "Cross-tenant access forbidden" in res1.json()["detail"]
+
+    # 2. Debate endpoint
+    res2 = client.post("/api/v1/consensus/debate/test", json=payload, headers=headers_a)
+    assert res2.status_code == 403
+    assert "Cross-tenant access forbidden" in res2.json()["detail"]
+
+    # 3. Step 12.4: Resolve endpoint
+    res3 = client.post("/api/v1/consensus/resolve", json=payload, headers=headers_a)
+    assert res3.status_code == 403
+    assert "Cross-tenant access forbidden" in res3.json()["detail"]
+
+
+# =============================================================================
+# Sub-Step 12.4: Consensus Resolution & Audit Debate Transcript Tests
+# =============================================================================
+
+def test_unauthenticated_resolve_endpoint_rejected(client: TestClient) -> None:
+    """POST /api/v1/consensus/resolve must reject unauthenticated requests with 401."""
+    res = client.post("/api/v1/consensus/resolve", json={})
+    assert res.status_code == 401
+
+
+def test_authenticated_resolve_endpoint_default_payload(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/resolve with default payload executes resolution pipeline."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_resolver_1@example.com")
+
+    res = client.post(
+        "/api/v1/consensus/resolve",
+        json={},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["status"] == "success"
+    assert data["execution_time_ms"] >= 0.0
+
+    resolution = data["resolution"]
+    assert "overall_outcome" in resolution
+    assert "claim_resolutions" in resolution
+    assert "audit_transcript" in resolution
+    assert "clinical_safety_warnings" in resolution
+
+    # Claims evaluated
+    assert len(resolution["claim_resolutions"]) >= 1
+    for claim in resolution["claim_resolutions"]:
+        assert "claim_id" in claim
+        assert "consensus_state" in claim
+        assert "recalibrated_confidence" in claim
+        assert "resolution_rationale" in claim
+
+    # Audit transcript structure
+    transcript = resolution["audit_transcript"]
+    assert transcript["transcript_id"].startswith("TRANSCRIPT-")
+    assert transcript["is_immutable"] is True
+    assert transcript["debate_rounds_executed"] >= 1
+
+
+def test_authenticated_verdict_test_backward_compatible_alias(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/verdict/test functions as a valid alias for /resolve."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_alias_test@example.com")
+
+    res = client.post(
+        "/api/v1/consensus/verdict/test",
+        json={},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "success"
+    assert "resolution" in data
+    assert data["resolution"]["overall_outcome"] in [
+        "CONSENSUS_SUPPORTED",
+        "CONSENSUS_PROVISIONAL",
+        "PARTIAL_CONSENSUS",
+        "UNRESOLVED_CONSENSUS",
+        "INSUFFICIENT_EVIDENCE",
+    ]
+
+
+def test_end_to_end_consensus_with_acute_safety_override(client: TestClient, db_session) -> None:
+    """POST /api/v1/consensus/resolve extracts emergent safety override for acute chest pain."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_e2e_safety@example.com")
+
+    payload = {
+        "symptoms_data": {
+            "symptoms": ["acute crushing chest pain", "diaphoresis"],
+            "severity": 9,
+            "duration_days": 1,
+            "notes": "Sudden onset substernal chest pressure radiating to left arm.",
+        },
+        "laboratory_data": {
+            "systolic_bp": 150.0,
+            "diastolic_bp": 95.0,
+            # troponin_i not provided -> missing essential evidence
+        },
+    }
+
+    res = client.post("/api/v1/consensus/resolve", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()["resolution"]
+
+    # Critical emergent safety override must be present
+    assert len(data["clinical_safety_warnings"]) >= 1
+    emergent_overrides = [
+        o for o in data["clinical_safety_warnings"]
+        if o["level"] == "emergent" and "ACS" in o["condition_name"]
+    ]
+    assert len(emergent_overrides) >= 1
+    assert "troponin" in emergent_overrides[0]["action_recommendation"].lower()
+
+
+def test_persisted_consensus_result_and_transcript_endpoints(client: TestClient, db_session) -> None:
+    """GET /{analysis_id}/result and /{analysis_id}/transcript retrieve stored records with tenant security."""
+    from app.agents.consensus.consensus_resolver import ConsensusResolver
+    from app.database.models import AnalysisSession
+    import uuid
+
+    user_owner, headers_owner = _create_authenticated_doctor(db_session, email="dr_owner_rec@example.com")
+    user_other, headers_other = _create_authenticated_doctor(db_session, email="dr_other_rec@example.com")
+
+    # Generate a genuine, schema-compliant ConsensusResolutionResult
+    test_session_id = str(uuid.uuid4())
+    resolver = ConsensusResolver()
+    valid_resolution = resolver.resolve_consensus(
+        session_id=test_session_id,
+        analysis_id=test_session_id,
+    )
+
+    session_record = AnalysisSession(
+        id=test_session_id,
+        user_id=user_owner.id,
+        status="completed",
+        consensus_verdict=valid_resolution.model_dump(),
+    )
+    db_session.add(session_record)
+    db_session.commit()
+
+    # 1. Owner can access result
+    res_result = client.get(f"/api/v1/consensus/{test_session_id}/result", headers=headers_owner)
+    assert res_result.status_code == 200
+    data = res_result.json()
+    assert data["analysis_id"] == test_session_id
+    assert "overall_outcome" in data
+
+    # 2. Owner can access transcript
+    res_trans = client.get(f"/api/v1/consensus/{test_session_id}/transcript", headers=headers_owner)
+    assert res_trans.status_code == 200
+    trans_data = res_trans.json()
+    assert trans_data["analysis_id"] == test_session_id
+    assert trans_data["is_immutable"] is True
+
+    # 3. Other clinician receives 403 Forbidden
+    res_forbidden_result = client.get(f"/api/v1/consensus/{test_session_id}/result", headers=headers_other)
+    assert res_forbidden_result.status_code == 403
+    assert "Forbidden" in res_forbidden_result.json()["detail"]
+
+    res_forbidden_trans = client.get(f"/api/v1/consensus/{test_session_id}/transcript", headers=headers_other)
+    assert res_forbidden_trans.status_code == 403
+    assert "Forbidden" in res_forbidden_trans.json()["detail"]
+
+    # 4. Non-existent session returns 404
+    non_existent = str(uuid.uuid4())
+    res_404 = client.get(f"/api/v1/consensus/{non_existent}/result", headers=headers_owner)
+    assert res_404.status_code == 404
+
+
+
+
+

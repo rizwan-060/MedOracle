@@ -814,6 +814,14 @@ class ClaimRecalibrationRecord(BaseModel):
         default_factory=list,
         description="Verified independent biomarker keys or clinical sources substantiating this claim.",
     )
+    conflicting_evidence_references: List[str] = Field(
+        default_factory=list,
+        description="Verified biomarker or clinical sources that conflict with or fail to support this claim.",
+    )
+    evidence_quality_caveats: List[str] = Field(
+        default_factory=list,
+        description="Quality, staleness, or normalization caveats regarding cited clinical evidence.",
+    )
     contradiction_issue_ids: List[str] = Field(
         default_factory=list,
         description="Contradiction issue IDs from Step 12.1 that affected this claim.",
@@ -964,6 +972,158 @@ class RecalibrationTestResponse(BaseModel):
     debate_transcript: DebateTranscript = Field(...)
     recalibration_result: ConfidenceRecalibrationResult = Field(...)
     execution_time_ms: float = Field(..., ge=0.0)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# =============================================================================
+# Sub-Step 12.4: Consensus Resolution & Audit Debate Transcript Schemas
+# =============================================================================
+
+class ClaimConsensusState(str, Enum):
+    """Explicit claim-level consensus resolution state model."""
+
+    SUPPORTED = "SUPPORTED"
+    PROVISIONAL = "PROVISIONAL"
+    CONFLICTING = "CONFLICTING"
+    UNRESOLVED = "UNRESOLVED"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+    UNSUPPORTED = "UNSUPPORTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+class OverallConsensusOutcome(str, Enum):
+    """Analysis-level multi-claim aggregate consensus outcome."""
+
+    CONSENSUS_SUPPORTED = "CONSENSUS_SUPPORTED"
+    CONSENSUS_PROVISIONAL = "CONSENSUS_PROVISIONAL"
+    PARTIAL_CONSENSUS = "PARTIAL_CONSENSUS"
+    UNRESOLVED_CONSENSUS = "UNRESOLVED_CONSENSUS"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class SafetyOverrideLevel(str, Enum):
+    """Urgency grading for clinical safety overrides."""
+
+    EMERGENT = "emergent"
+    URGENT = "urgent"
+    WARNING = "warning"
+
+
+class SafetyOverrideWarning(BaseModel):
+    """Critical clinical safety warning preserved independently of consensus."""
+
+    warning_id: str = Field(..., description="Unique collision-proof safety warning identifier.")
+    condition_name: str = Field(..., description="High-risk clinical condition (e.g. 'Acute Coronary Syndrome', 'DKA', 'Hypertensive Emergency').")
+    level: SafetyOverrideLevel = Field(..., description="Safety override urgency level ('emergent', 'urgent', 'warning').")
+    trigger_rationale: str = Field(..., description="Objective clinical rationale triggering the safety alert.")
+    action_recommendation: str = Field(..., description="Immediate clinical action recommendation (e.g. 'Immediate ED evaluation with serial troponins and 12-lead ECG').")
+    overrides_consensus: bool = Field(default=True, description="True if alert remains active regardless of agent agreement or debate outcome.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClaimResolutionRecord(BaseModel):
+    """Auditable claim-level consensus decision record."""
+
+    claim_id: str = Field(..., description="Unique claim identifier.")
+    agent_id: str = Field(..., description="Specialist agent role or identifier.")
+    original_claim: str = Field(..., description="Original claim narrative as formulated pre-debate.")
+    clinical_domain: str = Field(..., description="Clinical domain ('ischemia', 'lipidology', 'hemodynamics', 'glycemia', 'cardiovascular_risk', 'general').")
+    consensus_state: ClaimConsensusState = Field(..., description="Claim-level consensus outcome.")
+    recalibrated_confidence: float = Field(..., ge=0.0, le=100.0, description="Recalibrated support score.")
+    final_confidence: float = Field(..., ge=0.0, le=100.0, description="Post-cap bounded confidence.")
+    evidence_grounding_references: List[str] = Field(default_factory=list, description="Verified patient evidence keys directly supporting this claim.")
+    evidence_classifications: Dict[str, str] = Field(default_factory=dict, description="Classifications for all evaluated evidence items.")
+    conflicting_evidence_references: List[str] = Field(default_factory=list, description="Evidence items that contradict this claim.")
+    missing_evidence_details: List[str] = Field(default_factory=list, description="Essential clinical evidence missing for this claim.")
+    contradiction_issue_ids: List[str] = Field(default_factory=list, description="Contradiction issue IDs from Step 12.1 affecting this claim.")
+    debate_outcome: Optional[str] = Field(default=None, description="Debate outcome ('conceded', 'revised', 'unresolved_disagreement', 'unsupported').")
+    is_withdrawn: bool = Field(default=False, description="True if claim was formally withdrawn by specialist.")
+    is_revised: bool = Field(default=False, description="True if claim was modified during debate.")
+    revised_claim_text: Optional[str] = Field(default=None, description="Revised claim narrative if applicable.")
+    domain_epistemic_doubt: float = Field(default=0.0, ge=0.0, le=1.0, description="Residual epistemic doubt for this claim's domain.")
+    resolution_rationale: str = Field(..., description="Transparent clinical decision rationale explaining consensus state.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditDebateTranscript(BaseModel):
+    """Complete, immutable, and traceable audit transcript of multi-agent deliberation and consensus resolution."""
+
+    transcript_id: str = Field(..., description="Unique collision-proof audit transcript identifier.")
+    session_id: Optional[str] = Field(default=None, description="Traceable analysis session identifier.")
+    analysis_id: Optional[str] = Field(default=None, description="Traceable analysis identifier.")
+    patient_id: Optional[str] = Field(default=None, description="Traceable patient identifier.")
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO 8601 creation timestamp.")
+    completed_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO 8601 completion timestamp.")
+    participating_agents: List[str] = Field(default_factory=list, description="List of specialist agent roles participating in deliberation.")
+    original_claims: List[Dict[str, Any]] = Field(default_factory=list, description="All pre-debate specialist claims with initial confidence.")
+    evidence_references: List[str] = Field(default_factory=list, description="All verified patient biomarkers and clinical sources cited.")
+    contradiction_records: List[Dict[str, Any]] = Field(default_factory=list, description="All detected contradiction issues with severity.")
+    debate_rounds_executed: int = Field(default=2, ge=1, le=2, description="Total debate rounds executed (bounded at 2).")
+    challenges: List[Dict[str, Any]] = Field(default_factory=list, description="Round 1 challenges issued across specialist agents.")
+    rebuttals: List[Dict[str, Any]] = Field(default_factory=list, description="Round 2 rebuttals, defenses, and concessions submitted.")
+    revisions: List[Dict[str, Any]] = Field(default_factory=list, description="Recorded claim revisions during debate.")
+    concessions: List[Dict[str, Any]] = Field(default_factory=list, description="Recorded concessions during debate.")
+    unsupported_findings: List[str] = Field(default_factory=list, description="Findings identified as lacking empirical evidentiary backing.")
+    recalibrated_claim_support_scores: Dict[str, float] = Field(default_factory=dict, description="Recalibrated support scores mapped by claim ID.")
+    epistemic_doubt_values: Dict[str, float] = Field(default_factory=dict, description="Domain-decomposed epistemic doubt scores.")
+    claim_resolutions: List[ClaimResolutionRecord] = Field(default_factory=list, description="Claim-level consensus resolution decisions.")
+    overall_outcome: OverallConsensusOutcome = Field(..., description="Aggregate multi-claim consensus outcome.")
+    clinical_safety_warnings: List[SafetyOverrideWarning] = Field(default_factory=list, description="Active emergency/urgent clinical safety overrides.")
+    unresolved_issues: List[str] = Field(default_factory=list, description="Summary of unresolved disagreements and epistemic uncertainties.")
+    final_resolution_rationale: str = Field(..., description="Comprehensive clinical rationale explaining final outcome.")
+    transcript_version: str = Field(default="consensus_audit_v1.0.0", description="Audit schema version.")
+    is_immutable: bool = Field(default=True, description="Audit immutability guarantee.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConsensusResolutionResult(BaseModel):
+    """Output of the Sub-Step 12.4 Consensus Resolution Engine."""
+
+    session_id: Optional[str] = Field(default=None, description="Session identifier.")
+    analysis_id: Optional[str] = Field(default=None, description="Analysis identifier.")
+    patient_id: Optional[str] = Field(default=None, description="Patient identifier.")
+    overall_outcome: OverallConsensusOutcome = Field(..., description="Overall analysis consensus outcome.")
+    claim_resolutions: List[ClaimResolutionRecord] = Field(default_factory=list, description="Resolved claim-level records.")
+    clinical_safety_warnings: List[SafetyOverrideWarning] = Field(default_factory=list, description="Independent safety overrides.")
+    global_epistemic_doubt_score: float = Field(..., ge=0.0, le=1.0, description="Global epistemic doubt score.")
+    audit_transcript: AuditDebateTranscript = Field(..., description="Complete auditable debate and consensus transcript.")
+    resolution_summary: str = Field(..., description="Executive clinical resolution summary.")
+    methodological_notes: List[str] = Field(default_factory=list, description="Methodological limitations and safety guardrails.")
+    resolved_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO 8601 resolution timestamp.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConsensusResolutionRequest(BaseModel):
+    """Request payload for Consensus Resolution & Audit Transcript Generation."""
+
+    session_id: Optional[str] = Field(default=None, description="Optional session identifier.")
+    analysis_id: Optional[str] = Field(default=None, description="Optional analysis identifier.")
+    patient_id: Optional[str] = Field(default=None, description="Optional patient identifier for authorization.")
+    disagreement_threshold: float = Field(default=25.0, ge=5.0, le=50.0)
+    agent_outputs: Optional[List[AgentOutputResponse]] = Field(default=None)
+    contradiction_matrix: Optional[ContradictionMatrixResult] = Field(default=None)
+    debate_transcript: Optional[DebateTranscript] = Field(default=None)
+    recalibration_result: Optional[ConfidenceRecalibrationResult] = Field(default=None)
+    symptoms_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    medical_history_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    laboratory_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    clinical_scores: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    ml_predictions: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConsensusResolutionResponse(BaseModel):
+    """Response payload for Consensus Resolution API."""
+
+    status: str = Field(default="success", description="Status string ('success', 'failed').")
+    resolution: ConsensusResolutionResult = Field(..., description="Consensus resolution result with transcript.")
+    execution_time_ms: float = Field(..., ge=0.0, description="Latency in milliseconds.")
 
     model_config = ConfigDict(from_attributes=True)
 
