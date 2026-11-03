@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/assessment/screens/assessment_primary_finding_screen.dart';
-import '../../features/auth/screens/auth_screen.dart';
+import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/signup_screen.dart';
 import '../../features/dashboard/screens/home_dashboard_screen.dart';
 import '../../features/doctors/screens/doctor_recommendation_screen.dart';
 import '../../features/intake/screens/step1_chronic_conditions_and_history_input_screen.dart';
@@ -17,7 +18,9 @@ import 'route_names.dart';
 
 /// Application router.
 ///
-/// Authentication is the entry point at `'/'`, routing forward to `/dashboard`.
+/// Authentication is the entry point at `/login`, routing forward to
+/// `/dashboard`. Both `/` and `/auth` redirect to `/login`, and `/signup`
+/// holds the account-creation form.
 ///
 /// Intake wizard:
 /// ```text
@@ -42,13 +45,28 @@ import 'route_names.dart';
 /// ```
 GoRouter createAppRouter() {
   return GoRouter(
-    initialLocation: RouteNames.auth,
+    initialLocation: RouteNames.login,
     routes: <RouteBase>[
       // --- Auth -------------------------------------------------------------
       GoRoute(
-        path: RouteNames.auth,
+        path: '/',
+        redirect: (BuildContext context, GoRouterState state) =>
+            RouteNames.login,
+      ),
+      GoRoute(
+        path: '/auth',
+        redirect: (BuildContext context, GoRouterState state) =>
+            RouteNames.login,
+      ),
+      GoRoute(
+        path: RouteNames.login,
         builder: (BuildContext context, GoRouterState state) =>
-            const AuthScreen(),
+            const LoginScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.signup,
+        builder: (BuildContext context, GoRouterState state) =>
+            const SignUpScreen(),
       ),
 
       // --- Home Dashboard ---------------------------------------------------
@@ -110,49 +128,51 @@ GoRouter createAppRouter() {
         path: RouteNames.resultsReports,
         builder: (BuildContext context, GoRouterState state) =>
             AssessmentMainFindingScreen(
-          onTrajectoryAction: () => context.push(RouteNames.resultsTrajectory),
-          onReasoningAction: () => context.push(RouteNames.resultsReasoning),
-          onClose: () => context.go(RouteNames.dashboard),
-        ),
+              onTrajectoryAction: () =>
+                  context.push(RouteNames.resultsTrajectory),
+              onReasoningAction: () =>
+                  context.push(RouteNames.resultsReasoning),
+              onClose: () => context.go(RouteNames.dashboard),
+            ),
       ),
       GoRoute(
         path: RouteNames.resultsReasoning,
         builder: (BuildContext context, GoRouterState state) =>
             FirstAssessmentScreen(
-          onPrimaryAction: () => context.push(RouteNames.resultsTrajectory),
-          onSecondaryAction: () => context.go(RouteNames.resultsReports),
-          onClose: () => context.go(RouteNames.resultsReports),
-        ),
+              onPrimaryAction: () => context.push(RouteNames.resultsTrajectory),
+              onSecondaryAction: () => context.go(RouteNames.resultsReports),
+              onClose: () => context.go(RouteNames.resultsReports),
+            ),
       ),
       GoRoute(
         path: RouteNames.resultsTrajectory,
         builder: (BuildContext context, GoRouterState state) =>
             RiskTrajectoryScreen(
-          onSecondaryAction: () => context.go(RouteNames.resultsReports),
-          onClose: () => context.go(RouteNames.resultsReports),
-        ),
+              onSecondaryAction: () => context.go(RouteNames.resultsReports),
+              onClose: () => context.go(RouteNames.resultsReports),
+            ),
       ),
       GoRoute(
         path: RouteNames.resultsCareFinder,
         builder: (BuildContext context, GoRouterState state) =>
             DoctorRecommendationScreen(
-          backLabel: context.canPop() ? 'Back' : 'Back to Dashboard',
-          onBack: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(RouteNames.dashboard);
-            }
-          },
-        ),
+              backLabel: context.canPop() ? 'Back' : 'Back to Dashboard',
+              onBack: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(RouteNames.dashboard);
+                }
+              },
+            ),
       ),
       GoRoute(
         path: RouteNames.resultsSimulate,
         builder: (BuildContext context, GoRouterState state) =>
             SimulateLifestyleScreen(
-          onClose: () => context.go(RouteNames.dashboard),
-          onSaveActionPlan: () => context.go(RouteNames.dashboard),
-        ),
+              onClose: () => context.go(RouteNames.dashboard),
+              onSaveActionPlan: () => context.go(RouteNames.dashboard),
+            ),
       ),
     ],
   );
