@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, validate_patient_access
 from app.database.models import User
 from app.database.repositories import LabResultRepository
 import time
@@ -29,6 +29,7 @@ router = APIRouter(prefix="/laboratory", tags=["Laboratory"])
 def normalize_biomarkers(
     payload: BiomarkerNormalizationBatchRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> BiomarkerNormalizationBatchResponse:
     """Normalize raw OCR-extracted laboratory items, convert units, and validate against clinical registries.
 
@@ -39,12 +40,8 @@ def normalize_biomarkers(
     - Retains full provenance: raw strings, conversion multipliers, laboratory reference intervals, and audit caveats.
     - Returns clean canonical_biomarkers_dict ready for immediate consumption by downstream ML/risk models.
     """
-    # Enforce strict tenant isolation: prevent normalizing on behalf of another patient ID
-    if payload.patient_id and payload.patient_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cross-tenant access forbidden: Cannot access or normalize laboratory documents for another patient.",
-        )
+    # Enforce strict tenant isolation: verify patient ownership relationship
+    validate_patient_access(payload.patient_id, current_user, db)
 
     start_time = time.perf_counter()
 
