@@ -1,8 +1,12 @@
 """MedOracle LangGraph Multi-Agent Orchestration Package (Step 11)."""
 
 from app.graph.nodes import (
+    consensus_node,
+    contradiction_node,
+    debate_node,
     laboratory_node,
     medical_history_node,
+    recalibration_node,
     risk_prediction_node,
     symptom_node,
 )
@@ -21,6 +25,10 @@ __all__ = [
     "medical_history_node",
     "laboratory_node",
     "risk_prediction_node",
+    "contradiction_node",
+    "debate_node",
+    "recalibration_node",
+    "consensus_node",
     "build_clinical_orchestration_graph",
     "get_compiled_clinical_graph",
     "run_clinical_graph",

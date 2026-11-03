@@ -79,7 +79,7 @@ def test_authenticated_pipeline_success(client: TestClient, db_session):
 
     assert data["session_id"].startswith("session_")
     assert data["status"] == "completed"
-    assert data["current_phase"] == "risk_prediction_completed"
+    assert data["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed"]
     assert data["completed_at"] is not None
 
     # Verify agent outputs
@@ -95,4 +95,6 @@ def test_authenticated_pipeline_success(client: TestClient, db_session):
     assert data["medical_history_output"] is not None
     assert data["laboratory_output"] is not None
     assert data["risk_prediction_output"] is not None
+    assert data.get("consensus_resolution") is not None
+    assert data.get("audit_transcript") is not None
     assert len(data["errors"]) == 0

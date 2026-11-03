@@ -27,6 +27,7 @@ from app.schemas.consensus import (
     AuditDebateTranscript,
     ClaimConsensusState,
     ClaimRecalibrationRecord,
+    ClaimRelationshipType,
     ConfidenceRecalibrationResult,
     ContradictionCategory,
     ContradictionIssue,
@@ -35,6 +36,7 @@ from app.schemas.consensus import (
     DebateTranscript,
     OverallConsensusOutcome,
     SafetyOverrideLevel,
+    SafetyOverrideLifecycleState,
 )
 
 
@@ -427,3 +429,162 @@ def test_transcript_generation_idempotency(
     assert len(res1.claim_resolutions) == len(res2.claim_resolutions)
     assert res1.claim_resolutions[0].consensus_state == res2.claim_resolutions[0].consensus_state
     assert res1.claim_resolutions[0].final_confidence == res2.claim_resolutions[0].final_confidence
+
+
+def test_claim_relationship_modeling_comorbidities_and_contradictions(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Test pairwise modeling of COMPATIBLE comorbidities, MUTUALLY_EXCLUSIVE claims, and HIERARCHICAL subsumption."""
+    agent_outputs = [
+        {"agent_role": "Cardiologist", "findings": "Essential hypertension confirmed stage 2.", "confidence": 85.0},
+        {"agent_role": "Endocrinologist", "findings": "Type 2 diabetes mellitus with uncontrolled fasting glucose.", "confidence": 85.0},
+        {"agent_role": "Symptom Analyst", "findings": "Acute myocardial infarction with substernal crushing pain.", "confidence": 80.0},
+        {"agent_role": "Triage Clinician", "findings": "Non-cardiac chest pain with normal troponin, acute ischemia ruled out.", "confidence": 75.0},
+    ]
+    labs = {
+        "systolic_bp": 155.0,
+        "fasting_blood_glucose_mg_dl": 165.0,
+        "cardiac_troponin_ng_ml": 0.08,
+    }
+
+    recal = recalibrator.recalibrate_panel(agent_outputs=agent_outputs, laboratory_data=labs)
+    resolution = resolver.resolve_consensus(recalibration_result=recal, laboratory_data=labs)
+
+    assert len(resolution.claim_relationships) > 0
+    rel_types = [r.relationship_type for r in resolution.claim_relationships]
+
+    # HTN and T2D must be recognized as COMPATIBLE
+    compat_rels = [r for r in resolution.claim_relationships if r.relationship_type == ClaimRelationshipType.COMPATIBLE]
+    assert len(compat_rels) >= 1
+    assert any("hypertension" in r.clinical_rationale.lower() or "t2d" in r.clinical_rationale.lower() or "diabetes" in r.clinical_rationale.lower() for r in compat_rels)
+
+    # Acute MI vs Ruled Out non-cardiac chest pain must be MUTUALLY_EXCLUSIVE
+    mut_ex_rels = [r for r in resolution.claim_relationships if r.relationship_type == ClaimRelationshipType.MUTUALLY_EXCLUSIVE]
+    assert len(mut_ex_rels) >= 1
+    assert mut_ex_rels[0].is_compatible is False
+
+
+def test_evidence_reference_verification_flags_unverified(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Test that evidence citations not present in patient payload are flagged as unverified."""
+    recal = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Laboratory Specialist",
+            "findings": "Serum LDL confirmed elevated.",
+            "confidence": 85.0,
+        }],
+        laboratory_data={"ldl_cholesterol_mg_dl": 210.0},
+    )
+
+    # Artificially inject a non-existent citation
+    recal.recalibrated_claims[0].grounding_evidence_references.append("fictitious_biomarker_xyz")
+
+    resolution = resolver.resolve_consensus(
+        recalibration_result=recal,
+        laboratory_data={"ldl_cholesterol_mg_dl": 210.0},
+    )
+
+    verified, unverified = resolver.verify_evidence_references(
+        claim_resolutions=resolution.claim_resolutions,
+        labs={"ldl_cholesterol_mg_dl": 210.0},
+        history={},
+        symptoms={},
+    )
+    assert any("ldl_cholesterol" in v.lower() for v in verified)
+    assert "fictitious_biomarker_xyz" in unverified
+
+
+def test_diagnostic_hierarchy_categorization(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Test diagnostic categorization into primary, secondary, differential, and safety_critical."""
+    agent_outputs = [
+        {"agent_role": "Cardiologist", "findings": "Acute myocardial infarction with active ST changes.", "confidence": 88.0},
+        {"agent_role": "PCP", "findings": "Essential hypertension chronic comorbidity.", "confidence": 80.0},
+        {"agent_role": "Pulmonologist", "findings": "Gastroesophageal reflux disease as differential cause.", "confidence": 45.0},
+    ]
+    labs = {"cardiac_troponin_ng_ml": 0.12, "systolic_bp": 145.0}
+
+    recal = recalibrator.recalibrate_panel(agent_outputs=agent_outputs, laboratory_data=labs)
+    resolution = resolver.resolve_consensus(recalibration_result=recal, laboratory_data=labs)
+
+    assert len(resolution.primary_diagnoses) >= 1
+    assert any("infarction" in p.lower() for p in resolution.primary_diagnoses)
+    assert len(resolution.secondary_diagnoses) >= 1
+    assert any("hypertension" in s.lower() for s in resolution.secondary_diagnoses)
+    assert len(resolution.differential_diagnoses) >= 1
+    assert len(resolution.safety_critical_diagnoses) >= 1
+
+
+def test_safety_override_lifecycle_and_decision_support_language(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Test safety overrides carry ACTIVE lifecycle state and cautious decision support language."""
+    labs = {
+        "systolic_bp": 195.0,
+        "diastolic_bp": 125.0,
+        "serum_creatinine_mg_dl": 2.4,
+        "bnp_pg_ml": 650.0,
+    }
+    symptoms = {"symptoms": ["chest_pain", "dyspnea", "breathlessness"]}
+
+    recal = recalibrator.recalibrate_panel(
+        agent_outputs=[{"agent_role": "Cardiologist", "findings": "Hypertensive crisis.", "confidence": 80.0}],
+        laboratory_data=labs,
+        symptoms_data=symptoms,
+    )
+    resolution = resolver.resolve_consensus(
+        recalibration_result=recal,
+        laboratory_data=labs,
+        symptoms_data=symptoms,
+    )
+
+    assert len(resolution.clinical_safety_warnings) >= 2
+    for w in resolution.clinical_safety_warnings:
+        assert w.lifecycle_state == SafetyOverrideLifecycleState.ACTIVE
+        # Verify non-autonomous decision support language
+        assert any(phrase in w.action_recommendation.lower() for phrase in ["recommended", "evaluation", "assessment", "monitoring"])
+        # Ensure no imperative direct autonomous orders without recommendation phrasing
+        assert "administer 100mg" not in w.action_recommendation.lower()
+
+
+def test_audit_transcript_cryptographic_tamper_evidence(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Test canonical SHA-256 sealing, milestone checkpoints, and tamper detection on audit transcripts."""
+    labs = {"fasting_blood_glucose_mg_dl": 280.0, "systolic_bp": 150.0}
+    agent_outputs = [{"agent_role": "Endocrinologist", "findings": "Severe hyperglycemia.", "confidence": 80.0}]
+
+    recal = recalibrator.recalibrate_panel(agent_outputs=agent_outputs, laboratory_data=labs)
+    resolution = resolver.resolve_consensus(recalibration_result=recal, laboratory_data=labs)
+    transcript = resolution.audit_transcript
+
+    # 1. Verification on unaltered transcript
+    assert transcript.canonical_transcript_hash is not None
+    assert len(transcript.canonical_transcript_hash) == 64
+    assert transcript.verify_transcript_integrity() is True
+
+    # 2. Verify all 5 milestone hashes are populated
+    assert len(transcript.milestone_hashes) == 5
+    expected_milestones = [
+        "milestone_1_pre_debate_claims",
+        "milestone_2_contradictions_detected",
+        "milestone_3_debate_exchanges",
+        "milestone_4_confidence_recalibration",
+        "milestone_5_consensus_resolution",
+    ]
+    for m in expected_milestones:
+        assert m in transcript.milestone_hashes
+        assert len(transcript.milestone_hashes[m]) == 64
+
+    # 3. Tamper detection: modifying any content must cause verification to fail
+    tampered_transcript = transcript.model_copy(deep=True)
+    tampered_transcript.original_claims[0]["claim_text"] = "TAMPERED FRAUDULENT CLAIM"
+    assert tampered_transcript.verify_transcript_integrity() is False
+

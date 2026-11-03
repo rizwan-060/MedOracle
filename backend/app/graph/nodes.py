@@ -169,3 +169,152 @@ def risk_prediction_node(state: ClinicalAgentState) -> Dict[str, Any]:
             "warnings": ["Risk prediction ensemble synthesis unavailable."],
             "status": "failed",
         }
+
+
+def contradiction_node(state: ClinicalAgentState) -> Dict[str, Any]:
+    """Execute Contradiction Detection Engine within LangGraph (Step 12.1)."""
+    logger.info("Executing contradiction_node for session: %s", state.get("session_id"))
+    try:
+        from app.agents.consensus.contradiction_detector import ContradictionDetector
+
+        detector = ContradictionDetector()
+        result = detector.evaluate_contradictions(
+            symptoms_data=state.get("symptoms_data") or {},
+            medical_history_data=state.get("medical_history_data") or {},
+            laboratory_data=state.get("laboratory_data") or {},
+            clinical_scores=state.get("clinical_scores") or {},
+            ml_predictions=state.get("ml_predictions") or {},
+            agent_outputs=state.get("agent_outputs") or [],
+            session_id=state.get("session_id"),
+            patient_id=state.get("user_id") or "anon",
+        )
+        return {
+            "contradiction_result": result.model_dump(),
+            "current_phase": "contradiction_detection_completed",
+        }
+    except Exception as exc:
+        logger.error("contradiction_node failed: %s", exc, exc_info=True)
+        return {
+            "errors": [f"ContradictionDetector execution failure: {str(exc)}"],
+            "warnings": ["Contradiction detection unavailable; proceeding with debate."],
+        }
+
+
+def debate_node(state: ClinicalAgentState) -> Dict[str, Any]:
+    """Execute Adversarial Debate Protocol within LangGraph (Step 12.2)."""
+    logger.info("Executing debate_node for session: %s", state.get("session_id"))
+    try:
+        from app.agents.consensus.debate_protocol import DebateProtocolEngine
+        from app.schemas.consensus import ContradictionMatrixResult
+
+        engine = DebateProtocolEngine(max_rounds=2)
+        raw_cm = state.get("contradiction_result")
+        cm_obj = ContradictionMatrixResult(**raw_cm) if raw_cm else None
+
+        transcript = engine.execute_debate(
+            contradiction_result=cm_obj,
+            agent_outputs=state.get("agent_outputs") or [],
+            symptoms_data=state.get("symptoms_data") or {},
+            medical_history_data=state.get("medical_history_data") or {},
+            laboratory_data=state.get("laboratory_data") or {},
+            clinical_scores=state.get("clinical_scores") or {},
+            ml_predictions=state.get("ml_predictions") or {},
+            session_id=state.get("session_id"),
+            patient_id=state.get("user_id") or "anon",
+        )
+        return {
+            "debate_transcript": transcript.model_dump(),
+            "current_phase": "adversarial_debate_completed",
+        }
+    except Exception as exc:
+        logger.error("debate_node failed: %s", exc, exc_info=True)
+        return {
+            "errors": [f"DebateProtocolEngine execution failure: {str(exc)}"],
+            "warnings": ["Adversarial debate protocol unavailable; proceeding with recalibration."],
+        }
+
+
+def recalibration_node(state: ClinicalAgentState) -> Dict[str, Any]:
+    """Execute Confidence Recalibration Engine within LangGraph (Step 12.3)."""
+    logger.info("Executing recalibration_node for session: %s", state.get("session_id"))
+    try:
+        from app.agents.consensus.recalibration import ConfidenceRecalibrator
+        from app.schemas.consensus import ContradictionMatrixResult, DebateTranscript
+
+        recalibrator = ConfidenceRecalibrator()
+        raw_cm = state.get("contradiction_result")
+        cm_obj = ContradictionMatrixResult(**raw_cm) if raw_cm else None
+        raw_dt = state.get("debate_transcript")
+        dt_obj = DebateTranscript(**raw_dt) if raw_dt else None
+
+        result = recalibrator.recalibrate_panel(
+            agent_outputs=state.get("agent_outputs") or [],
+            contradiction_matrix=cm_obj,
+            debate_transcript=dt_obj,
+            symptoms_data=state.get("symptoms_data") or {},
+            medical_history_data=state.get("medical_history_data") or {},
+            laboratory_data=state.get("laboratory_data") or {},
+            clinical_scores=state.get("clinical_scores") or {},
+            ml_predictions=state.get("ml_predictions") or {},
+            session_id=state.get("session_id"),
+            patient_id=state.get("user_id") or "anon",
+        )
+        return {
+            "recalibration_result": result.model_dump(),
+            "current_phase": "confidence_recalibration_completed",
+        }
+    except Exception as exc:
+        logger.error("recalibration_node failed: %s", exc, exc_info=True)
+        return {
+            "errors": [f"ConfidenceRecalibrator execution failure: {str(exc)}"],
+            "warnings": ["Confidence recalibration unavailable; proceeding with consensus resolution."],
+        }
+
+
+def consensus_node(state: ClinicalAgentState) -> Dict[str, Any]:
+    """Execute Consensus Resolution Engine within LangGraph (Step 12.4)."""
+    logger.info("Executing consensus_node for session: %s", state.get("session_id"))
+    try:
+        from app.agents.consensus.consensus_resolver import ConsensusResolver
+        from app.schemas.consensus import (
+            ConfidenceRecalibrationResult,
+            ContradictionMatrixResult,
+            DebateTranscript,
+        )
+
+        resolver = ConsensusResolver()
+        raw_cm = state.get("contradiction_result")
+        cm_obj = ContradictionMatrixResult(**raw_cm) if raw_cm else None
+        raw_dt = state.get("debate_transcript")
+        dt_obj = DebateTranscript(**raw_dt) if raw_dt else None
+        raw_rc = state.get("recalibration_result")
+        rc_obj = ConfidenceRecalibrationResult(**raw_rc) if raw_rc else None
+
+        resolution = resolver.resolve_consensus(
+            recalibration_result=rc_obj,
+            contradiction_matrix=cm_obj,
+            debate_transcript=dt_obj,
+            agent_outputs=state.get("agent_outputs") or [],
+            symptoms_data=state.get("symptoms_data") or {},
+            medical_history_data=state.get("medical_history_data") or {},
+            laboratory_data=state.get("laboratory_data") or {},
+            clinical_scores=state.get("clinical_scores") or {},
+            ml_predictions=state.get("ml_predictions") or {},
+            session_id=state.get("session_id"),
+            patient_id=state.get("user_id") or "anon",
+        )
+
+        return {
+            "consensus_resolution": resolution.model_dump(),
+            "audit_transcript": resolution.audit_transcript.model_dump(),
+            "current_phase": "consensus_resolution_completed",
+            "status": "completed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        logger.error("consensus_node failed: %s", exc, exc_info=True)
+        return {
+            "errors": [f"ConsensusResolver execution failure: {str(exc)}"],
+            "warnings": ["Consensus resolution failed."],
+            "status": "failed",
+        }

@@ -310,6 +310,11 @@ def test_clinical_graph_pipeline(
             medical_history_output=final_state.get("medical_history_output"),
             laboratory_output=final_state.get("laboratory_output"),
             risk_prediction_output=final_state.get("risk_prediction_output"),
+            contradiction_result=final_state.get("contradiction_result"),
+            debate_transcript=final_state.get("debate_transcript"),
+            recalibration_result=final_state.get("recalibration_result"),
+            consensus_resolution=final_state.get("consensus_resolution"),
+            audit_transcript=final_state.get("audit_transcript"),
             errors=final_state.get("errors") or [],
             warnings=final_state.get("warnings") or [],
         )
