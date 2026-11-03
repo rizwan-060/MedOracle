@@ -76,6 +76,8 @@ class SerialTroponinValidationStatus(str, Enum):
     MISSING_TIMESTAMP = "MISSING_TIMESTAMP"
     INVALID_SEQUENCE = "INVALID_SEQUENCE"
     INSUFFICIENT_METADATA = "INSUFFICIENT_METADATA"
+
+
 class ContradictionSeverity(str, Enum):
     """Clinical severity grading for detected multi-agent contradictions."""
 

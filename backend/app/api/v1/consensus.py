@@ -19,6 +19,7 @@ from app.core.security import get_current_user, validate_patient_access
 from app.database.models import User
 from app.database.session import get_db
 from sqlalchemy.orm import Session
+
 from app.schemas.consensus import (
     AuditDebateTranscript,
     ConsensusResolutionRequest,
@@ -47,6 +48,7 @@ def test_contradiction_detection(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ContradictionTestResponse:
+    """Evaluate multi-agent clinical hypotheses against the Contradiction Matrix."""
     """Evaluate multi-agent clinical hypotheses against the Contradiction Matrix.
 
     Evaluates:
@@ -99,6 +101,7 @@ def test_adversarial_debate(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DebateTestResponse:
+    """Execute the two-round multi-agent adversarial debate protocol."""
     """Execute the two-round multi-agent adversarial debate protocol.
 
     Workflow:
@@ -168,6 +171,7 @@ def test_confidence_recalibration(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RecalibrationTestResponse:
+    """Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring."""
     """Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring.
 
     1. Evaluates contradictions (or uses supplied contradiction_matrix).
