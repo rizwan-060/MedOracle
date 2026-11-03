@@ -682,6 +682,131 @@ abstract final class AppTextStyles {
   );
 
   // ---------------------------------------------------------------------------
+  // Authentication (Login / Sign Up) reference
+  // ---------------------------------------------------------------------------
+
+  /// Large serif greeting in the slate hero header (44 / 48 / 600).
+  static TextStyle authHero() => instrumentSerif(
+    fontSize: 44,
+    fontWeight: FontWeight.w600,
+    color: AppColors.authOnSlate,
+    height: 48 / 44,
+    letterSpacing: -0.5,
+  );
+
+  /// Light welcome line under the hero title (20 / 24 / 300).
+  static TextStyle authHeroSubtitle() => lexend(
+    fontSize: 20,
+    fontWeight: FontWeight.w300,
+    color: AppColors.authOnSlateMuted,
+    height: 1.2,
+  );
+
+  /// Glass "Back to login" pill label (12 / 16 / 500).
+  static TextStyle authBackPill() => lexend(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    color: AppColors.authOnSlate,
+    height: 16 / 12,
+  );
+
+  /// Value typed into a pill input (15 / 20).
+  static TextStyle authFieldValue() => lexend(
+    fontSize: 15,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authInk,
+    height: 20 / 15,
+  );
+
+  /// Placeholder inside a pill input (15 / 20).
+  static TextStyle authFieldHint() => lexend(
+    fontSize: 15,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authSlateHint,
+    height: 20 / 15,
+  );
+
+  /// Inline validation error under a pill input (11.5 / 14 / 500).
+  static TextStyle authError() => lexend(
+    fontSize: 11.5,
+    fontWeight: FontWeight.w500,
+    color: AppColors.primaryAccent,
+    height: 14 / 11.5,
+  );
+
+  /// "Forgot Password?" link (13.5 / 18 / 500).
+  static TextStyle authForgot() => lexend(
+    fontSize: 13.5,
+    fontWeight: FontWeight.w500,
+    color: AppColors.headerText,
+    height: 18 / 13.5,
+  );
+
+  /// Ember call-to-action label (16 / 20 / 600).
+  static TextStyle authCta() => lexend(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: AppColors.onPlum,
+    height: 20 / 16,
+  );
+
+  /// "or continue with" divider label (12.5 / 18).
+  static TextStyle authDivider() => lexend(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authSlate80,
+    height: 18 / 12.5,
+  );
+
+  /// Social provider label (14 / 18 / 500).
+  static TextStyle authSocial() => lexend(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    color: AppColors.authInk,
+    height: 18 / 14,
+  );
+
+  /// Letter inside a social provider badge (12 / 16 / 600).
+  static TextStyle authSocialBadge() => lexend(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    color: AppColors.headerText,
+    height: 16 / 12,
+  );
+
+  /// Footer prompt on the login sheet (14 / 20).
+  static TextStyle authFooter() => lexend(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authSlate85,
+    height: 20 / 14,
+  );
+
+  /// Underlined footer action on the login sheet (14 / 20 / 600).
+  static TextStyle authFooterAction() => lexend(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: AppColors.headerText,
+    height: 20 / 14,
+  );
+
+  /// Fine print under the sign-up action (12.5 / 20).
+  static TextStyle authTerms() => lexend(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w400,
+    color: AppColors.authSlate80,
+    height: 20 / 12.5,
+  );
+
+  /// Emphasised Terms / Privacy words in the fine print (12.5 / 20 / 600).
+  static TextStyle authTermsStrong() => lexend(
+    fontSize: 12.5,
+    fontWeight: FontWeight.w600,
+    color: AppColors.headerText,
+    height: 20 / 12.5,
+  );
+
+  // ---------------------------------------------------------------------------
   // Design System Typography (Instrument Serif & Lexend)
   // ---------------------------------------------------------------------------
 

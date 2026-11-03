@@ -73,6 +73,46 @@ abstract final class AppColors {
 
   //
   // ---------------------------------------------------------------------------
+  // Authentication (Login / Sign Up) Reference Tokens
+  // ---------------------------------------------------------------------------
+  //
+
+  /// Warm parchment sheet that overlaps the slate hero header.
+  static const Color authSheet = Color(0xFFF9F6EF);
+
+  /// Soft off-white fill used by pill inputs and social buttons.
+  static const Color authInputSurface = Color(0xFFFFFDF8);
+
+  /// Ember call-to-action used by the authentication references.
+  static const Color authCta = Color(0xFFB5583A);
+
+  /// Deep ink used for values typed into authentication fields.
+  static const Color authInk = Color(0xFF1E2A33);
+
+  /// White copy on the slate hero header.
+  static const Color authOnSlate = Color(0xFFFFFFFF);
+  static const Color authOnSlateMuted = Color(0xD9FFFFFF); // 85%
+
+  /// Translucent glass pill used for the "Back to login" action.
+  static const Color authGlassFill = Color(0x26FFFFFF); // 15%
+  static const Color authGlassBorder = Color(0x66FFFFFF); // 40%
+
+  /// Slate tints for rings, dividers, badges and secondary copy.
+  static const Color authSlateTint = Color(0x1A4D738F); // 10%
+  static const Color authSlateRing = Color(0x264D738F); // 15%
+  static const Color authSlateDivider = Color(0x334D738F); // 20%
+  static const Color authSlateHint = Color(0x8C4D738F); // 55%
+  static const Color authSlate80 = Color(0xCC4D738F); // 80%
+  static const Color authSlate85 = Color(0xD94D738F); // 85%
+
+  /// Reference shadows for pill fields, the sheet and the ember CTA.
+  static const Color authFieldShadow = Color(0x8C4D738F); // 55%
+  static const Color authFieldShadowSoft = Color(0x244D738F); // 14%
+  static const Color authSheetShadow = Color(0x731E2A33); // 45%
+  static const Color authCtaShadow = Color(0xB3B5583A); // 70%
+
+  //
+  // ---------------------------------------------------------------------------
   // Design Reference Compat Tokens
   // ---------------------------------------------------------------------------
   //
@@ -162,11 +202,7 @@ abstract final class AppColors {
   static const LinearGradient headerSheenGradient = LinearGradient(
     begin: Alignment(-0.342, -0.94),
     end: Alignment(0.342, 0.94),
-    colors: <Color>[
-      Color(0x1AFFFFFF),
-      Color(0x00FFFFFF),
-      Color(0x00FFFFFF),
-    ],
+    colors: <Color>[Color(0x1AFFFFFF), Color(0x00FFFFFF), Color(0x00FFFFFF)],
     stops: <double>[0.0, 0.45, 1.0],
   );
 
