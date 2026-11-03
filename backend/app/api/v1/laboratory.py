@@ -39,11 +39,18 @@ def normalize_biomarkers(
     - Retains full provenance: raw strings, conversion multipliers, laboratory reference intervals, and audit caveats.
     - Returns clean canonical_biomarkers_dict ready for immediate consumption by downstream ML/risk models.
     """
+    # Enforce strict tenant isolation: prevent normalizing on behalf of another patient ID
+    if payload.patient_id and payload.patient_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cross-tenant access forbidden: Cannot access or normalize laboratory documents for another patient.",
+        )
+
     start_time = time.perf_counter()
 
     batch_result = BiomarkerEntityNormalizer.normalize_batch(
         extracted_items=[item.model_dump() for item in payload.extracted_items],
-        patient_id=payload.patient_id or current_user.id,
+        patient_id=current_user.id,
         source_document_id=payload.source_document_id,
         source_document_url=payload.source_document_url,
         lab_name=payload.lab_name,
@@ -65,7 +72,27 @@ def record_lab_result(
 ):
     """Record a clinical laboratory test report with biomarkers for the authenticated user."""
     repo = LabResultRepository(db)
-    lab = repo.create(user_id=current_user.id, **payload.model_dump())
+    raw_biomarkers = payload.biomarkers or {}
+
+    # End-to-end integration: Check if free-text keys or raw items were submitted in biomarkers dict
+    from app.clinical.biomarker_types import BIOMARKER_REGISTRY
+    extracted_items = []
+    for k, v in raw_biomarkers.items():
+        if k not in BIOMARKER_REGISTRY and not k.startswith("cardiac_troponin"):
+            extracted_items.append({"label": str(k), "value": v})
+
+    normalized_biomarkers = dict(raw_biomarkers)
+    if extracted_items:
+        batch_res = BiomarkerEntityNormalizer.normalize_batch(
+            extracted_items=extracted_items,
+            patient_id=current_user.id,
+            lab_name=payload.lab_name,
+        )
+        normalized_biomarkers.update(batch_res.get("canonical_biomarkers_dict", {}))
+
+    lab_dict = payload.model_dump()
+    lab_dict["biomarkers"] = normalized_biomarkers
+    lab = repo.create(user_id=current_user.id, **lab_dict)
     return lab
 
 

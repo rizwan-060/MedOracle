@@ -279,3 +279,118 @@ def test_nli_empty_claims_return_uncertain(nli_engine: SemanticNLIEngine) -> Non
 
     assert record.relation == NLIRelation.UNCERTAIN
     assert record.confidence <= 0.60
+
+
+def test_duplicate_challenge_prevention(debate_engine: DebateProtocolEngine) -> None:
+    """Test that identical rule contradictions for the same challenged agent do not generate duplicate challenges."""
+    # Create two duplicate issues with same rule and challenged agent
+    issue1 = ContradictionIssue(
+        issue_id="ISSUE-DUP-001",
+        rule_id="RULE-A1-ISCHEMIA-TROPONIN",
+        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+        severity=ContradictionSeverity.MODERATE,
+        clinical_urgency="urgent",
+        conflicting_agents=["Symptom Analysis Specialist", "Laboratory Biomarker Specialist"],
+        diverging_claims={"Symptom Analysis Specialist": "Severe chest pain", "Laboratory Biomarker Specialist": "Normal troponin"},
+        suggested_challenge="Challenge Symptom Specialist on troponin",
+        physiological_rationale="Rationale 1",
+    )
+    issue2 = ContradictionIssue(
+        issue_id="ISSUE-DUP-002",
+        rule_id="RULE-A1-ISCHEMIA-TROPONIN",
+        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+        severity=ContradictionSeverity.MODERATE,
+        clinical_urgency="urgent",
+        conflicting_agents=["Symptom Analysis Specialist", "Laboratory Biomarker Specialist"],
+        diverging_claims={"Symptom Analysis Specialist": "Severe chest pain", "Laboratory Biomarker Specialist": "Normal troponin"},
+        suggested_challenge="Challenge Symptom Specialist on troponin duplicate",
+        physiological_rationale="Rationale 2",
+    )
+
+    matrix = ContradictionMatrixResult(
+        contradictions_detected=True,
+        total_contradictions=2,
+        issues=[issue1, issue2],
+        summary="Two duplicate issues",
+    )
+
+    transcript = debate_engine.execute_debate(
+        contradiction_result=matrix,
+        symptoms_data={"symptoms": ["chest_pain"], "severity": 8, "duration_hours": 2.0},
+        laboratory_data={"cardiac_troponin_ng_ml": 0.01, "resting_ecg": "normal"},
+    )
+
+    # Exactly 1 challenge should be issued despite 2 duplicate issues in the matrix
+    assert len(transcript.challenges) == 1
+
+
+def test_unsupported_rebuttal_due_to_missing_evidence(debate_engine: DebateProtocolEngine) -> None:
+    """Test that an agent defense claiming unrecorded/fabricated patient evidence is marked UNSUPPORTED."""
+    # Create an issue where evidence basis is absent in patient data
+    issue = ContradictionIssue(
+        issue_id="ISSUE-UNSUP-001",
+        rule_id="RULE-CUSTOM-UNKNOWN",
+        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+        severity=ContradictionSeverity.MODERATE,
+        clinical_urgency="urgent",
+        conflicting_agents=["Agent A", "Agent B"],
+        diverging_claims={"Agent A": "Claim A", "Agent B": "Claim B"},
+        suggested_challenge="Challenge Agent A",
+        physiological_rationale="Rationale",
+        evidence_references=["cardiac_mri_delayed_enhancement", "coronary_ct_calcium_score"],
+    )
+
+    matrix = ContradictionMatrixResult(
+        contradictions_detected=True,
+        total_contradictions=1,
+        issues=[issue],
+        summary="Issue requiring unrecorded MRI",
+    )
+
+    # Patient has neither cardiac MRI nor CT calcium score
+    transcript = debate_engine.execute_debate(
+        contradiction_result=matrix,
+        laboratory_data={"serum_sodium_mmol_l": 140.0},
+    )
+
+    assert len(transcript.unsupported_challenges) == 1
+    assert transcript.challenges[0].status == ChallengeStatus.UNSUPPORTED
+    rebuttal = transcript.rebuttals[0]
+    assert rebuttal.evidence_missing is True
+    assert rebuttal.disposition == RebuttalDisposition.UNSUPPORTED
+    assert any("not documented or unverified" in lim for lim in rebuttal.acknowledged_limitations)
+    assert transcript.convergence_status == "unsupported_divergence"
+
+
+def test_mixed_resolved_and_unresolved_outcomes(detector: ContradictionDetector, debate_engine: DebateProtocolEngine) -> None:
+    """Test that a scenario with both conceded and unresolved challenges yields partial_convergence."""
+    symptoms = {"symptoms": ["chest_pain"], "severity": 8, "duration_hours": 4.0}
+    labs = {
+        "cardiac_troponin_ng_ml": 0.01,
+        "serial_troponin_completed": True,
+        "ldl_cholesterol_mg_dl": 210.0,
+    }
+    history = {
+        "current_medications": [{"name": "Atorvastatin", "treatment_duration_weeks": 24, "adherence": "consistent"}],
+    }
+
+    matrix = detector.evaluate_contradictions(
+        symptoms_data=symptoms,
+        medical_history_data=history,
+        laboratory_data=labs,
+    )
+
+    transcript = debate_engine.execute_debate(
+        contradiction_result=matrix,
+        symptoms_data=symptoms,
+        medical_history_data=history,
+        laboratory_data=labs,
+    )
+
+    # Statin vs LDL is CONCEDED, Ischemia vs Troponin is UNRESOLVED_DISAGREEMENT
+    assert len(transcript.conceded_challenges) >= 1
+    assert len(transcript.unresolved_disagreements) >= 1
+    assert transcript.convergence_status == "partial_convergence"
+    assert "conceded" in transcript.summary.lower()
+    assert "preserved" in transcript.summary.lower()
+

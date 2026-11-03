@@ -88,12 +88,26 @@ from app.schemas.llm import (
     LLMTestRequest,
 )
 from app.schemas.consensus import (
+    AgentChallenge,
+    AgentRebuttal,
+    ChallengeStatus,
+    ClaimRecalibrationRecord,
+    ConfidenceRecalibrationResult,
     ContradictionCategory,
     ContradictionIssue,
     ContradictionMatrixResult,
     ContradictionSeverity,
     ContradictionTestRequest,
     ContradictionTestResponse,
+    DebateTestRequest,
+    DebateTestResponse,
+    DebateTranscript,
+    DomainEpistemicDoubt,
+    NLIAnalysisRecord,
+    NLIRelation,
+    RebuttalDisposition,
+    RecalibrationTestRequest,
+    RecalibrationTestResponse,
 )
 
 __all__ = [
@@ -165,4 +179,19 @@ __all__ = [
     "ContradictionMatrixResult",
     "ContradictionTestRequest",
     "ContradictionTestResponse",
+    "AgentChallenge",
+    "AgentRebuttal",
+    "ChallengeStatus",
+    "RebuttalDisposition",
+    "NLIRelation",
+    "NLIAnalysisRecord",
+    "DebateTranscript",
+    "DebateTestRequest",
+    "DebateTestResponse",
+    "ClaimRecalibrationRecord",
+    "DomainEpistemicDoubt",
+    "ConfidenceRecalibrationResult",
+    "RecalibrationTestRequest",
+    "RecalibrationTestResponse",
 ]
+

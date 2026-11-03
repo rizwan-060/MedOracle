@@ -262,3 +262,87 @@ def test_authenticated_debate_test_concordant_scenario(client: TestClient, db_se
     assert transcript["convergence_status"] == "no_contradictions"
     assert len(transcript["challenges"]) == 0
     assert len(transcript["rebuttals"]) == 0
+
+
+def test_unauthenticated_recalibration_rejected(client: TestClient) -> None:
+    """Test that POST /api/v1/consensus/recalibrate rejects unauthenticated requests with 401."""
+    res = client.post("/api/v1/consensus/recalibrate", json={})
+    assert res.status_code == 401
+
+
+def test_authenticated_recalibration_default_payload(client: TestClient, db_session) -> None:
+    """Test authenticated recalibration returns auditable claim adjustments and bounded epistemic doubt."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_recal_1@example.com")
+
+    res = client.post("/api/v1/consensus/recalibrate", json={}, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["status"] == "success"
+    assert data["execution_time_ms"] >= 0.0
+    assert "contradiction_result" in data
+    assert "debate_transcript" in data
+
+    recal = data["recalibration_result"]
+    assert "global_epistemic_doubt_score" in recal
+    assert 0.0 <= recal["global_epistemic_doubt_score"] <= 1.0
+    assert len(recal["recalibrated_claims"]) >= 1
+
+    claim = recal["recalibrated_claims"][0]
+    assert 0.0 <= claim["final_confidence"] <= 100.0
+    assert "recalibration_explanation" in claim
+    assert len(recal["domain_uncertainty_contributions"]) >= 1
+
+
+def test_authenticated_recalibration_missing_evidence_cap(client: TestClient, db_session) -> None:
+    """Test authenticated recalibration enforces 40% cap on acute ischemia claims missing troponin."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_recal_2@example.com")
+
+    payload = {
+        "agent_outputs": [{
+            "agent_role": "Symptom Analysis Specialist",
+            "findings": "Patient reports severe crushing substernal chest pain concerning for acute myocardial infarction.",
+            "confidence": 88.0,
+        }],
+        # Omit cardiac troponin
+        "laboratory_data": {
+            "serum_sodium_mmol_l": 140.0,
+        },
+    }
+
+    res = client.post("/api/v1/consensus/recalibrate", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    recal = data["recalibration_result"]
+    claim = recal["recalibrated_claims"][0]
+    assert claim["missing_evidence_cap_applied"] is True
+    assert claim["missing_evidence_cap_value"] == 40.0
+    assert claim["final_confidence"] <= 40.0
+    assert any("troponin" in k for k in claim["missing_evidence_details"])
+
+
+def test_authenticated_recalibration_concordant_scenario(client: TestClient, db_session) -> None:
+    """Test completely concordant panel produces minimal/zero epistemic doubt."""
+    _, headers = _create_authenticated_doctor(db_session, email="dr_recal_3@example.com")
+
+    payload = {
+        "symptoms_data": {"symptoms": ["mild_fatigue"], "severity": 2},
+        "laboratory_data": {
+            "systolic_bp": 118.0,
+            "diastolic_bp": 76.0,
+            "fasting_blood_glucose_mg_dl": 88.0,
+            "hba1c_percent": 5.1,
+            "ldl_cholesterol_mg_dl": 95.0,
+            "cardiac_troponin_ng_ml": 0.005,
+        },
+    }
+
+    res = client.post("/api/v1/consensus/recalibrate", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    recal = data["recalibration_result"]
+    assert recal["global_epistemic_doubt_score"] <= 0.15
+
+

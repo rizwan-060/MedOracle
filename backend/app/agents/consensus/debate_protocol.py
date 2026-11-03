@@ -38,14 +38,22 @@ from app.schemas.consensus import (
 logger = logging.getLogger("debate_protocol")
 
 
-class SemanticNLIEngine:
-    """Local, deterministic Natural Language Inference engine for qualitative cross-agent claims."""
+class RuleBasedSemanticDiscordanceEngine:
+    """Local, deterministic rule-based semantic discordance and polarity checker.
+
+    NOTE: This is NOT a trained neural Natural Language Inference (NLI) model.
+    It performs deterministic keyword, clinical polarity, and negation pattern analysis
+    without external paid API dependencies or local GPU requirements.
+    When rules cannot establish an entailment or contradiction, it returns UNCERTAIN or NEUTRAL
+    with documented limitations.
+    """
 
     def __init__(self) -> None:
-        self.method_name = "deterministic_semantic_nli_v1"
+        self.method_name = "rule_based_clinical_polarity_discordance_v1"
         self.method_limitations = (
-            "Pattern-based semantic classification without external neural model API dependency. "
-            "Evaluates semantic polarity, medical negation, and cross-agent domain overlap."
+            "Deterministic pattern-based semantic discordance checker (not a trained neural NLI model). "
+            "Evaluates explicit medical negation, clinical polarity, and symptom overlap without external API dependencies. "
+            "Returns UNCERTAIN when rules cannot establish relationship."
         )
 
     def analyze_pair(
@@ -133,7 +141,7 @@ class SemanticNLIEngine:
                 limitations="Congruent clinical assertions within ischemic symptom domain.",
             )
 
-        # Default: Neutral / Insufficient evidence overlap
+        # Default: Neutral for distinct non-overlapping topics
         return NLIAnalysisRecord(
             pair_id=pair_id,
             agent_a=agent_a,
@@ -143,8 +151,15 @@ class SemanticNLIEngine:
             relation=NLIRelation.NEUTRAL,
             confidence=0.75,
             method=self.method_name,
-            limitations="Claims describe distinct or non-overlapping clinical facets.",
+            limitations=(
+                "Claims describe distinct or non-overlapping clinical facets. "
+                "Evaluated under deterministic rule-based semantic discordance checker."
+            ),
         )
+
+
+# Backward-compatible alias
+SemanticNLIEngine = RuleBasedSemanticDiscordanceEngine
 
 
 class DebateProtocolEngine:
@@ -289,14 +304,13 @@ class DebateProtocolEngine:
     ) -> List[AgentChallenge]:
         """Round 1: Formulate targeted adversarial challenges from detected contradictions."""
         challenges: List[AgentChallenge] = []
+        seen_challenge_keys = set()
 
         for issue in issues:
             # Rule: Do not challenge agents for findings explicitly marked incomparable
             if issue.category == ContradictionCategory.INCOMPARABLE_PREDICTIONS:
                 logger.info("Excluding incomparable prediction issue %s from adversarial challenge.", issue.issue_id)
                 continue
-
-            challenge_id = f"CHALLENGE-{session_token}-{issue.rule_id}-{uuid.uuid4().hex[:6]}"
 
             # Determine challenger vs challenged based on evidence polarity
             if issue.category == ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE:
@@ -315,6 +329,15 @@ class DebateProtocolEngine:
                 challenging_agent = issue.conflicting_agents[1] if len(issue.conflicting_agents) > 1 else "Consensus Orchestrator"
                 challenged_agent = issue.conflicting_agents[0]
                 challenged_claim = issue.diverging_claims.get(challenged_agent, "Clinical claim")
+
+            # Deduplication: Prevent issuing duplicate challenges for the same rule and challenged agent
+            challenge_key = (issue.rule_id, challenged_agent)
+            if challenge_key in seen_challenge_keys:
+                logger.info("Prevented duplicate challenge for rule %s and agent %s", issue.rule_id, challenged_agent)
+                continue
+            seen_challenge_keys.add(challenge_key)
+
+            challenge_id = f"CHALLENGE-{session_token}-{issue.rule_id}-{uuid.uuid4().hex[:6]}"
 
             challenges.append(
                 AgentChallenge(
@@ -553,6 +576,45 @@ class DebateProtocolEngine:
                 )
                 status_map[ch.challenge_id] = ChallengeStatus.UNRESOLVED_DISAGREEMENT
 
+        # Universal evidence verification: Rebuttals must cite evidence actually present in records
+        for rebuttal in rebuttals:
+            missing_evidence_keys = []
+            for ev in rebuttal.grounding_evidence:
+                ev_str = str(ev).lower()
+                found = False
+                if ev in labs or ev_str in [str(k).lower() for k in labs.keys()]:
+                    found = True
+                elif ev in history or ev_str in [str(k).lower() for k in history.keys()]:
+                    found = True
+                elif ev in symptoms or ev_str in [str(k).lower() for k in symptoms.keys()]:
+                    found = True
+                elif ev in scores or ev_str in [str(k).lower() for k in scores.keys()]:
+                    found = True
+                elif ev in ml or ev_str in [str(k).lower() for k in ml.keys()]:
+                    found = True
+                elif ev in ["current_medications", "chronic_conditions"] and history.get(ev) is not None:
+                    found = True
+                elif ev in ["symptoms", "duration_hours", "severity"] and symptoms.get(ev) is not None:
+                    found = True
+                elif ev_str in ["systolic_bp", "diastolic_bp"] and (labs.get("systolic_bp") is not None or labs.get("diastolic_bp") is not None):
+                    found = True
+                elif ev_str in ["fasting_blood_glucose_mg_dl", "hba1c_percent", "cardiac_troponin_ng_ml", "ldl_cholesterol_mg_dl", "bnp_pg_ml", "nt_pro_bnp_pg_ml"] and labs.get(ev_str) is not None:
+                    found = True
+
+                if not found:
+                    missing_evidence_keys.append(ev)
+
+            if missing_evidence_keys:
+                rebuttal.evidence_missing = True
+                for missing_k in missing_evidence_keys:
+                    rebuttal.acknowledged_limitations.append(
+                        f"Cited evidence key '{missing_k}' is not documented or unverified in current patient records."
+                    )
+                # If defending without actual supporting patient records, claim is unsupported
+                if rebuttal.disposition == RebuttalDisposition.DEFEND:
+                    rebuttal.disposition = RebuttalDisposition.UNSUPPORTED
+                    status_map[rebuttal.challenge_id] = ChallengeStatus.UNSUPPORTED
+
         return rebuttals, status_map
 
     def _evaluate_qualitative_nli(self, agent_outputs: Optional[List[Any]]) -> List[NLIAnalysisRecord]:
@@ -600,6 +662,12 @@ class DebateProtocolEngine:
             summary = (
                 f"Adversarial debate protocol converged after Round 2. All {total_challenges} challenged claims "
                 "were formally conceded based on objective biomarker grounding."
+            )
+        elif unsupported_count == total_challenges:
+            status = "unsupported_divergence"
+            summary = (
+                f"Adversarial debate protocol terminated after Round 2. All {total_challenges} challenged claims "
+                "were unsupported due to absent, unverified, or ungrounded patient evidence."
             )
         elif unresolved_count == total_challenges:
             status = "unresolved_divergence"
