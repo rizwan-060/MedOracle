@@ -1,7 +1,11 @@
 /// Route paths and names for the MedOracle router.
 abstract final class RouteNames {
   // --- Auth -------------------------------------------------------------------
-  static const String auth = '/';
+  static const String login = '/login';
+  static const String signup = '/signup';
+
+  /// Backward-compatible alias for the authentication entry point.
+  static const String auth = login;
 
   // --- Home / Dashboard -------------------------------------------------------
   static const String dashboard = '/dashboard';
