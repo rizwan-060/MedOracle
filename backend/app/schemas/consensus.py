@@ -16,12 +16,64 @@ Defines structured data contracts for:
 4. Consensus Resolution & Debate Transcript (Sub-Step 12.4)
 """
 
+import math
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.analysis import AgentOutputResponse
+
+
+class EvidenceSupportClassification(str, Enum):
+    """Explicit claim-specific evidence classification."""
+
+    SUPPORTS = "SUPPORTS"
+    CONTRADICTS = "CONTRADICTS"
+    NEUTRAL = "NEUTRAL"
+    INSUFFICIENT = "INSUFFICIENT"
+    UNVERIFIABLE = "UNVERIFIABLE"
+    MISSING = "MISSING"
+    UNVERIFIED = "UNVERIFIED"
+    STALE = "STALE"
+    CONFLICTING_SOURCE = "CONFLICTING_SOURCE"
+    INVALID = "INVALID"
+
+
+class EvidenceValidityState(str, Enum):
+    """Clinical validity and presence state of required evidence."""
+
+    VERIFIED_PRESENT = "VERIFIED_PRESENT"
+    NOT_COLLECTED = "NOT_COLLECTED"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+    MISSING = "MISSING"
+    INVALID = "INVALID"
+    AMBIGUOUS = "AMBIGUOUS"
+    STALE = "STALE"
+    INSUFFICIENT = "INSUFFICIENT"
+    INCONCLUSIVE = "INCONCLUSIVE"
+
+
+class TargetOrganDamageState(str, Enum):
+    """Explicit states of acute target-organ damage in hypertensive presentations."""
+
+    PRESENT = "PRESENT"
+    ABSENT = "ABSENT"
+    UNKNOWN = "UNKNOWN"
+    SUSPECTED = "SUSPECTED"
+    UNVERIFIED = "UNVERIFIED"
+
+
+class SerialTroponinValidationStatus(str, Enum):
+    """Serial cardiac troponin protocol validation state."""
+
+    VALID_SERIAL_SERIES = "VALID_SERIAL_SERIES"
+    INSUFFICIENT_TIMING = "INSUFFICIENT_TIMING"
+    INCOMPLETE_SERIAL_SERIES = "INCOMPLETE_SERIAL_SERIES"
+    INCOMPATIBLE_ASSAY = "INCOMPATIBLE_ASSAY"
+    MISSING_TIMESTAMP = "MISSING_TIMESTAMP"
+    INVALID_SEQUENCE = "INVALID_SEQUENCE"
+    INSUFFICIENT_METADATA = "INSUFFICIENT_METADATA"
 
 
 class ContradictionSeverity(str, Enum):
@@ -774,10 +826,53 @@ class ClaimRecalibrationRecord(BaseModel):
         default=None,
         description="Clinical rationale if the claim was formally conceded.",
     )
+    is_withdrawn: bool = Field(
+        default=False,
+        description="True if claim was formally withdrawn by the specialist during debate.",
+    )
+    evidence_classifications: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Explicit classification of each evaluated evidence item (SUPPORTS, CONTRADICTS, NEUTRAL, INSUFFICIENT, UNVERIFIABLE).",
+    )
+    evidence_states: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Clinical validity and presence states for required analytes (VERIFIED_PRESENT, MISSING, STALE, AMBIGUOUS, etc.).",
+    )
+    conflicting_evidence_references: List[str] = Field(
+        default_factory=list,
+        description="Verified biomarker keys or clinical sources contradicting this claim.",
+    )
+    evidence_quality_caveats: List[str] = Field(
+        default_factory=list,
+        description="Quality and validation caveats regarding evidence supporting or affecting this claim.",
+    )
+    claim_support_score: Optional[float] = Field(
+        default=None,
+        description="Explicit claim support score (heuristic, not disease probability).",
+    )
+    heuristic_support_score: Optional[float] = Field(
+        default=None,
+        description="Alternative naming alias for claim support score.",
+    )
+    epistemic_doubt_score: Optional[float] = Field(
+        default=None,
+        description="Domain epistemic doubt associated with this claim.",
+    )
     recalibration_explanation: str = Field(
         ...,
         description="Human-readable mathematical audit trail explaining grounding, penalties, caps, and final confidence.",
     )
+
+    @field_validator("original_confidence", "recalibrated_confidence", "final_confidence", mode="before")
+    @classmethod
+    def validate_finite_confidence(cls, v: Any) -> float:
+        try:
+            val = float(v)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Confidence score must be a valid numeric float: {v}") from e
+        if math.isnan(val) or math.isinf(val):
+            raise ValueError(f"Confidence score cannot be NaN or Infinite: {val}")
+        return val
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -794,6 +889,7 @@ class DomainEpistemicDoubt(BaseModel):
     )
     unresolved_issues_count: int = Field(default=0, ge=0, description="Count of active unresolved contradictions in this domain.")
     missing_essential_evidence: List[str] = Field(default_factory=list, description="Missing essential biomarkers in this domain.")
+    quality_uncertainty_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Uncertainty contribution from OCR quality, stale records, or normalization flags.")
     rationale: str = Field(..., description="Detailed clinical justification for this domain's doubt score.")
 
     model_config = ConfigDict(from_attributes=True)

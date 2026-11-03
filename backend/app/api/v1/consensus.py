@@ -9,12 +9,14 @@ Provides standalone endpoints for:
 import logging
 import time
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.agents.consensus.contradiction_detector import ContradictionDetector
 from app.agents.consensus.debate_protocol import DebateProtocolEngine
 from app.agents.consensus.recalibration import ConfidenceRecalibrator
-from app.core.security import get_current_user
+from app.core.security import get_current_user, validate_patient_access
 from app.database.models import User
+from app.database.session import get_db
 from app.schemas.consensus import (
     ContradictionTestRequest,
     ContradictionTestResponse,
@@ -37,16 +39,10 @@ router = APIRouter(prefix="/consensus", tags=["Consensus & Multi-Agent Debate"])
 def test_contradiction_detection(
     payload: ContradictionTestRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> ContradictionTestResponse:
-    """Evaluate multi-agent clinical hypotheses against the Contradiction Matrix.
-
-    Evaluates:
-    - Subjective symptoms vs. objective biomarkers (e.g. acute chest pain vs. normal troponin/ECG).
-    - Longitudinal medication adherence vs. uncontrolled laboratory endpoints (e.g. statins vs. LDL >= 190).
-    - Deterministic cohort equations vs. machine learning risk classifiers (e.g. Framingham vs ML gap >= 25%).
-    - Generates targeted debate challenges for contradictory agent pairs.
-    - Computes mathematical preliminary Epistemic Doubt Score (0.00 to 1.00).
-    """
+    """Evaluate multi-agent clinical hypotheses against the Contradiction Matrix."""
+    validate_patient_access(payload.patient_id, current_user, db)
     start_time = time.perf_counter()
     try:
         detector = ContradictionDetector(default_disagreement_threshold=payload.disagreement_threshold)
@@ -69,6 +65,8 @@ def test_contradiction_detection(
             result=result,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Contradiction detection failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -85,17 +83,10 @@ def test_contradiction_detection(
 def test_adversarial_debate(
     payload: DebateTestRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> DebateTestResponse:
-    """Execute the two-round multi-agent adversarial debate protocol.
-
-    Workflow:
-    1. Evaluates multi-agent hypotheses against the Contradiction Matrix.
-    2. Round 1: Formulates targeted cross-domain adversarial challenges (excluding incomparable predictions).
-    3. Round 2: Routes challenges to agents for evidence-grounded rebuttals, revisions, or formal concessions.
-    4. Evaluates qualitative narrative findings using Natural Language Inference (NLI).
-    5. Enforces strict maximum 2-round termination and convergence detection.
-    6. Returns complete auditable DebateTranscript.
-    """
+    """Execute the two-round multi-agent adversarial debate protocol."""
+    validate_patient_access(payload.patient_id, current_user, db)
     start_time = time.perf_counter()
     try:
         # Step 1: Detect contradictions
@@ -134,6 +125,8 @@ def test_adversarial_debate(
             debate_transcript=transcript,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Adversarial debate protocol failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -150,17 +143,10 @@ def test_adversarial_debate(
 def test_confidence_recalibration(
     payload: RecalibrationTestRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> RecalibrationTestResponse:
-    """Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring.
-
-    1. Evaluates contradictions (or uses supplied contradiction_matrix).
-    2. Runs Adversarial Debate Protocol (or uses supplied debate_transcript).
-    3. Calculates positive evidence grounding multiplier (+5% to +15%).
-    4. Calculates claim-specific unresolved contradiction penalties (-10% to -25%).
-    5. Applies missing essential evidence confidence ceiling (capped at 40.0%).
-    6. Computes bounded Global Epistemic Doubt Score (0.0 to 1.0).
-    7. Returns complete auditable ConfidenceRecalibrationResult.
-    """
+    """Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring."""
+    validate_patient_access(payload.patient_id, current_user, db)
     start_time = time.perf_counter()
     try:
         # Step 1: Detect contradictions if not supplied
@@ -221,6 +207,8 @@ def test_confidence_recalibration(
             recalibration_result=recalibration_result,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Confidence recalibration failed: %s", exc, exc_info=True)
         raise HTTPException(
