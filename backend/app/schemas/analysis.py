@@ -270,6 +270,11 @@ class ClinicalGraphPipelineTestResponse(BaseModel):
     medical_history_output: Optional[Dict[str, Any]] = None
     laboratory_output: Optional[Dict[str, Any]] = None
     risk_prediction_output: Optional[Dict[str, Any]] = None
+    contradiction_result: Optional[Dict[str, Any]] = None
+    debate_transcript: Optional[Dict[str, Any]] = None
+    recalibration_result: Optional[Dict[str, Any]] = None
+    consensus_resolution: Optional[Dict[str, Any]] = None
+    audit_transcript: Optional[Dict[str, Any]] = None
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 

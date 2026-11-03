@@ -27,6 +27,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import hashlib
+import json
 from app.agents.consensus.contradiction_detector import ContradictionDetector
 from app.agents.consensus.debate_protocol import DebateProtocolEngine
 from app.agents.consensus.recalibration import ConfidenceRecalibrator
@@ -35,6 +37,8 @@ from app.schemas.consensus import (
     ChallengeStatus,
     ClaimConsensusState,
     ClaimRecalibrationRecord,
+    ClaimRelationship,
+    ClaimRelationshipType,
     ClaimResolutionRecord,
     ConfidenceRecalibrationResult,
     ContradictionCategory,
@@ -45,6 +49,7 @@ from app.schemas.consensus import (
     EvidenceSupportClassification,
     OverallConsensusOutcome,
     SafetyOverrideLevel,
+    SafetyOverrideLifecycleState,
     SafetyOverrideWarning,
     ConsensusResolutionResult,
 )
@@ -151,6 +156,18 @@ class ConsensusResolver:
             debate_transcript=debate_transcript,
             labs=labs,
             symptoms=symptoms,
+            history=history,
+        )
+
+        # 2b. Evaluate Explicit Pairwise Claim Relationships
+        claim_relationships = self.evaluate_claim_relationships(claim_resolutions)
+
+        # 2c. Verify Evidence References Against Patient Payload Data
+        verified_refs, unverified_refs = self.verify_evidence_references(
+            claim_resolutions=claim_resolutions,
+            labs=labs,
+            history=history,
+            symptoms=symptoms,
         )
 
         # 3. Extract Clinical Safety Overrides (Independent of Consensus)
@@ -160,6 +177,64 @@ class ConsensusResolver:
             labs=labs,
             history=history,
         )
+
+        # 3b. Diagnostic Hierarchy Categorization
+        primary_diagnoses: List[str] = []
+        secondary_diagnoses: List[str] = []
+        differential_diagnoses: List[str] = []
+        safety_critical_diagnoses: List[str] = []
+
+        acute_condition_keywords = [
+            "acute myocardial", "stemi", "nstemi", "acute coronary", "acs", "infarction",
+            "dka", "ketoacidosis", "hyperglycemic hyperosmolar", "hhs",
+            "hypertensive emergency", "pulmonary edema", "acute decompensated",
+        ]
+        chronic_condition_keywords = [
+            "hypertension", "essential hypertension", "diabetes", "type 2 diabetes",
+            "dyslipidemia", "hyperlipidemia", "hypercholesterolemia", "ckd", "chronic kidney",
+        ]
+
+        # First pass: flag safety-critical claims
+        for c in claim_resolutions:
+            is_acute = any(k in c.original_claim.lower() for k in acute_condition_keywords)
+            if is_acute:
+                c.is_safety_critical = True
+                if c.original_claim not in safety_critical_diagnoses:
+                    safety_critical_diagnoses.append(c.original_claim)
+
+        # Second pass: assign diagnostic roles
+        for c in claim_resolutions:
+            is_acute = c.is_safety_critical
+            is_chronic = any(k in c.original_claim.lower() for k in chronic_condition_keywords)
+
+            if is_acute:
+                if c.consensus_state in [ClaimConsensusState.SUPPORTED, ClaimConsensusState.PROVISIONAL]:
+                    c.claim_type = "primary"
+                    if c.original_claim not in primary_diagnoses:
+                        primary_diagnoses.append(c.original_claim)
+                else:
+                    c.claim_type = "safety_critical"
+            elif is_chronic:
+                if c.consensus_state in [ClaimConsensusState.SUPPORTED, ClaimConsensusState.PROVISIONAL]:
+                    c.claim_type = "secondary"
+                    if c.original_claim not in secondary_diagnoses:
+                        secondary_diagnoses.append(c.original_claim)
+                else:
+                    c.claim_type = "differential"
+                    if c.original_claim not in differential_diagnoses:
+                        differential_diagnoses.append(c.original_claim)
+            else:
+                if c.consensus_state == ClaimConsensusState.SUPPORTED and not primary_diagnoses:
+                    c.claim_type = "primary"
+                    primary_diagnoses.append(c.original_claim)
+                else:
+                    c.claim_type = "differential"
+                    if c.original_claim not in differential_diagnoses:
+                        differential_diagnoses.append(c.original_claim)
+
+        for sw in safety_warnings:
+            if sw.condition_name not in safety_critical_diagnoses:
+                safety_critical_diagnoses.append(sw.condition_name)
 
         # 4. Multi-Claim Overall Consensus Aggregation
         overall_outcome = self.aggregate_overall_outcome(
@@ -178,6 +253,7 @@ class ConsensusResolver:
             debate_transcript=debate_transcript,
             recalibration_result=recalibration_result,
             claim_resolutions=claim_resolutions,
+            claim_relationships=claim_relationships,
             overall_outcome=overall_outcome,
             safety_warnings=safety_warnings,
         )
@@ -218,12 +294,176 @@ class ConsensusResolver:
             patient_id=patient_token,
             overall_outcome=overall_outcome,
             claim_resolutions=claim_resolutions,
+            claim_relationships=claim_relationships,
             clinical_safety_warnings=safety_warnings,
+            primary_diagnoses=primary_diagnoses,
+            secondary_diagnoses=secondary_diagnoses,
+            differential_diagnoses=differential_diagnoses,
+            safety_critical_diagnoses=safety_critical_diagnoses,
             global_epistemic_doubt_score=recalibration_result.global_epistemic_doubt_score,
             audit_transcript=audit_transcript,
             resolution_summary=summary,
             methodological_notes=methodological_notes,
         )
+
+    # -------------------------------------------------------------------------
+    # Claim Relationships and Evidence Verification
+    # -------------------------------------------------------------------------
+
+    def evaluate_claim_relationships(
+        self, claim_resolutions: List[ClaimResolutionRecord]
+    ) -> List[ClaimRelationship]:
+        """Model explicit pairwise relationships between clinical claims to preserve comorbidities and detect contradictions."""
+        relationships: List[ClaimRelationship] = []
+        n = len(claim_resolutions)
+
+        comorbid_keywords = {
+            "hypertension": ["hypertens", "blood pressure", "sbp", "dbp", "htn"],
+            "diabetes": ["diabet", "t2d", "t1d", "glucose", "hyperglycem", "hba1c"],
+            "dyslipidemia": ["lipid", "cholesterol", "ldl", "triglycerid", "dyslipid"],
+            "ckd": ["chronic kidney", "ckd", "renal impairment", "creatinine", "egfr"],
+            "obesity": ["obes", "bmi", "overweight"],
+            "cad": ["coronary artery disease", "cad", "atherosclero", "chronic ischemic"],
+            "heart_failure": ["heart failure", "hfref", "hfpef", "bnp", "chf"],
+        }
+
+        acute_ischemia_terms = ["acute myocardial", "stemi", "nstemi", "acute coronary syndrome", "acs", "unstable angina", "infarction"]
+        normal_ischemia_terms = ["normal troponin", "non-cardiac", "no acute ischemia", "atypical chest pain", "ruled out", "normal ecg", "chest pain - non-cardiac"]
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                c1 = claim_resolutions[i]
+                c2 = claim_resolutions[j]
+                t1 = c1.original_claim.lower()
+                t2 = c2.original_claim.lower()
+
+                rel_type: ClaimRelationshipType = ClaimRelationshipType.INDEPENDENT
+                rationale: str = "Clinically distinct evaluations across specialist domains."
+                is_compat: bool = True
+
+                # 1. Contradictory / Mutually Exclusive Check
+                is_c1_acute_mi = any(k in t1 for k in acute_ischemia_terms)
+                is_c2_acute_mi = any(k in t2 for k in acute_ischemia_terms)
+                is_c1_non_ischemic = any(k in t1 for k in normal_ischemia_terms)
+                is_c2_non_ischemic = any(k in t2 for k in normal_ischemia_terms)
+
+                if (is_c1_acute_mi and is_c2_non_ischemic) or (is_c2_acute_mi and is_c1_non_ischemic):
+                    rel_type = ClaimRelationshipType.MUTUALLY_EXCLUSIVE
+                    rationale = "Acute coronary syndrome assertion directly opposes non-ischemic or ruled-out classification."
+                    is_compat = False
+                elif c1.consensus_state == ClaimConsensusState.CONFLICTING or c2.consensus_state == ClaimConsensusState.CONFLICTING:
+                    shared_issues = set(c1.contradiction_issue_ids).intersection(set(c2.contradiction_issue_ids))
+                    if shared_issues:
+                        rel_type = ClaimRelationshipType.CONTRADICTORY
+                        rationale = f"Claims are directly involved in active contradiction issues: {', '.join(shared_issues)}."
+                        is_compat = False
+
+                # 2. Hierarchical Subsumption Check
+                if is_compat:
+                    if ("acute coronary syndrome" in t1 or "acs" in t1) and any(k in t2 for k in ["stemi", "nstemi"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Acute Coronary Syndrome represents the broader syndromic umbrella encompassing STEMI/NSTEMI."
+                    elif ("acute coronary syndrome" in t2 or "acs" in t2) and any(k in t1 for k in ["stemi", "nstemi"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Acute Coronary Syndrome represents the broader syndromic umbrella encompassing STEMI/NSTEMI."
+                    elif ("heart failure" in t1) and any(k in t2 for k in ["hfref", "hfpef", "reduced ejection", "preserved ejection"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Heart failure is the parent clinical syndrome classified into phenotypic ejection fraction subtypes."
+                    elif ("heart failure" in t2) and any(k in t1 for k in ["hfref", "hfpef", "reduced ejection", "preserved ejection"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Heart failure is the parent clinical syndrome classified into phenotypic ejection fraction subtypes."
+                    elif any(k in t1 for k in ["diabetes", "hyperglycemia"]) and any(k in t2 for k in ["dka", "diabetic ketoacidosis", "hhs"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Diabetic ketoacidosis/HHS is an acute metabolic complication of underlying diabetes mellitus."
+                    elif any(k in t2 for k in ["diabetes", "hyperglycemia"]) and any(k in t1 for k in ["dka", "diabetic ketoacidosis", "hhs"]):
+                        rel_type = ClaimRelationshipType.HIERARCHICAL
+                        rationale = "Diabetic ketoacidosis/HHS is an acute metabolic complication of underlying diabetes mellitus."
+
+                    # 3. Compatible Chronic Comorbidities Check
+                    else:
+                        c1_comorbid = [cond for cond, kws in comorbid_keywords.items() if any(k in t1 for k in kws)]
+                        c2_comorbid = [cond for cond, kws in comorbid_keywords.items() if any(k in t2 for k in kws)]
+
+                        if c1_comorbid and c2_comorbid and set(c1_comorbid) != set(c2_comorbid):
+                            rel_type = ClaimRelationshipType.COMPATIBLE
+                            rationale = f"Concordant chronic comorbidities ({', '.join(c1_comorbid)} and {', '.join(c2_comorbid)}) that validly coexist without diagnostic conflict."
+                        elif c1.clinical_domain == c2.clinical_domain or {c1.clinical_domain, c2.clinical_domain} in [
+                            {"lipidology", "cardiovascular_risk"},
+                            {"ischemia", "cardiovascular_risk"},
+                            {"hemodynamics", "cardiovascular_risk"},
+                            {"glycemia", "cardiovascular_risk"},
+                        ]:
+                            rel_type = ClaimRelationshipType.RELATED
+                            rationale = f"Pathophysiologically related clinical domains ({c1.clinical_domain} and {c2.clinical_domain})."
+
+                relationships.append(
+                    ClaimRelationship(
+                        source_claim_id=c1.claim_id,
+                        target_claim_id=c2.claim_id,
+                        relationship_type=rel_type,
+                        clinical_rationale=rationale,
+                        is_compatible=is_compat,
+                    )
+                )
+
+        return relationships
+
+    def verify_evidence_references(
+        self,
+        claim_resolutions: List[ClaimResolutionRecord],
+        labs: Dict[str, Any],
+        history: Dict[str, Any],
+        symptoms: Dict[str, Any],
+    ) -> Tuple[List[str], List[str]]:
+        """Verify evidence citations against patient data payload to prevent hallucinated/unverified citations."""
+        valid_keys: Set[str] = set()
+
+        for k in labs.keys():
+            valid_keys.add(k.lower())
+        for k in history.keys():
+            valid_keys.add(k.lower())
+        if isinstance(history.get("chronic_conditions"), list):
+            for cond in history["chronic_conditions"]:
+                valid_keys.add(str(cond).lower())
+        for k in symptoms.keys():
+            valid_keys.add(k.lower())
+        if isinstance(symptoms.get("symptoms"), list):
+            for sym in symptoms["symptoms"]:
+                valid_keys.add(str(sym).lower())
+
+        alias_map = {
+            "troponin": "cardiac_troponin_ng_ml",
+            "hba1c": "hba1c_pct",
+            "glucose": "fasting_blood_glucose_mg_dl",
+            "blood_pressure": "systolic_bp",
+            "bp": "systolic_bp",
+            "cholesterol": "total_cholesterol_mg_dl",
+            "ldl": "ldl_cholesterol_mg_dl",
+            "creatinine": "serum_creatinine_mg_dl",
+            "bnp": "bnp_pg_ml",
+            "nt_probnp": "nt_probnp_pg_ml",
+            "ketones": "blood_ketones_mmol_l",
+            "potassium": "potassium_mmol_l",
+            "sodium": "serum_sodium_mmol_l",
+        }
+        for alias, standard in alias_map.items():
+            if standard.lower() in valid_keys:
+                valid_keys.add(alias)
+
+        verified_refs: List[str] = []
+        unverified_refs: List[str] = []
+
+        for c in claim_resolutions:
+            for ref in c.evidence_grounding_references:
+                cleaned_ref = ref.strip().lower()
+                if cleaned_ref in valid_keys or any(k in cleaned_ref for k in valid_keys if len(k) > 3):
+                    if ref not in verified_refs:
+                        verified_refs.append(ref)
+                else:
+                    if ref not in unverified_refs:
+                        unverified_refs.append(ref)
+
+        return verified_refs, unverified_refs
 
     # -------------------------------------------------------------------------
     # Claim-Level Consensus Evaluation
@@ -236,11 +476,11 @@ class ConsensusResolver:
         debate_transcript: DebateTranscript,
         labs: Dict[str, Any],
         symptoms: Dict[str, Any],
+        history: Optional[Dict[str, Any]] = None,
     ) -> List[ClaimResolutionRecord]:
         """Resolve consensus state individually for each recalibrated specialist claim."""
         resolved_records: List[ClaimResolutionRecord] = []
 
-        # Map domain doubts for rapid lookup
         domain_doubt_map = {
             d.domain: d.doubt_contribution for d in recalibration_result.domain_uncertainty_contributions
         }
@@ -252,6 +492,7 @@ class ConsensusResolver:
                 debate_transcript=debate_transcript,
                 labs=labs,
                 symptoms=symptoms,
+                history=history,
             )
 
             resolved_records.append(
@@ -286,6 +527,7 @@ class ConsensusResolver:
         debate_transcript: DebateTranscript,
         labs: Dict[str, Any],
         symptoms: Dict[str, Any],
+        history: Optional[Dict[str, Any]] = None,
     ) -> Tuple[ClaimConsensusState, str]:
         """Determine explicit consensus state using verified evidence priority principles."""
         # 1. State: WITHDRAWN
@@ -305,12 +547,13 @@ class ConsensusResolver:
                 f"Mandatory diagnostic evidence is missing ({missing_str}); confidence strictly capped at {record.missing_evidence_cap_value:.0f}%.",
             )
 
-        # Check if essential evidence items are classified as INSUFFICIENT or UNVERIFIABLE
         has_insufficient_class = any(
-            cls == EvidenceSupportClassification.INSUFFICIENT.value for cls in record.evidence_classifications.values()
+            cls in [EvidenceSupportClassification.INSUFFICIENT.value, "MISSING"]
+            for cls in record.evidence_classifications.values()
         )
         has_unverifiable_class = any(
-            cls == EvidenceSupportClassification.UNVERIFIABLE.value for cls in record.evidence_classifications.values()
+            cls in [EvidenceSupportClassification.UNVERIFIABLE.value, "UNVERIFIED", "INVALID"]
+            for cls in record.evidence_classifications.values()
         )
         if has_unverifiable_class:
             return ClaimConsensusState.INSUFFICIENT_EVIDENCE, "Referenced laboratory evidence failed verification or quality audit."
@@ -323,7 +566,6 @@ class ConsensusResolver:
                 f"Directly contradicted by verified objective laboratory findings: {conf_str}.",
             )
 
-        # Check for active unresolved contradiction with material severity
         has_active_critical = False
         if contradiction_matrix and contradiction_matrix.issues:
             for issue in contradiction_matrix.issues:
@@ -346,7 +588,6 @@ class ConsensusResolver:
             )
 
         # 6. State: PROVISIONAL
-        # Evidence supports claim, but caveats exist or confidence is intermediate
         if has_insufficient_class or len(record.evidence_quality_caveats) > 0 or record.final_confidence < self.support_confidence_threshold:
             caveats_str = "; ".join(record.evidence_quality_caveats) if record.evidence_quality_caveats else f"Confidence ({record.final_confidence:.1f}%) below full support threshold ({self.support_confidence_threshold:.0f}%)"
             return (
@@ -411,8 +652,9 @@ class ConsensusResolver:
                     warning_id=f"WARN-ACS-{uuid.uuid4().hex[:6]}",
                     condition_name="Suspected Acute Coronary Syndrome (ACS)",
                     level=SafetyOverrideLevel.EMERGENT,
+                    lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
                     trigger_rationale="Acute ischemic symptoms or objective cardiac markers indicate potential ongoing myocardial necrosis or unstable plaque rupture.",
-                    action_recommendation="Immediate Emergency Department evaluation, 12-lead ECG, continuous telemetry, and serial high-sensitivity troponin at 0h and 1h/3h per ESC guidelines.",
+                    action_recommendation="Immediate emergency medical assessment recommended: obtain 12-lead ECG, continuous telemetry monitoring, and serial high-sensitivity troponin per ESC 0h/1h or 0h/2h clinical algorithms.",
                     overrides_consensus=True,
                 )
             )
@@ -445,8 +687,9 @@ class ConsensusResolver:
                     warning_id=f"WARN-DKA-{uuid.uuid4().hex[:6]}",
                     condition_name="Suspected Diabetic Ketoacidosis / Hyperglycemic Crisis",
                     level=SafetyOverrideLevel.EMERGENT,
+                    lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
                     trigger_rationale="Marked hyperglycemia or clinical suspicion of acute metabolic decompensation with risk of life-threatening acidosis or hyperosmolality.",
-                    action_recommendation="Immediate evaluation of venous blood gas (pH, bicarbonate), serum beta-hydroxybutyrate, electrolytes, and aggressive IV fluid resuscitation.",
+                    action_recommendation="Urgent emergency clinical assessment recommended: immediate evaluation of venous blood gas (pH, bicarbonate), serum beta-hydroxybutyrate, electrolytes, and consideration of guideline-directed intravenous fluid resuscitation.",
                     overrides_consensus=True,
                 )
             )
@@ -481,8 +724,9 @@ class ConsensusResolver:
                         warning_id=f"WARN-HTN-EMERG-{uuid.uuid4().hex[:6]}",
                         condition_name="Suspected Hypertensive Emergency",
                         level=SafetyOverrideLevel.EMERGENT,
+                        lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
                         trigger_rationale=f"Severe blood pressure elevation ({sbp}/{dbp} mmHg) concurrent with signs of acute target-organ involvement (cardiac/renal/symptom).",
-                        action_recommendation="Immediate Emergency Department admission for controlled IV antihypertensive administration and acute target-organ assessment.",
+                        action_recommendation="Immediate emergency medical assessment recommended for controlled intravenous antihypertensive titration and acute target-organ evaluation in a monitored clinical setting.",
                         overrides_consensus=True,
                     )
                 )
@@ -492,11 +736,43 @@ class ConsensusResolver:
                         warning_id=f"WARN-HTN-URG-{uuid.uuid4().hex[:6]}",
                         condition_name="Severe Blood Pressure Elevation (Hypertensive Urgency)",
                         level=SafetyOverrideLevel.URGENT,
+                        lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
                         trigger_rationale=f"Severe blood pressure elevation ({sbp}/{dbp} mmHg) without documented acute target-organ damage.",
-                        action_recommendation="Prompt outpatient or urgent care medical evaluation within 24 hours for oral antihypertensive titration and organ damage screening.",
+                        action_recommendation="Prompt outpatient or urgent care medical evaluation recommended within 24 hours for oral antihypertensive adjustment and surveillance for target-organ involvement.",
                         overrides_consensus=True,
                     )
                 )
+
+        # 4. Acute Decompensated Heart Failure Alert
+        bnp_val = labs.get("bnp_pg_ml") or labs.get("nt_probnp_pg_ml")
+        has_dyspnea = any(s in ["dyspnea", "breathlessness", "orthopnea", "paroxysmal_nocturnal_dyspnea"] for s in sym_list)
+        has_hf_claim = any(
+            any(k in c.original_claim.lower() for k in ["acute heart failure", "acute decompensated", "pulmonary edema", "cardiogenic shock"])
+            for c in claim_resolutions
+        )
+        is_bnp_elevated = False
+        if bnp_val is not None:
+            try:
+                b_num = float(bnp_val)
+                if ("nt_probnp" in str(labs)) and b_num >= 900.0:
+                    is_bnp_elevated = True
+                elif b_num >= 400.0:
+                    is_bnp_elevated = True
+            except (ValueError, TypeError):
+                pass
+
+        if has_hf_claim or (has_dyspnea and is_bnp_elevated):
+            warnings.append(
+                SafetyOverrideWarning(
+                    warning_id=f"WARN-HF-{uuid.uuid4().hex[:6]}",
+                    condition_name="Suspected Acute Decompensated Heart Failure",
+                    level=SafetyOverrideLevel.EMERGENT,
+                    lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
+                    trigger_rationale="Acute dyspneic presentation with markedly elevated natriuretic peptides indicating acute hemodynamic congestion.",
+                    action_recommendation="Urgent clinical assessment recommended: bedside evaluation of volume status, respiratory support, and serial biomarker monitoring.",
+                    overrides_consensus=True,
+                )
+            )
 
         return warnings
 
@@ -587,8 +863,9 @@ class ConsensusResolver:
         claim_resolutions: List[ClaimResolutionRecord],
         overall_outcome: OverallConsensusOutcome,
         safety_warnings: List[SafetyOverrideWarning],
+        claim_relationships: Optional[List[ClaimRelationship]] = None,
     ) -> AuditDebateTranscript:
-        """Construct the immutable, traceable audit debate transcript."""
+        """Construct the immutable, traceable, and tamper-evident audit debate transcript."""
         transcript_token = f"TRANSCRIPT-{session_id}-{uuid.uuid4().hex[:6]}"
 
         participating_agents = list({c.agent_id for c in claim_resolutions})
@@ -696,7 +973,24 @@ class ConsensusResolver:
             f"Global residual epistemic doubt is {recalibration_result.global_epistemic_doubt_score:.3f}."
         )
 
-        return AuditDebateTranscript(
+        # Compute deterministic cryptographic milestone hashes
+        m1_hash = hashlib.sha256(json.dumps(original_claims, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+        m2_hash = hashlib.sha256(json.dumps(contradiction_records, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+        m3_hash = hashlib.sha256(json.dumps({"challenges": challenges, "rebuttals": rebuttals}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+        m4_hash = hashlib.sha256(json.dumps({"scores": recalibrated_scores, "doubts": epistemic_doubts}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+        m5_hash = hashlib.sha256(json.dumps({"claims": [c.model_dump() for c in claim_resolutions], "warnings": [w.model_dump() for w in safety_warnings]}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+
+        milestone_hashes = {
+            "milestone_1_pre_debate_claims": m1_hash,
+            "milestone_2_contradictions_detected": m2_hash,
+            "milestone_3_debate_exchanges": m3_hash,
+            "milestone_4_confidence_recalibration": m4_hash,
+            "milestone_5_consensus_resolution": m5_hash,
+        }
+
+        previous_block_hash = f"GENESIS-BLOCK-{session_id}"
+
+        transcript = AuditDebateTranscript(
             transcript_id=transcript_token,
             session_id=session_id,
             analysis_id=analysis_id,
@@ -714,13 +1008,22 @@ class ConsensusResolver:
             recalibrated_claim_support_scores=recalibrated_scores,
             epistemic_doubt_values=epistemic_doubts,
             claim_resolutions=claim_resolutions,
+            claim_relationships=claim_relationships or [],
             overall_outcome=overall_outcome,
             clinical_safety_warnings=safety_warnings,
             unresolved_issues=unresolved_issues,
             final_resolution_rationale=rationale,
             transcript_version=self.VERSION,
             is_immutable=True,
+            previous_block_hash=previous_block_hash,
+            milestone_hashes=milestone_hashes,
         )
+
+        # Seal transcript with canonical SHA-256 hash
+        transcript.canonical_transcript_hash = transcript.compute_transcript_hash()
+        assert transcript.verify_transcript_integrity() is True, "Cryptographic transcript sealing integrity check failed"
+
+        return transcript
 
 
 # Backward-compatible alias

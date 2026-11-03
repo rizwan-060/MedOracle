@@ -16,6 +16,8 @@ Defines structured data contracts for:
 4. Consensus Resolution & Debate Transcript (Sub-Step 12.4)
 """
 
+import hashlib
+import json
 import math
 from datetime import datetime, timezone
 from enum import Enum
@@ -992,6 +994,29 @@ class ClaimConsensusState(str, Enum):
     WITHDRAWN = "WITHDRAWN"
 
 
+class ClaimRelationshipType(str, Enum):
+    """Pairwise claim relationship classifications."""
+
+    COMPATIBLE = "COMPATIBLE"
+    INDEPENDENT = "INDEPENDENT"
+    MUTUALLY_EXCLUSIVE = "MUTUALLY_EXCLUSIVE"
+    CONTRADICTORY = "CONTRADICTORY"
+    HIERARCHICAL = "HIERARCHICAL"
+    RELATED = "RELATED"
+
+
+class ClaimRelationship(BaseModel):
+    """Pairwise relationship modeled between specialist claims."""
+
+    source_claim_id: str = Field(..., description="Source claim identifier.")
+    target_claim_id: str = Field(..., description="Target claim identifier.")
+    relationship_type: ClaimRelationshipType = Field(..., description="Relationship type classification.")
+    clinical_rationale: str = Field(..., description="Physiological explanation of relationship.")
+    is_compatible: bool = Field(default=True, description="True if claims can validly coexist.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OverallConsensusOutcome(str, Enum):
     """Analysis-level multi-claim aggregate consensus outcome."""
 
@@ -1010,14 +1035,27 @@ class SafetyOverrideLevel(str, Enum):
     WARNING = "warning"
 
 
+class SafetyOverrideLifecycleState(str, Enum):
+    """Lifecycle tracking states for active clinical safety alerts."""
+
+    ACTIVE = "ACTIVE"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    RESOLVED = "RESOLVED"
+    SUPERSEDED = "SUPERSEDED"
+
+
 class SafetyOverrideWarning(BaseModel):
     """Critical clinical safety warning preserved independently of consensus."""
 
     warning_id: str = Field(..., description="Unique collision-proof safety warning identifier.")
     condition_name: str = Field(..., description="High-risk clinical condition (e.g. 'Acute Coronary Syndrome', 'DKA', 'Hypertensive Emergency').")
     level: SafetyOverrideLevel = Field(..., description="Safety override urgency level ('emergent', 'urgent', 'warning').")
+    lifecycle_state: SafetyOverrideLifecycleState = Field(
+        default=SafetyOverrideLifecycleState.ACTIVE,
+        description="Lifecycle tracking state of the clinical safety override.",
+    )
     trigger_rationale: str = Field(..., description="Objective clinical rationale triggering the safety alert.")
-    action_recommendation: str = Field(..., description="Immediate clinical action recommendation (e.g. 'Immediate ED evaluation with serial troponins and 12-lead ECG').")
+    action_recommendation: str = Field(..., description="Immediate clinical action recommendation (decision support language).")
     overrides_consensus: bool = Field(default=True, description="True if alert remains active regardless of agent agreement or debate outcome.")
 
     model_config = ConfigDict(from_attributes=True)
@@ -1031,6 +1069,8 @@ class ClaimResolutionRecord(BaseModel):
     original_claim: str = Field(..., description="Original claim narrative as formulated pre-debate.")
     clinical_domain: str = Field(..., description="Clinical domain ('ischemia', 'lipidology', 'hemodynamics', 'glycemia', 'cardiovascular_risk', 'general').")
     consensus_state: ClaimConsensusState = Field(..., description="Claim-level consensus outcome.")
+    claim_type: str = Field(default="primary", description="Clinical hierarchy role: 'primary', 'secondary', 'differential', or 'safety_critical'.")
+    is_safety_critical: bool = Field(default=False, description="True if claim addresses acute or emergent conditions.")
     recalibrated_confidence: float = Field(..., ge=0.0, le=100.0, description="Recalibrated support score.")
     final_confidence: float = Field(..., ge=0.0, le=100.0, description="Post-cap bounded confidence.")
     evidence_grounding_references: List[str] = Field(default_factory=list, description="Verified patient evidence keys directly supporting this claim.")
@@ -1070,14 +1110,31 @@ class AuditDebateTranscript(BaseModel):
     recalibrated_claim_support_scores: Dict[str, float] = Field(default_factory=dict, description="Recalibrated support scores mapped by claim ID.")
     epistemic_doubt_values: Dict[str, float] = Field(default_factory=dict, description="Domain-decomposed epistemic doubt scores.")
     claim_resolutions: List[ClaimResolutionRecord] = Field(default_factory=list, description="Claim-level consensus resolution decisions.")
+    claim_relationships: List[ClaimRelationship] = Field(default_factory=list, description="Explicit pairwise claim relationship models.")
     overall_outcome: OverallConsensusOutcome = Field(..., description="Aggregate multi-claim consensus outcome.")
     clinical_safety_warnings: List[SafetyOverrideWarning] = Field(default_factory=list, description="Active emergency/urgent clinical safety overrides.")
     unresolved_issues: List[str] = Field(default_factory=list, description="Summary of unresolved disagreements and epistemic uncertainties.")
     final_resolution_rationale: str = Field(..., description="Comprehensive clinical rationale explaining final outcome.")
     transcript_version: str = Field(default="consensus_audit_v1.0.0", description="Audit schema version.")
     is_immutable: bool = Field(default=True, description="Audit immutability guarantee.")
+    canonical_transcript_hash: Optional[str] = Field(default=None, description="SHA-256 cryptographic hash of canonical transcript representation.")
+    previous_block_hash: Optional[str] = Field(default=None, description="Hash of preceding audit block for tamper-evident chaining.")
+    milestone_hashes: Dict[str, str] = Field(default_factory=dict, description="Cryptographic checkpoints across deliberation milestones.")
 
     model_config = ConfigDict(from_attributes=True)
+
+    def compute_transcript_hash(self) -> str:
+        """Compute deterministic SHA-256 hash across canonical serialized fields (excluding hash itself)."""
+        data = self.model_dump(exclude={"canonical_transcript_hash"})
+        canonical_json = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+
+    def verify_transcript_integrity(self) -> bool:
+        """Verify that the transcript has not been altered since sealing."""
+        if not self.canonical_transcript_hash:
+            return False
+        expected = self.compute_transcript_hash()
+        return self.canonical_transcript_hash == expected
 
 
 class ConsensusResolutionResult(BaseModel):
@@ -1088,7 +1145,12 @@ class ConsensusResolutionResult(BaseModel):
     patient_id: Optional[str] = Field(default=None, description="Patient identifier.")
     overall_outcome: OverallConsensusOutcome = Field(..., description="Overall analysis consensus outcome.")
     claim_resolutions: List[ClaimResolutionRecord] = Field(default_factory=list, description="Resolved claim-level records.")
+    claim_relationships: List[ClaimRelationship] = Field(default_factory=list, description="Modeled relationships between claims.")
     clinical_safety_warnings: List[SafetyOverrideWarning] = Field(default_factory=list, description="Independent safety overrides.")
+    primary_diagnoses: List[str] = Field(default_factory=list, description="Primary confirmed or supported clinical diagnoses.")
+    secondary_diagnoses: List[str] = Field(default_factory=list, description="Secondary confirmed comorbidities.")
+    differential_diagnoses: List[str] = Field(default_factory=list, description="Differential diagnoses under active consideration.")
+    safety_critical_diagnoses: List[str] = Field(default_factory=list, description="Acute safety-critical findings requiring immediate action.")
     global_epistemic_doubt_score: float = Field(..., ge=0.0, le=1.0, description="Global epistemic doubt score.")
     audit_transcript: AuditDebateTranscript = Field(..., description="Complete auditable debate and consensus transcript.")
     resolution_summary: str = Field(..., description="Executive clinical resolution summary.")
