@@ -802,3 +802,179 @@ def test_stale_and_invalid_provenance_increases_epistemic_doubt(recalibrator: Co
     assert lipid_doubt.quality_uncertainty_score > 0.30
 
 
+# =============================================================================
+# Step 12.3 Hardened Clinical Logic Tests (A1 - A12)
+# =============================================================================
+
+def test_euglycemic_dka_supported_without_severe_hyperglycemia(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test euglycemic DKA with glucose < 250, known diabetes/SGLT2i, ketonemia, and acidosis is supported and not capped."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Endocrine Specialist",
+            "findings": "Diabetic ketoacidosis secondary to SGLT2 inhibitor therapy.",
+            "confidence": 85.0,
+        }],
+        laboratory_data={
+            "fasting_blood_glucose_mg_dl": 115.0,
+            "beta_hydroxybutyrate_mmol_l": 4.2,
+            "blood_ph": 7.22,
+            "bicarbonate_mEq_L": 14.0,
+            "sglt2_inhibitor_use": True,
+        },
+        medical_history_data={
+            "chronic_conditions": ["Type 2 Diabetes Mellitus"],
+            "current_medications": [{"name": "Empagliflozin", "dosage": "10mg"}],
+        },
+    )
+    rec = result.recalibrated_claims[0]
+    assert rec.missing_evidence_cap_applied is False
+    assert rec.final_confidence >= 85.0
+    assert any("Euglycemic DKA" in c for c in rec.evidence_quality_caveats)
+
+
+def test_dka_urine_dipstick_caveat(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test urine dipstick ketones without serum beta-hydroxybutyrate triggers screening caveat."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Endocrine Specialist",
+            "findings": "Diabetic ketoacidosis based on dipstick ketones.",
+            "confidence": 75.0,
+        }],
+        laboratory_data={
+            "fasting_blood_glucose_mg_dl": 310.0,
+            "urine_ketones": "large",
+            "blood_ph": 7.25,
+        },
+    )
+    rec = result.recalibrated_claims[0]
+    assert any("Urine dipstick acetoacetate is a qualitative screening test" in c for c in rec.evidence_quality_caveats)
+
+
+def test_severe_hyperglycemia_distinct_from_crisis(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test severe hyperglycemia without ketoacidosis or hyperosmolality is distinct from DKA/HHS."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Endocrine Specialist",
+            "findings": "Severe hyperglycemia with marked glucotoxicity.",
+            "confidence": 80.0,
+        }],
+        laboratory_data={
+            "fasting_blood_glucose_mg_dl": 380.0,
+        },
+    )
+    rec = result.recalibrated_claims[0]
+    assert rec.missing_evidence_cap_applied is False
+    assert any("Severe hyperglycemia identified without diagnostic features" in c for c in rec.evidence_quality_caveats)
+
+
+def test_mixed_dka_hhs_presentation(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test mixed DKA/HHS presentation (marked hyperglycemia + hyperosmolality + ketoacidosis)."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Endocrine Specialist",
+            "findings": "Diabetic ketoacidosis with hyperosmolar state.",
+            "confidence": 85.0,
+        }],
+        laboratory_data={
+            "fasting_blood_glucose_mg_dl": 650.0,
+            "serum_sodium_meq_l": 145.0,  # Eff osm = 2*145 + 650/18 = 326.1 > 320
+            "beta_hydroxybutyrate_mmol_l": 3.8,
+            "blood_ph": 7.20,
+        },
+    )
+    rec = result.recalibrated_claims[0]
+    assert any("Mixed presentation of Diabetic Ketoacidosis (DKA) and Hyperglycemic Hyperosmolar State (HHS)" in c for c in rec.evidence_quality_caveats)
+
+
+def test_hypertensive_emergency_with_unknown_tod_capped_at_35(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test hypertensive emergency claim without organ damage biomarker testing is capped at 35% with UNKNOWN note."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Cardiology Specialist",
+            "findings": "Hypertensive emergency due to severe blood pressure elevation.",
+            "confidence": 85.0,
+        }],
+        laboratory_data={
+            "systolic_bp": 195.0,
+            "diastolic_bp": 125.0,
+        },
+        # No creatinine, troponin, or ECG provided
+    )
+    rec = result.recalibrated_claims[0]
+    assert rec.missing_evidence_cap_applied is True
+    assert rec.final_confidence <= 35.0
+    assert any("UNKNOWN" in k for k in rec.missing_evidence_details)
+
+
+def test_heart_failure_with_obesity_and_borderline_bnp(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test BMI >= 30 caveat on natriuretic peptides in heart failure evaluation."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Cardiology Specialist",
+            "findings": "Heart failure decompensation with elevated fill pressures.",
+            "confidence": 75.0,
+        }],
+        laboratory_data={
+            "bnp_pg_ml": 95.0,
+        },
+        medical_history_data={
+            "bmi": 34.0,
+        },
+    )
+    rec = result.recalibrated_claims[0]
+    assert any("BMI >= 30 (obesity)" in c for c in rec.evidence_quality_caveats)
+
+
+def test_claim_intent_classification_complex_clauses(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test claim intent classification correctly handles compound clauses, historical qualifiers, and negation scopes."""
+    # 1. Compound clause: acute negative + historical positive
+    t1 = recalibrator._classify_claim_intent("No evidence of acute MI, but previous MI documented in 2021.")
+    assert t1["has_contrastive_clause"] is True
+
+    # 2. "cannot be ruled out" -> non-negated uncertainty
+    t2 = recalibrator._classify_claim_intent("MI cannot be ruled out.")
+    assert t2["is_negated"] is False
+
+    # 3. "Possible history of MI" -> historical
+    t3 = recalibrator._classify_claim_intent("Possible history of MI.")
+    assert t3["is_historical"] is True
+
+    # 4. "Patient denies previous MI" -> explicit negation
+    t4 = recalibrator._classify_claim_intent("Patient denies previous MI.")
+    assert t4["is_negated"] is True
+
+    # 5. "Rule out acute MI" -> rule-out instruction
+    t5 = recalibrator._classify_claim_intent("Rule out acute MI.")
+    assert t5["is_rule_out"] is True
+
+    # 6. "No evidence of acute MI at this stage" -> explicit negation
+    t6 = recalibrator._classify_claim_intent("No evidence of acute MI at this stage.")
+    assert t6["is_negated"] is True
+
+    # 7. "History of diabetes, currently controlled" -> historical/chronic
+    t7 = recalibrator._classify_claim_intent("History of diabetes, currently controlled.")
+    assert t7["is_historical"] is True
+
+    # 8. "Family history of diabetes" -> family history
+    t8 = recalibrator._classify_claim_intent("Family history of diabetes.")
+    assert t8["is_family_history"] is True
+
+
+def test_troponin_assay_specific_cutoffs(recalibrator: ConfidenceRecalibrator) -> None:
+    """Test assay-specific troponin cutoff resolution removes universal hardcoding."""
+    # Abbott hs-cTnI (URL 0.026 ng/mL)
+    c1, u1, is_hs1, n1 = recalibrator._resolve_troponin_cutoff({"troponin_assay": "hs_ctni_abbott"})
+    assert c1 == 0.026
+    assert is_hs1 is True
+
+    # Roche hs-cTnT (URL 0.014 ng/mL)
+    c2, u2, is_hs2, n2 = recalibrator._resolve_troponin_cutoff({"troponin_assay": "hs_ctnt_roche"})
+    assert c2 == 0.014
+    assert is_hs2 is True
+
+    # Conventional cTnI (URL 0.04 ng/mL)
+    c3, u3, is_hs3, n3 = recalibrator._resolve_troponin_cutoff({"troponin_assay": "conventional_ctni"})
+    assert c3 == 0.04
+    assert is_hs3 is False
+
+
