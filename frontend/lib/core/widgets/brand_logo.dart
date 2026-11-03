@@ -41,18 +41,31 @@ class BrandLogo extends StatelessWidget {
     this.fill = const Color(0x24FFFFFF),
     this.stroke = AppColors.onPlum,
     this.textColor = AppColors.onPlum,
+    this.shieldWidth = 22,
+    this.shieldHeight = 24,
+    this.textStyle,
   });
 
   final Color fill;
   final Color stroke;
   final Color textColor;
+  final double shieldWidth;
+  final double shieldHeight;
+
+  /// Optional wordmark override; defaults to the global brand style.
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        BrandShield(fill: fill, stroke: stroke),
+        BrandShield(
+          width: shieldWidth,
+          height: shieldHeight,
+          fill: fill,
+          stroke: stroke,
+        ),
         const SizedBox(width: 6),
         // Flexible so a cramped header ellipsises the wordmark instead of
         // overflowing (the reference assumes a 390px canvas).
@@ -61,7 +74,9 @@ class BrandLogo extends StatelessWidget {
             'MedOracle',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.brand.copyWith(color: textColor),
+            style: (textStyle ?? AppTextStyles.brand).copyWith(
+              color: textColor,
+            ),
           ),
         ),
       ],
