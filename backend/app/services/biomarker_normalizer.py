@@ -351,22 +351,26 @@ class BiomarkerEntityNormalizer:
         return None, 0.0, NormalizationStatus.UNMAPPED, f"Unrecognized clinical biomarker label: '{raw_label}'"
 
     @classmethod
-    def parse_numeric_value(cls, raw_val: Any) -> Tuple[Optional[float], Optional[str], Optional[str]]:
+    def parse_numeric_value(
+        cls, raw_val: Any, return_audit: bool = False
+    ) -> Any:
         """Extract sanitized float, comparator, or qualitative description from OCR value token.
 
-        Returns:
-            Tuple of (cleaned_float, comparator_str_or_none, qualitative_str_or_none)
+        When return_audit is True:
+            Returns (cleaned_float, comparator, qualitative_str, audit_notes, is_ambiguous_locale)
+        When return_audit is False (default):
+            Returns (cleaned_float, comparator, qualitative_str)
         """
         if raw_val is None:
-            return None, None, None
+            return (None, None, None, [], False) if return_audit else (None, None, None)
 
         val_str = str(raw_val).strip()
         if not val_str:
-            return None, None, None
+            return (None, None, None, [], False) if return_audit else (None, None, None)
 
         clean_lower = cls.clean_string(val_str)
         if clean_lower in cls.QUALITATIVE_PATTERNS:
-            return None, None, val_str
+            return (None, None, val_str, [], False) if return_audit else (None, None, val_str)
 
         # Check for inequality prefix (<, <=, >, >=)
         comparator = None
@@ -375,39 +379,48 @@ class BiomarkerEntityNormalizer:
             comparator = match_ineq.group(1)
             val_str = match_ineq.group(2).strip()
 
-        # Handle range values like '100 - 120' -> take mid-point or reject as interval
+        # CLINICAL SAFETY: Do NOT calculate midpoints for range intervals (e.g., '100 - 120' or '3.5 - 5.0')!
+        # Fabricating patient measurements from ranges is strictly prohibited.
         if "-" in val_str and not val_str.startswith("-"):
-            parts = val_str.split("-")
-            try:
-                p1 = float(cls.clean_number_string(parts[0]))
-                p2 = float(cls.clean_number_string(parts[1]))
-                # Average range value with warning
-                return round((p1 + p2) / 2.0, 4), "range_midpoint", None
-            except Exception:
-                pass
+            audit_notes = [
+                f"Raw value token '{val_str}' represents an interval range rather than a discrete observed patient measurement. "
+                "Midpoint calculation is strictly prohibited to prevent fabricated clinical values."
+            ]
+            return (None, "interval_range", None, audit_notes, True) if return_audit else (None, "interval_range", None)
 
-        # Clean number representation
-        clean_num = cls.clean_number_string(val_str)
+        # Clean number representation with auditable tracking
+        clean_num, audit_notes, is_ambiguous_locale = cls.clean_number_string(val_str)
         try:
             num = float(clean_num)
-            return num, comparator, None
+            return (num, comparator, None, audit_notes, is_ambiguous_locale) if return_audit else (num, comparator, None)
         except (ValueError, TypeError):
-            # Check if any letters spell qualitative outcome
             for qp in cls.QUALITATIVE_PATTERNS:
                 if qp in clean_lower:
-                    return None, None, val_str
-            return None, None, None
+                    return (None, None, val_str, audit_notes, False) if return_audit else (None, None, val_str)
+            return (None, None, None, audit_notes, False) if return_audit else (None, None, None)
 
     @classmethod
-    def clean_number_string(cls, num_str: str) -> str:
-        """Resolve commas, period decimal points, and OCR glyph errors."""
+    def clean_number_string(cls, num_str: str) -> Tuple[str, List[str], bool]:
+        """Resolve commas, period decimal points, and OCR glyph errors with full auditable tracking.
+
+        Returns:
+            Tuple of (cleaned_number_string, audit_notes, is_ambiguous_locale)
+        """
         s = num_str.strip()
-        # Replace common letter substitutions in numeric fields (O -> 0, l -> 1)
-        s = re.sub(r"(?<=\d)[oO](?=\d)", "0", s)
-        s = re.sub(r"^[oO](?=\d)", "0", s)
-        s = re.sub(r"(?<=\d)[oO]$", "0", s)
-        s = re.sub(r"(?<=\d)[lI](?=\d)", "1", s)
-        s = re.sub(r"^[lI](?=\d)", "1", s)
+        audit_notes: List[str] = []
+        is_ambiguous_locale = False
+
+        # Replace common letter substitutions in numeric fields (O -> 0, l/I -> 1)
+        if re.search(r"(?<=\d)[oO](?=\d)|^[oO](?=\d)|(?<=\d)[oO]$", s):
+            s = re.sub(r"(?<=\d)[oO](?=\d)", "0", s)
+            s = re.sub(r"^[oO](?=\d)", "0", s)
+            s = re.sub(r"(?<=\d)[oO]$", "0", s)
+            audit_notes.append("OCR glyph substitution: 'O'/'o' corrected to '0'")
+
+        if re.search(r"(?<=\d)[lI](?=\d)|^[lI](?=\d)", s):
+            s = re.sub(r"(?<=\d)[lI](?=\d)", "1", s)
+            s = re.sub(r"^[lI](?=\d)", "1", s)
+            audit_notes.append("OCR glyph substitution: 'l'/'I' corrected to '1'")
 
         # Handle European decimal comma vs. thousands comma
         # e.g., '1,25' -> '1.25'
@@ -417,20 +430,29 @@ class BiomarkerEntityNormalizer:
             if s.rfind(",") > s.rfind("."):
                 # European format: 1.250,50
                 s = s.replace(".", "").replace(",", ".")
+                audit_notes.append("European numeric format: converted decimal comma to period")
             else:
                 # US format: 1,250.50
                 s = s.replace(",", "")
+                audit_notes.append("US numeric format: stripped thousands comma separator")
         elif "," in s:
-            # Single comma: if followed by 1 or 2 digits, treat as decimal separator
             parts = s.split(",")
+            # Single comma followed by 1 or 2 digits is standard decimal comma (e.g. 1,25 -> 1.25)
             if len(parts) == 2 and len(parts[1]) in [1, 2]:
                 s = s.replace(",", ".")
+                audit_notes.append("Decimal comma converted to period")
+            elif len(parts) == 2 and len(parts[1]) == 3:
+                # Single comma with 3 digits and no dot: e.g. 1,250
+                # Could be European 1.250 or US 1250 (potential 1000x difference)
+                is_ambiguous_locale = True
+                s = s.replace(",", "")
+                audit_notes.append(f"Ambiguous single comma separator in '{num_str}': potential 1000x discrepancy across locales (flagged for review)")
             else:
                 s = s.replace(",", "")
 
         # Strip remaining non-numeric characters except leading minus and decimal
         s = re.sub(r"[^\d\.\-]", "", s)
-        return s
+        return s, audit_notes, is_ambiguous_locale
 
     @classmethod
     def convert_unit(
@@ -718,18 +740,31 @@ class BiomarkerEntityNormalizer:
         # 1. Map Entity
         canonical_id, map_conf, map_status, amb_reason = cls.map_biomarker_entity(raw_label)
 
-        # 2. Parse Value
-        num_val, comparator, qual_str = cls.parse_numeric_value(raw_value)
+        # 2. Parse Value with auditable tracking
+        num_val, comparator, qual_str, audit_notes, is_ambiguous_locale = cls.parse_numeric_value(raw_value, return_audit=True)
 
         # Initialize audit tracking
-        clinical_caveats: List[str] = []
+        clinical_caveats: List[str] = list(audit_notes)
         final_status = map_status
 
         if qual_str:
             final_status = NormalizationStatus.QUALITATIVE_VALUE
             clinical_caveats.append(f"Qualitative finding extracted: '{qual_str}'")
 
-        if num_val is None and not qual_str:
+        if comparator == "interval_range":
+            final_status = NormalizationStatus.NEEDS_REVIEW
+            clinical_caveats.append(
+                f"Extracted patient result token represents a range interval ('{raw_value}') rather than a discrete observed measurement. "
+                "Midpoint calculation is strictly prohibited to prevent fabricated clinical values; flagged for clinical review."
+            )
+
+        if is_ambiguous_locale:
+            final_status = NormalizationStatus.NEEDS_REVIEW
+            clinical_caveats.append(
+                f"Locale ambiguity detected in '{raw_value}': comma could represent decimal or thousands separator; flagged for clinical review."
+            )
+
+        if num_val is None and not qual_str and comparator != "interval_range":
             final_status = NormalizationStatus.INVALID_VALUE
             clinical_caveats.append(f"Unparseable numeric value: '{raw_value}'")
 
@@ -893,19 +928,27 @@ class BiomarkerEntityNormalizer:
             else:
                 invalid_count += 1
 
-        # Provide downstream consumer compatibility keys for troponin
+        # Provide downstream consumer compatibility keys for troponin ONLY when unambiguous
+        troponin_assays_found = []
         if "hs_troponin_i_ng_ml" in canonical_dict:
-            canonical_dict["cardiac_troponin_ng_ml"] = canonical_dict["hs_troponin_i_ng_ml"]
-            canonical_dict["cardiac_troponin_assay"] = "hs_cTnI"
-        elif "troponin_i_ng_ml" in canonical_dict:
-            canonical_dict["cardiac_troponin_ng_ml"] = canonical_dict["troponin_i_ng_ml"]
-            canonical_dict["cardiac_troponin_assay"] = "cTnI"
-        elif "hs_troponin_t_ng_ml" in canonical_dict:
-            canonical_dict["cardiac_troponin_ng_ml"] = canonical_dict["hs_troponin_t_ng_ml"]
-            canonical_dict["cardiac_troponin_assay"] = "hs_cTnT"
-        elif "troponin_t_ng_ml" in canonical_dict:
-            canonical_dict["cardiac_troponin_ng_ml"] = canonical_dict["troponin_t_ng_ml"]
-            canonical_dict["cardiac_troponin_assay"] = "cTnT"
+            troponin_assays_found.append(("hs_cTnI", canonical_dict["hs_troponin_i_ng_ml"]))
+        if "troponin_i_ng_ml" in canonical_dict:
+            troponin_assays_found.append(("cTnI", canonical_dict["troponin_i_ng_ml"]))
+        if "hs_troponin_t_ng_ml" in canonical_dict:
+            troponin_assays_found.append(("hs_cTnT", canonical_dict["hs_troponin_t_ng_ml"]))
+        if "troponin_t_ng_ml" in canonical_dict:
+            troponin_assays_found.append(("cTnT", canonical_dict["troponin_t_ng_ml"]))
+
+        if len(troponin_assays_found) == 1:
+            canonical_dict["cardiac_troponin_assay"] = troponin_assays_found[0][0]
+            canonical_dict["cardiac_troponin_ng_ml"] = troponin_assays_found[0][1]
+        elif len(troponin_assays_found) > 1:
+            logger.warning("Multiple distinct troponin assays present in report; generic alias suppressed to avoid conflation.")
+            for r in normalized_records:
+                if "troponin" in str(r.get("canonical_id")):
+                    r["clinical_caveats"].append(
+                        "Multiple distinct troponin assays present in batch; generic cardiac_troponin_ng_ml alias suppressed to avoid cross-assay conflation."
+                    )
 
         return {
             "status": "success",

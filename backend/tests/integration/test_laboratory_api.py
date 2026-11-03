@@ -215,3 +215,20 @@ def test_laboratory_crud_endpoints(client: TestClient, db_session):
     # 6. Verify 404 after deletion
     res_after = client.get(f"/api/v1/laboratory/{lab_id}", headers=headers)
     assert res_after.status_code == 404
+
+
+def test_normalize_biomarkers_cross_tenant_forbidden(client: TestClient, db_session):
+    """Ensure a user cannot normalize laboratory items on behalf of another patient ID (cross-tenant isolation)."""
+    user_a, headers_a = _create_authenticated_user(db_session, email="tenant_a@example.com")
+    user_b, _ = _create_authenticated_user(db_session, email="tenant_b@example.com")
+
+    payload = {
+        "patient_id": user_b.id,  # Attempting to access/normalize for Patient B using User A's token
+        "extracted_items": [
+            {"label": "Fasting Blood Glucose", "value": "110.0", "unit": "mg/dL"}
+        ],
+    }
+
+    res = client.post("/api/v1/laboratory/biomarkers/normalize", json=payload, headers=headers_a)
+    assert res.status_code == 403
+    assert "Cross-tenant access forbidden" in res.json()["detail"]

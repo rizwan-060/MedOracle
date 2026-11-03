@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.consensus.contradiction_detector import ContradictionDetector
 from app.agents.consensus.debate_protocol import DebateProtocolEngine
+from app.agents.consensus.recalibration import ConfidenceRecalibrator
 from app.core.security import get_current_user
 from app.database.models import User
 from app.schemas.consensus import (
@@ -19,6 +20,8 @@ from app.schemas.consensus import (
     ContradictionTestResponse,
     DebateTestRequest,
     DebateTestResponse,
+    RecalibrationTestRequest,
+    RecalibrationTestResponse,
 )
 
 logger = logging.getLogger("consensus_api")
@@ -137,3 +140,91 @@ def test_adversarial_debate(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Adversarial debate protocol failed: {str(exc)}",
         ) from exc
+
+
+@router.post(
+    "/recalibrate",
+    response_model=RecalibrationTestResponse,
+    summary="Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring (Sub-Step 12.3)",
+)
+def test_confidence_recalibration(
+    payload: RecalibrationTestRequest,
+    current_user: User = Depends(get_current_user),
+) -> RecalibrationTestResponse:
+    """Execute Mathematical Confidence Recalibration & Epistemic Doubt Scoring.
+
+    1. Evaluates contradictions (or uses supplied contradiction_matrix).
+    2. Runs Adversarial Debate Protocol (or uses supplied debate_transcript).
+    3. Calculates positive evidence grounding multiplier (+5% to +15%).
+    4. Calculates claim-specific unresolved contradiction penalties (-10% to -25%).
+    5. Applies missing essential evidence confidence ceiling (capped at 40.0%).
+    6. Computes bounded Global Epistemic Doubt Score (0.0 to 1.0).
+    7. Returns complete auditable ConfidenceRecalibrationResult.
+    """
+    start_time = time.perf_counter()
+    try:
+        # Step 1: Detect contradictions if not supplied
+        if payload.contradiction_matrix:
+            contradiction_result = payload.contradiction_matrix
+        else:
+            detector = ContradictionDetector(default_disagreement_threshold=payload.disagreement_threshold)
+            contradiction_result = detector.evaluate_contradictions(
+                symptoms_data=payload.symptoms_data,
+                medical_history_data=payload.medical_history_data,
+                laboratory_data=payload.laboratory_data,
+                clinical_scores=payload.clinical_scores,
+                ml_predictions=payload.ml_predictions,
+                agent_outputs=payload.agent_outputs,
+                session_id=payload.session_id,
+                patient_id=payload.patient_id,
+                disagreement_threshold=payload.disagreement_threshold,
+            )
+
+        # Step 2: Execute debate protocol if not supplied
+        if payload.debate_transcript:
+            debate_transcript = payload.debate_transcript
+        else:
+            debate_engine = DebateProtocolEngine(max_rounds=2)
+            debate_transcript = debate_engine.execute_debate(
+                contradiction_result=contradiction_result,
+                agent_outputs=payload.agent_outputs,
+                symptoms_data=payload.symptoms_data,
+                medical_history_data=payload.medical_history_data,
+                laboratory_data=payload.laboratory_data,
+                clinical_scores=payload.clinical_scores,
+                ml_predictions=payload.ml_predictions,
+                session_id=payload.session_id,
+                patient_id=payload.patient_id,
+            )
+
+        # Step 3: Run Confidence Recalibrator
+        recalibrator = ConfidenceRecalibrator()
+        recalibration_result = recalibrator.recalibrate_panel(
+            agent_outputs=payload.agent_outputs,
+            contradiction_matrix=contradiction_result,
+            debate_transcript=debate_transcript,
+            symptoms_data=payload.symptoms_data,
+            medical_history_data=payload.medical_history_data,
+            laboratory_data=payload.laboratory_data,
+            clinical_scores=payload.clinical_scores,
+            ml_predictions=payload.ml_predictions,
+            session_id=payload.session_id,
+            patient_id=payload.patient_id,
+        )
+
+        execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+        return RecalibrationTestResponse(
+            status="success",
+            contradiction_result=contradiction_result,
+            debate_transcript=debate_transcript,
+            recalibration_result=recalibration_result,
+            execution_time_ms=execution_time_ms,
+        )
+    except Exception as exc:
+        logger.error("Confidence recalibration failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Confidence recalibration failed: {str(exc)}",
+        ) from exc
+

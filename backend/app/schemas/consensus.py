@@ -347,6 +347,8 @@ class ChallengeStatus(str, Enum):
     UNRESOLVED_DISAGREEMENT = "unresolved_disagreement"
     UNSUPPORTED = "unsupported"
     INCOMPARABLE_EXCLUDED = "incomparable_excluded"
+    INCONCLUSIVE = "inconclusive"
+
 
 
 class RebuttalDisposition(str, Enum):
@@ -698,3 +700,174 @@ class DebateTestResponse(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# =============================================================================
+# Sub-Step 12.3: Confidence Recalibration & Epistemic Doubt Schemas
+# =============================================================================
+
+class ClaimRecalibrationRecord(BaseModel):
+    """Auditable mathematical recalibration record for an individual specialist agent claim."""
+
+    agent_id: str = Field(..., description="Specialist agent role or identifier.")
+    claim_id: str = Field(..., description="Unique claim identifier.")
+    claim_text: str = Field(..., description="Exact claim or diagnostic statement.")
+    clinical_domain: str = Field(
+        default="general",
+        description="Clinical domain ('ischemia', 'lipidology', 'hemodynamics', 'glycemia', 'cardiovascular_risk', 'general').",
+    )
+    original_confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=100.0,
+        description="Original confidence score expressed by the agent (0.0 to 100.0 scale).",
+    )
+    evidence_grounding_adjustment: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=15.0,
+        description="Positive multiplier adjustment (+0% to +15%) based on verified, independent patient records.",
+    )
+    contradiction_penalty: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=25.0,
+        description="Negative penalty adjustment (-0% to -25%) based on unresolved, active contradictions.",
+    )
+    missing_evidence_cap_applied: bool = Field(
+        default=False,
+        description="True if confidence was bounded at 40% due to missing essential clinical evidence.",
+    )
+    missing_evidence_cap_value: Optional[float] = Field(
+        default=None,
+        description="Maximum allowed confidence cap (40.0% when essential evidence is missing).",
+    )
+    missing_evidence_details: List[str] = Field(
+        default_factory=list,
+        description="Specific missing biomarkers or diagnostic records triggering the cap.",
+    )
+    recalibrated_confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=100.0,
+        description="Intermediate confidence score after grounding multiplier and contradiction penalties.",
+    )
+    final_confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=100.0,
+        description="Final post-cap recalibrated confidence score (bounded strictly to [0.0, 100.0]).",
+    )
+    grounding_evidence_references: List[str] = Field(
+        default_factory=list,
+        description="Verified independent biomarker keys or clinical sources substantiating this claim.",
+    )
+    contradiction_issue_ids: List[str] = Field(
+        default_factory=list,
+        description="Contradiction issue IDs from Step 12.1 that affected this claim.",
+    )
+    debate_outcome: Optional[str] = Field(
+        default=None,
+        description="Debate resolution status ('conceded', 'revised', 'unresolved_disagreement', 'unsupported', 'no_challenge').",
+    )
+    concession_reason: Optional[str] = Field(
+        default=None,
+        description="Clinical rationale if the claim was formally conceded.",
+    )
+    recalibration_explanation: str = Field(
+        ...,
+        description="Human-readable mathematical audit trail explaining grounding, penalties, caps, and final confidence.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DomainEpistemicDoubt(BaseModel):
+    """Domain-level residual epistemic doubt decomposition."""
+
+    domain: str = Field(..., description="Clinical domain ('ischemia', 'lipidology', 'hemodynamics', 'glycemia', 'cardiovascular_risk').")
+    doubt_contribution: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Residual uncertainty contribution for this domain (0.0 to 1.0).",
+    )
+    unresolved_issues_count: int = Field(default=0, ge=0, description="Count of active unresolved contradictions in this domain.")
+    missing_essential_evidence: List[str] = Field(default_factory=list, description="Missing essential biomarkers in this domain.")
+    rationale: str = Field(..., description="Detailed clinical justification for this domain's doubt score.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConfidenceRecalibrationResult(BaseModel):
+    """Comprehensive output of the Sub-Step 12.3 Mathematical Confidence Recalibration Engine."""
+
+    session_id: Optional[str] = Field(default=None, description="Traceable session identifier.")
+    patient_id: Optional[str] = Field(default=None, description="Traceable patient identifier.")
+    recalibrated_claims: List[ClaimRecalibrationRecord] = Field(
+        default_factory=list,
+        description="Recalibrated confidence records for each agent claim.",
+    )
+    global_epistemic_doubt_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Global Epistemic Doubt Score representing residual uncertainty across the analysis (0.0 = total certainty, 1.0 = maximum doubt).",
+    )
+    domain_uncertainty_contributions: List[DomainEpistemicDoubt] = Field(
+        default_factory=list,
+        description="Domain-decomposed uncertainty contributions.",
+    )
+    missing_evidence_summary: List[str] = Field(
+        default_factory=list,
+        description="Essential missing clinical evidence that capped confidence.",
+    )
+    calibration_status: str = Field(
+        default="heuristic_recalibration_v1.0.0",
+        description="Methodological status: 'heuristic_recalibration_v1.0.0' (deterministic rule-based, not statistically calibrated).",
+    )
+    limitations_and_warnings: List[str] = Field(
+        default_factory=list,
+        description="Clinical and statistical caveats regarding confidence interpretation vs disease probability.",
+    )
+    summary: str = Field(
+        ...,
+        description="Executive summary of confidence adjustments and residual epistemic doubt.",
+    )
+    recalibrated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO 8601 recalibration timestamp.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecalibrationTestRequest(BaseModel):
+    """Request payload for testing the Confidence Recalibration Engine."""
+
+    session_id: Optional[str] = Field(default=None, description="Optional session identifier.")
+    patient_id: Optional[str] = Field(default=None, description="Optional patient identifier.")
+    disagreement_threshold: float = Field(default=25.0, ge=5.0, le=50.0)
+    agent_outputs: Optional[List[AgentOutputResponse]] = Field(default=None)
+    contradiction_matrix: Optional[ContradictionMatrixResult] = Field(default=None)
+    debate_transcript: Optional[DebateTranscript] = Field(default=None)
+    symptoms_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    medical_history_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    laboratory_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    clinical_scores: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    ml_predictions: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecalibrationTestResponse(BaseModel):
+    """Response payload for testing the Confidence Recalibration Engine."""
+
+    status: str = Field(default="success")
+    contradiction_result: ContradictionMatrixResult = Field(...)
+    debate_transcript: DebateTranscript = Field(...)
+    recalibration_result: ConfidenceRecalibrationResult = Field(...)
+    execution_time_ms: float = Field(..., ge=0.0)
+
+    model_config = ConfigDict(from_attributes=True)
+
