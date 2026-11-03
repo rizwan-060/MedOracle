@@ -53,6 +53,8 @@ from app.schemas.consensus import (
     DomainEpistemicDoubt,
     EvidenceSupportClassification,
     EvidenceValidityState,
+    SerialTroponinValidationStatus,
+    TargetOrganDamageState,
 )
 
 logger = logging.getLogger("confidence_recalibration")
@@ -176,26 +178,133 @@ ANALYTE_GROUPS: Dict[str, List[str]] = {
 
 
 # =============================================================================
-# Configurable Claim-to-Essential-Evidence Requirements Registry
+# Biomarker Freshness & Assay Metadata Registries (A5 & A10)
+# =============================================================================
+
+BIOMARKER_FRESHNESS_HOURS: Dict[str, float] = {
+    # Acute biomarkers (short physiological half-life / rapid kinetics)
+    "cardiac_troponin_ng_ml": 24.0,
+    "hs_troponin_i_ng_ml": 24.0,
+    "hs_troponin_t_ng_ml": 24.0,
+    "resting_ecg": 24.0,
+    "blood_ph": 24.0,
+    "arterial_ph": 24.0,
+    "venous_ph": 24.0,
+    "beta_hydroxybutyrate_mmol_l": 24.0,
+    "blood_ketones_mmol_l": 24.0,
+    "serum_bicarbonate_mmol_l": 24.0,
+    "random_blood_glucose_mg_dl": 24.0,
+    "blood_glucose_mg_dl": 24.0,
+    "bnp_pg_ml": 48.0,
+    "nt_pro_bnp_pg_ml": 48.0,
+    # Subacute / renal function
+    "serum_creatinine_mg_dl": 720.0,  # 30 days
+    "egfr_ml_min": 720.0,
+    # Chronic biomarkers (long-term glycemic and lipid exposure)
+    "hba1c_percent": 4320.0,  # 180 days (6 months)
+    "ldl_cholesterol_mg_dl": 8760.0,  # 365 days (1 year)
+    "total_cholesterol_mg_dl": 8760.0,
+    "hdl_cholesterol_mg_dl": 8760.0,
+    "triglycerides_mg_dl": 8760.0,
+}
+
+TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
+    "hs_ctni_abbott": {
+        "name": "Abbott Architect / Alinity hs-cTnI",
+        "type": "hs-cTnI",
+        "standard_unit": "ng/L",
+        "url_overall_ng_l": 26.0,
+        "url_female_ng_l": 16.0,
+        "url_male_ng_l": 34.0,
+        "url_ng_ml": 0.026,
+    },
+    "hs_ctnt_roche": {
+        "name": "Roche Elecsys hs-cTnT",
+        "type": "hs-cTnT",
+        "standard_unit": "ng/L",
+        "url_overall_ng_l": 14.0,
+        "url_female_ng_l": 9.0,
+        "url_male_ng_l": 15.0,
+        "url_ng_ml": 0.014,
+    },
+    "hs_ctni_siemens": {
+        "name": "Siemens Atellica hs-cTnI",
+        "type": "hs-cTnI",
+        "standard_unit": "ng/L",
+        "url_overall_ng_l": 45.0,
+        "url_ng_ml": 0.045,
+    },
+    "hs_ctni_beckman": {
+        "name": "Beckman Coulter Access hs-cTnI",
+        "type": "hs-cTnI",
+        "standard_unit": "ng/L",
+        "url_overall_ng_l": 18.0,
+        "url_ng_ml": 0.018,
+    },
+    "conventional_ctni": {
+        "name": "Conventional cTnI",
+        "type": "cTnI",
+        "standard_unit": "ng/mL",
+        "url_overall_ng_l": 40.0,
+        "url_ng_ml": 0.04,
+    },
+    "conventional_ctnt": {
+        "name": "Conventional cTnT",
+        "type": "cTnT",
+        "standard_unit": "ng/mL",
+        "url_overall_ng_l": 100.0,
+        "url_ng_ml": 0.10,
+    },
+}
+
+
+# =============================================================================
+# Configurable Logical Claim Evidence Requirements Registry (A1)
 # =============================================================================
 
 @dataclass
-class ClaimEvidenceRequirement:
-    """Configurable clinical rule governing essential diagnostic evidence."""
+class EvidenceGroup:
+    """Logical grouping of diagnostic evidence keys or clinical conditions."""
+
+    operator: str = "OR"  # "OR" or "AND"
+    keys: List[str] = field(default_factory=list)
+    description: str = ""
+    min_required: int = 1
+
+
+@dataclass
+class ClinicalEvidenceRequirement:
+    """Structured clinical rule governing essential diagnostic evidence with logical expressions."""
 
     requirement_id: str
     clinical_domain: str
     trigger_keywords: List[str]
-    mandatory_analyte_groups: List[str]
-    supportive_analyte_groups: List[str] = field(default_factory=list)
+    required_groups: List[EvidenceGroup] = field(default_factory=list)
+    supportive_groups: List[EvidenceGroup] = field(default_factory=list)
+    contradictory_groups: List[EvidenceGroup] = field(default_factory=list)
     exempt_keywords: List[str] = field(default_factory=list)
     confidence_cap: float = 40.0
     guideline_reference: str = ""
     rationale: str = ""
 
+    # Backwards-compatibility property
+    @property
+    def mandatory_analyte_groups(self) -> List[str]:
+        groups = []
+        for g in self.required_groups:
+            if g.description:
+                groups.append(g.description)
+            elif g.keys:
+                groups.append(g.keys[0])
+        return groups
 
-CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
-    ClaimEvidenceRequirement(
+
+# Backwards compatible alias
+ClaimEvidenceRequirement = ClinicalEvidenceRequirement
+
+
+CLAIM_REQUIREMENT_REGISTRY: List[ClinicalEvidenceRequirement] = [
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-ACUTE-ISCHEMIA",
         clinical_domain="ischemia",
         trigger_keywords=[
@@ -206,9 +315,19 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "acute coronary",
             "ischemic event",
             "coronary syndrome",
+            "acute ischemia",
         ],
-        mandatory_analyte_groups=["troponin"],
-        supportive_analyte_groups=["resting_ecg", "symptom_report"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["cardiac_troponin_ng_ml", "hs_troponin_i_ng_ml", "hs_troponin_t_ng_ml", "troponin_i_ng_ml", "troponin_t_ng_ml", "cardiac_troponin_assay"],
+                description="troponin",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["resting_ecg", "ecg", "12_lead_ecg"], description="resting_ecg"),
+            EvidenceGroup(operator="OR", keys=["symptoms", "chest_pain", "dyspnea"], description="symptom_report"),
+        ],
         exempt_keywords=[
             "paternal",
             "maternal",
@@ -223,19 +342,27 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "no evidence of",
             "rules out",
             "rule out",
+            "unlikely",
+            "cannot be ruled out",
+            "remote",
         ],
         confidence_cap=40.0,
-        guideline_reference="ESC 2023 Acute Coronary Syndromes Guideline",
+        guideline_reference="Fourth Universal Definition of MI (ESC/ACC/AHA/WHF 2018) & ESC 2023 ACS Guidelines",
         rationale="Objective confirmation or exclusion of acute myocardial necrosis strictly mandates serial cardiac troponin; resting ECG alone cannot confirm or exclude acute necrosis.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-UNSTABLE-ANGINA",
         clinical_domain="ischemia",
         trigger_keywords=[
             "unstable angina",
         ],
-        mandatory_analyte_groups=["resting_ecg"],
-        supportive_analyte_groups=["troponin", "symptom_report"],
+        required_groups=[
+            EvidenceGroup(operator="OR", keys=["resting_ecg", "ecg"], description="resting_ecg"),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["cardiac_troponin_ng_ml", "hs_troponin_i_ng_ml", "hs_troponin_t_ng_ml"], description="troponin"),
+            EvidenceGroup(operator="OR", keys=["symptoms", "chest_pain"], description="symptom_report"),
+        ],
         exempt_keywords=[
             "family history",
             "stable angina",
@@ -247,7 +374,7 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
         guideline_reference="AHA/ACC 2014 / ESC 2023 NSTE-ACS Guideline",
         rationale="Unstable angina presentation is characterized by acute myocardial ischemia without troponin elevation; mandates objective ECG and symptom evaluation.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-ACUTE-HEART-FAILURE",
         clinical_domain="heart_failure",
         trigger_keywords=[
@@ -257,8 +384,18 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "acute decompensation",
             "pulmonary edema",
         ],
-        mandatory_analyte_groups=["natriuretic_peptide"],
-        supportive_analyte_groups=["resting_ecg", "symptom_report", "kidney"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["bnp_pg_ml", "nt_pro_bnp_pg_ml", "echocardiogram", "chest_xray_pulmonary_congestion"],
+                description="natriuretic_peptide",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["resting_ecg", "ecg"], description="resting_ecg"),
+            EvidenceGroup(operator="OR", keys=["symptoms", "dyspnea", "breathlessness"], description="symptom_report"),
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min"], description="kidney"),
+        ],
         exempt_keywords=[
             "family history",
             "chronic heart failure",
@@ -267,10 +404,10 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "no evidence of",
         ],
         confidence_cap=35.0,
-        guideline_reference="ESC/HFA 2021 Heart Failure Guidelines",
-        rationale="Acute decompensated heart failure evaluation requires objective circulating natriuretic peptide (BNP >= 100 pg/mL or NT-proBNP >= 300 pg/mL) alongside clinical congestion symptoms; single normal peptide effectively excludes acute heart failure.",
+        guideline_reference="ESC/HFA 2021 Heart Failure Guidelines / ACC/AHA/HFSA 2022",
+        rationale="Acute decompensated heart failure evaluation requires objective circulating natriuretic peptide (BNP >= 100 pg/mL or NT-proBNP >= 300 pg/mL) or imaging evidence of pulmonary congestion alongside clinical symptoms.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-CHRONIC-HEART-FAILURE",
         clinical_domain="heart_failure",
         trigger_keywords=[
@@ -281,8 +418,18 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "stable heart failure",
             "heart failure",
         ],
-        mandatory_analyte_groups=["natriuretic_peptide"],
-        supportive_analyte_groups=["cardiac_function", "kidney", "resting_ecg"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["bnp_pg_ml", "nt_pro_bnp_pg_ml", "echocardiogram_lvef_percent", "ejection_fraction", "lvef"],
+                description="natriuretic_peptide",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["echocardiogram_lvef_percent", "ejection_fraction"], description="cardiac_function"),
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min"], description="kidney"),
+            EvidenceGroup(operator="OR", keys=["resting_ecg"], description="resting_ecg"),
+        ],
         exempt_keywords=[
             "family history",
             "risk of heart failure",
@@ -292,7 +439,7 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
         guideline_reference="ACC/AHA/HFSA 2022 Guideline for the Management of Heart Failure",
         rationale="Chronic heart failure classification (HFrEF vs HFpEF) requires objective assessment of left ventricular ejection fraction and natriuretic peptides in clinical context.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-DKA",
         clinical_domain="glycemia",
         trigger_keywords=[
@@ -300,8 +447,27 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "dka",
             "ketoacidosis",
         ],
-        mandatory_analyte_groups=["ketones", "glycemia_acute", "acid_base"],
-        supportive_analyte_groups=["kidney", "osmolality"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["fasting_blood_glucose_mg_dl", "random_blood_glucose_mg_dl", "blood_glucose_mg_dl", "documented_diabetes", "type_1_diabetes", "type_2_diabetes", "sglt2_inhibitor_use"],
+                description="glycemia_acute",
+            ),
+            EvidenceGroup(
+                operator="OR",
+                keys=["beta_hydroxybutyrate_mmol_l", "blood_ketones_mmol_l", "serum_ketones_mmol_l", "urine_ketones"],
+                description="ketones",
+            ),
+            EvidenceGroup(
+                operator="OR",
+                keys=["blood_ph", "arterial_ph", "venous_ph", "serum_bicarbonate_mmol_l", "bicarbonate_mEq_L"],
+                description="acid_base",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min", "blood_urea_nitrogen_mg_dl"], description="kidney"),
+            EvidenceGroup(operator="OR", keys=["serum_osmolality_mosm_kg", "effective_osmolality_mosm_kg"], description="osmolality"),
+        ],
         exempt_keywords=[
             "family history",
             "history of dka",
@@ -310,10 +476,10 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "no evidence of",
         ],
         confidence_cap=35.0,
-        guideline_reference="ADA 2024 / ISPAD Standards of Care in Diabetic Ketoacidosis",
-        rationale="Diagnostic confirmation of DKA mandates documented hyperketonemia (beta-hydroxybutyrate >= 3.0 mmol/L) AND metabolic acidosis (pH < 7.30 or bicarbonate < 18 mEq/L) concurrent with hyperglycemia. Missing ketones or acid-base testing cannot confirm DKA.",
+        guideline_reference="ADA Standards of Care 2024 / ADA/EASD Consensus: Hyperglycemic Crises in Adults",
+        rationale="Diagnostic confirmation of DKA mandates documented hyperketonemia (beta-hydroxybutyrate >= 3.0 mmol/L) AND metabolic acidosis (pH < 7.30 or bicarbonate <= 18 mEq/L) concurrent with hyperglycemia or known diabetes (euglycemic DKA). Missing ketones or acid-base testing cannot confirm DKA.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-HHS",
         clinical_domain="glycemia",
         trigger_keywords=[
@@ -322,8 +488,23 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "hyperosmolar hyperglycemic",
             "honk",
         ],
-        mandatory_analyte_groups=["glycemia_acute", "osmolality"],
-        supportive_analyte_groups=["ketones", "acid_base", "kidney"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["fasting_blood_glucose_mg_dl", "random_blood_glucose_mg_dl", "blood_glucose_mg_dl"],
+                description="glycemia_acute",
+            ),
+            EvidenceGroup(
+                operator="OR",
+                keys=["serum_osmolality_mosm_kg", "effective_osmolality_mosm_kg"],
+                description="osmolality",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["beta_hydroxybutyrate_mmol_l", "blood_ketones_mmol_l"], description="ketones"),
+            EvidenceGroup(operator="OR", keys=["blood_ph", "arterial_ph", "venous_ph", "serum_bicarbonate_mmol_l"], description="acid_base"),
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "blood_urea_nitrogen_mg_dl"], description="kidney"),
+        ],
         exempt_keywords=[
             "family history",
             "history of hhs",
@@ -331,10 +512,10 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "no evidence of",
         ],
         confidence_cap=35.0,
-        guideline_reference="ADA 2024 Standards of Care: Hyperglycemic Crises in Adults",
+        guideline_reference="ADA Standards of Care 2024: Hyperglycemic Crises in Adults",
         rationale="Diagnostic confirmation of HHS mandates marked hyperglycemia (>600 mg/dL) and effective hyperosmolality (>320 mOsm/kg) in the absence of significant ketoacidosis.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-SEVERE-HYPERGLYCEMIA",
         clinical_domain="glycemia",
         trigger_keywords=[
@@ -343,8 +524,17 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "uncontrolled hyperglycemia",
             "severe glucotoxicity",
         ],
-        mandatory_analyte_groups=["glycemia_acute"],
-        supportive_analyte_groups=["ketones", "kidney"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["fasting_blood_glucose_mg_dl", "random_blood_glucose_mg_dl", "blood_glucose_mg_dl"],
+                description="glycemia_acute",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["beta_hydroxybutyrate_mmol_l", "blood_ketones_mmol_l"], description="ketones"),
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl"], description="kidney"),
+        ],
         exempt_keywords=[
             "family history",
             "chronic",
@@ -355,7 +545,7 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
         guideline_reference="ADA 2024 Standards of Care: Glycemic Targets",
         rationale="Severe hyperglycemia without established DKA/HHS confirms elevated blood glucose but cannot confirm metabolic crisis without ketone/osmolality biomarkers.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-CHRONIC-DIABETES",
         clinical_domain="glycemia",
         trigger_keywords=[
@@ -365,8 +555,16 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "poor glycemic control",
             "chronic diabetes",
         ],
-        mandatory_analyte_groups=["glycemia"],
-        supportive_analyte_groups=["kidney"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["hba1c_percent", "fasting_blood_glucose_mg_dl", "random_blood_glucose_mg_dl", "documented_diabetes"],
+                description="glycemia",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min"], description="kidney"),
+        ],
         exempt_keywords=[
             "family history",
             "father",
@@ -379,7 +577,7 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
         guideline_reference="ADA 2024 Standards of Care: Diagnosis and Classification of Diabetes",
         rationale="Assessment of chronic diabetes or glycemic control accepts HbA1c (>=6.5%) or fasting glucose (>=126 mg/dL); HbA1c alone cannot confirm acute metabolic emergencies.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-HYPERTENSIVE-EMERGENCY",
         clinical_domain="hemodynamics",
         trigger_keywords=[
@@ -387,8 +585,23 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "malignant hypertension",
             "hypertensive crisis with target organ",
         ],
-        mandatory_analyte_groups=["blood_pressure", "target_organ_damage"],
-        supportive_analyte_groups=["kidney", "troponin", "resting_ecg"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["systolic_bp", "diastolic_bp", "blood_pressure"],
+                description="blood_pressure",
+            ),
+            EvidenceGroup(
+                operator="OR",
+                keys=["target_organ_damage", "serum_creatinine_mg_dl", "cardiac_troponin_ng_ml", "hs_troponin_i_ng_ml", "pulmonary_edema_confirmed"],
+                description="target_organ_damage",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min"], description="kidney"),
+            EvidenceGroup(operator="OR", keys=["cardiac_troponin_ng_ml", "hs_troponin_i_ng_ml"], description="troponin"),
+            EvidenceGroup(operator="OR", keys=["resting_ecg"], description="resting_ecg"),
+        ],
         exempt_keywords=[
             "history of hypertension",
             "chronic hypertension",
@@ -398,10 +611,10 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "no evidence of",
         ],
         confidence_cap=35.0,
-        guideline_reference="ACC/AHA 2017 / ESC 2018 Guidelines for Management of Arterial Hypertension",
+        guideline_reference="ACC/AHA 2017 / ESC 2018 / ESH 2023 Guidelines for Arterial Hypertension",
         rationale="Hypertensive emergency strictly mandates severe blood pressure elevation (typically >=180/120 mmHg) CONCURRENT WITH acute, progressive target-organ damage (heart, brain, kidney, retina, aorta). Severe BP alone without organ damage is hypertensive urgency.",
     ),
-    ClaimEvidenceRequirement(
+    ClinicalEvidenceRequirement(
         requirement_id="REQ-HYPERTENSIVE-URGENCY",
         clinical_domain="hemodynamics",
         trigger_keywords=[
@@ -410,8 +623,17 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClaimEvidenceRequirement] = [
             "severe stage 2",
             "hypertensive crisis",
         ],
-        mandatory_analyte_groups=["blood_pressure"],
-        supportive_analyte_groups=["kidney", "resting_ecg"],
+        required_groups=[
+            EvidenceGroup(
+                operator="OR",
+                keys=["systolic_bp", "diastolic_bp", "blood_pressure"],
+                description="blood_pressure",
+            ),
+        ],
+        supportive_groups=[
+            EvidenceGroup(operator="OR", keys=["serum_creatinine_mg_dl", "egfr_ml_min"], description="kidney"),
+            EvidenceGroup(operator="OR", keys=["resting_ecg"], description="resting_ecg"),
+        ],
         exempt_keywords=[
             "history of hypertension",
             "chronic hypertension",
@@ -879,6 +1101,8 @@ class ConfidenceRecalibrator:
             missing_evidence_details=missing_keys,
             recalibrated_confidence=intermediate_conf,
             final_confidence=final_conf,
+            claim_support_score=final_conf,
+            heuristic_support_score=final_conf,
             grounding_evidence_references=verified_evidence,
             conflicting_evidence_references=conflicting_evidence,
             evidence_quality_caveats=quality_caveats,
@@ -906,40 +1130,284 @@ class ConfidenceRecalibrator:
             return True
         return False
 
-    def _classify_claim_intent(self, claim_text: str) -> Dict[str, bool]:
-        """Classify clinical intent: negation/exclusion, historical context, suspected vs confirmed."""
-        claim_lower = claim_text.lower()
+    def _classify_claim_intent(self, claim_text: str) -> Dict[str, Any]:
+        """Classify clinical claim intent with clause segmentation, negation scope, and temporality (A7)."""
+        claim_lower = claim_text.lower().strip()
+
+        # Split into clauses by common conjunctions
+        delimiters = [", but ", "; but ", ", however ", "; however ", ", although ", ". ", "; "]
+        clauses = [claim_lower]
+        for d in delimiters:
+            new_clauses = []
+            for c in clauses:
+                new_clauses.extend(c.split(d))
+            clauses = [c.strip() for c in new_clauses if c.strip()]
 
         negation_markers = [
             "no evidence of", "rules out", "ruled out", "negative for", "absence of",
             "unlikely", "not consistent with", "without evidence", "excludes", "excluded",
             "normal troponin", "troponin strictly normal", "non-ischemic", "no acute",
+            "patient denies", "denies previous", "denies history", "denies",
         ]
         historical_markers = [
             "history of", "past medical history", "past history", "prior", "previous",
-            "remote", "resolved", "paternal", "maternal", "father", "mother", "sibling",
-            "family history", "chronic history",
+            "remote", "resolved", "documented in 20", "chronic history",
+        ]
+        family_history_markers = [
+            "family history", "father", "mother", "paternal", "maternal", "sibling",
+            "brother", "sister", "parents",
         ]
         suspected_markers = [
-            "possible", "probable", "suspected", "rule out", "presumed", "differential",
-            "potential", "cannot exclude", "concern for", "borderline",
+            "possible", "probable", "suspected", "presumed", "differential",
+            "potential", "cannot exclude", "concern for", "borderline", "cannot be ruled out",
+            "cannot rule out",
         ]
         confirmed_markers = [
             "confirmed", "established", "definite", "active acute", "diagnosed with",
             "severe acute", "overt",
         ]
 
-        is_negated = any(m in claim_lower for m in negation_markers)
-        is_historical = any(m in claim_lower for m in historical_markers)
-        is_suspected = any(m in claim_lower for m in suspected_markers) and not is_negated
-        is_confirmed = any(m in claim_lower for m in confirmed_markers) and not is_negated
+        is_negated = False
+        is_historical = False
+        is_family_history = False
+        is_patient_reported = False
+        is_suspected = False
+        is_confirmed = False
+        is_rule_out_instruction = False
+        is_uncertain = False
+
+        # Rule out instruction: e.g. "Rule out acute MI"
+        if claim_lower.startswith("rule out ") or claim_lower.startswith("r/o "):
+            is_rule_out_instruction = True
+            is_uncertain = True
+
+        # Check for "cannot be ruled out" / "cannot rule out" / "cannot exclude"
+        if "cannot be ruled out" in claim_lower or "cannot rule out" in claim_lower or "cannot exclude" in claim_lower:
+            is_uncertain = True
+            is_suspected = True
+
+        if any(m in claim_lower for m in family_history_markers):
+            is_family_history = True
+
+        if any(m in claim_lower for m in ["patient denies", "patient reports", "patient states"]):
+            is_patient_reported = True
+
+        # Negation check (excluding "cannot be ruled out")
+        has_negation_marker = any(m in claim_lower for m in negation_markers)
+        if has_negation_marker and "cannot be ruled out" not in claim_lower and "cannot rule out" not in claim_lower:
+            is_negated = True
+
+        if any(m in claim_lower for m in historical_markers) and not is_family_history:
+            is_historical = True
+
+        if any(m in claim_lower for m in suspected_markers):
+            is_suspected = True
+            is_uncertain = True
+
+        if any(m in claim_lower for m in confirmed_markers) and not is_negated:
+            is_confirmed = True
+
+        # Determine primary intent category
+        if is_rule_out_instruction:
+            intent_cat = "RULE_OUT_INSTRUCTION"
+        elif is_family_history:
+            intent_cat = "FAMILY_HISTORY"
+        elif is_patient_reported and is_negated:
+            intent_cat = "PATIENT_REPORTED_HISTORY"
+        elif is_negated and is_historical:
+            intent_cat = "HISTORICAL_DIAGNOSIS"
+        elif is_negated:
+            intent_cat = "EXPLICIT_NEGATION"
+        elif is_uncertain or is_suspected:
+            if is_historical:
+                intent_cat = "HISTORICAL_DIAGNOSIS"
+            else:
+                intent_cat = "CURRENT_SUSPECTED_DIAGNOSIS"
+        elif is_historical:
+            intent_cat = "HISTORICAL_DIAGNOSIS"
+        elif is_confirmed:
+            intent_cat = "CURRENT_POSITIVE_DIAGNOSIS"
+        else:
+            intent_cat = "CURRENT_POSITIVE_DIAGNOSIS"
+
+        has_contrastive_clause = any(d in claim_lower for d in [", but ", "; but ", ", however ", "; however ", ", although ", " but ", " however ", " although "])
 
         return {
+            "intent_category": intent_cat,
             "is_negated": is_negated,
             "is_historical": is_historical,
+            "is_family_history": is_family_history,
+            "is_patient_reported": is_patient_reported,
             "is_suspected": is_suspected,
             "is_confirmed": is_confirmed,
+            "is_rule_out": is_rule_out_instruction,
+            "is_rule_out_instruction": is_rule_out_instruction,
+            "has_contrastive_clause": bool(has_contrastive_clause),
+            "is_uncertain": is_uncertain,
+            "primary_clause": clauses[0] if clauses else claim_lower,
+            "clauses": [{"clause_text": c} for c in clauses],
         }
+
+    def _resolve_troponin_cutoff(self, labs: Dict[str, Any]) -> Tuple[float, str, bool, Optional[str]]:
+        """Resolve assay-specific 99th percentile upper reference limit (URL) for cardiac troponin (A5)."""
+        lab_url = labs.get("troponin_url_ng_ml") or labs.get("lab_reference_limit") or labs.get("reference_range_upper")
+        if lab_url is not None:
+            try:
+                url_float = float(lab_url)
+                return url_float, "ng/mL", (url_float <= 0.03), "Laboratory-Reported Reference URL"
+            except (ValueError, TypeError):
+                pass
+
+        assay_raw = str(labs.get("cardiac_troponin_assay") or labs.get("troponin_assay") or labs.get("assay") or "").lower()
+        unit_raw = str(labs.get("cardiac_troponin_unit") or labs.get("troponin_unit") or "ng/ml").lower()
+
+        profile_key = None
+        if assay_raw in TROPONIN_ASSAY_PROFILES:
+            profile_key = assay_raw
+        elif "abbott" in assay_raw or "architect" in assay_raw or "alinity" in assay_raw:
+            profile_key = "hs_ctni_abbott"
+        elif "roche" in assay_raw or "elecsys" in assay_raw or "hs_ctnt" in assay_raw or "hs-ctnt" in assay_raw:
+            profile_key = "hs_ctnt_roche"
+        elif "siemens" in assay_raw or "atellica" in assay_raw:
+            profile_key = "hs_ctni_siemens"
+        elif "beckman" in assay_raw or "access" in assay_raw:
+            profile_key = "hs_ctni_beckman"
+        elif "conventional_ctnt" in assay_raw:
+            profile_key = "conventional_ctnt"
+        elif "conventional" in assay_raw or "standard" in assay_raw:
+            profile_key = "conventional_ctni"
+        elif "hs" in assay_raw or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None:
+            profile_key = "hs_ctni_abbott"
+
+        if profile_key and profile_key in TROPONIN_ASSAY_PROFILES:
+            prof = TROPONIN_ASSAY_PROFILES[profile_key]
+            is_hs = "hs" in prof["type"].lower()
+            if "ng/l" in unit_raw or "pg/ml" in unit_raw:
+                return prof["url_overall_ng_l"], "ng/L", is_hs, prof["name"]
+            else:
+                return prof["url_ng_ml"], "ng/mL", is_hs, prof["name"]
+
+        is_hs_key = labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None or "hs" in assay_raw
+        if is_hs_key:
+            return 0.014, "ng/mL", True, "Generic hs-cTn"
+        else:
+            return 0.04, "ng/mL", False, "Conventional cTn"
+
+    def _validate_serial_troponin_protocol(self, labs: Dict[str, Any]) -> Tuple[str, List[str], bool]:
+        """Validate serial cardiac troponin testing against protocol standards (ESC 0h/1h, 0h/2h, 0h/3h) (A6)."""
+        caveats: List[str] = []
+        serial_completed = bool(labs.get("serial_troponin_completed"))
+        assay_mismatch = bool(labs.get("troponin_assay_mismatch") or labs.get("assay_mismatch"))
+        sample_interval = labs.get("serial_sample_interval_hours")
+        timestamps = labs.get("serial_timestamps") or labs.get("sample_timestamps")
+
+        if assay_mismatch:
+            caveats.append(
+                "Serial troponin assay mismatch (conventional vs high-sensitivity or disparate manufacturers); "
+                "serial delta cannot be computed across disparate assay technologies."
+            )
+            return SerialTroponinValidationStatus.INCOMPATIBLE_ASSAY.value, caveats, False
+
+        if timestamps and isinstance(timestamps, (list, tuple)) and len(timestamps) >= 2:
+            try:
+                t0 = datetime.fromisoformat(str(timestamps[0]).replace("Z", "+00:00"))
+                t1 = datetime.fromisoformat(str(timestamps[1]).replace("Z", "+00:00"))
+                delta_h = (t1 - t0).total_seconds() / 3600.0
+                if delta_h < 0:
+                    caveats.append("Serial troponin sample timestamps in reverse chronological order.")
+                    return SerialTroponinValidationStatus.INVALID_SEQUENCE.value, caveats, False
+                if delta_h < 0.8:
+                    caveats.append(
+                        f"Serial troponin interval ({delta_h:.2f}h < 1 hour) is insufficient per ESC 0h/1h or 0h/3h protocol to rule in or rule out acute myocardial necrosis."
+                    )
+                    return SerialTroponinValidationStatus.INSUFFICIENT_TIMING.value, caveats, False
+            except (ValueError, TypeError):
+                caveats.append("Serial troponin sample timestamps malformed.")
+
+        if sample_interval is not None:
+            try:
+                interval_float = float(sample_interval)
+                if interval_float < 1.0:
+                    caveats.append(
+                        "Serial troponin interval < 1 hour is insufficient per ESC 0h/1h or 0h/3h protocol to rule in or rule out acute myocardial necrosis."
+                    )
+                    return SerialTroponinValidationStatus.INSUFFICIENT_TIMING.value, caveats, False
+            except (ValueError, TypeError):
+                pass
+
+        if not serial_completed:
+            return SerialTroponinValidationStatus.INCOMPLETE_SERIAL_SERIES.value, caveats, False
+
+        return SerialTroponinValidationStatus.VALID_SERIAL_SERIES.value, caveats, True
+
+    def _evaluate_target_organ_damage(
+        self,
+        labs: Dict[str, Any],
+        history: Dict[str, Any],
+        symptoms: Dict[str, Any],
+    ) -> Tuple[TargetOrganDamageState, List[str], str]:
+        """Evaluate acute target-organ damage status in severe hypertension presentations (A3)."""
+        markers: List[str] = []
+
+        if labs.get("target_organ_damage") is True:
+            markers.append("Documented acute target-organ damage")
+
+        creat = labs.get("serum_creatinine_mg_dl")
+        baseline_creat = labs.get("baseline_creatinine_mg_dl")
+        if creat is not None:
+            try:
+                c_num = float(creat)
+                if baseline_creat is not None and (c_num - float(baseline_creat)) >= 0.3:
+                    markers.append(f"Acute kidney injury (creatinine delta +{(c_num - float(baseline_creat)):.2f} mg/dL)")
+                elif c_num >= 2.0:
+                    markers.append(f"Acute kidney injury (serum creatinine {c_num:.1f} mg/dL)")
+            except (ValueError, TypeError):
+                pass
+
+        troponin = labs.get("cardiac_troponin_ng_ml") or labs.get("hs_troponin_i_ng_ml") or labs.get("hs_troponin_t_ng_ml")
+        if troponin is not None:
+            try:
+                t_num = float(troponin)
+                cutoff, _, _, _ = self._resolve_troponin_cutoff(labs)
+                if t_num > cutoff:
+                    markers.append(f"Acute myocardial injury (troponin {t_num} > {cutoff})")
+            except (ValueError, TypeError):
+                pass
+
+        if labs.get("pulmonary_edema_confirmed") is True or labs.get("pulmonary_edema") is True:
+            markers.append("Acute pulmonary edema (cardiogenic)")
+
+        ecg = str(labs.get("resting_ecg") or "").lower()
+        if any(k in ecg for k in ["st_elevation", "acute_ischemia", "st_depression"]):
+            markers.append("Acute ischemic ECG abnormalities")
+
+        if markers:
+            return TargetOrganDamageState.PRESENT, markers, f"Acute target-organ damage present: {', '.join(markers)}"
+
+        has_tests = (
+            labs.get("serum_creatinine_mg_dl") is not None
+            or labs.get("cardiac_troponin_ng_ml") is not None
+            or labs.get("hs_troponin_i_ng_ml") is not None
+            or labs.get("resting_ecg") is not None
+            or labs.get("target_organ_damage") is False
+        )
+
+        if not has_tests:
+            return (
+                TargetOrganDamageState.UNKNOWN,
+                [],
+                "Target-organ damage status UNKNOWN: Renal and cardiac biomarkers not evaluated in severe hypertension presentation.",
+            )
+
+        sym_list = [str(s).lower() for s in symptoms.get("symptoms", [])]
+        if any(s in ["chest_pain", "dyspnea", "vision_loss", "confusion", "neurological_deficit"] for s in sym_list):
+            return (
+                TargetOrganDamageState.SUSPECTED,
+                ["Concerning symptoms with pending confirmatory biomarker panels"],
+                "Acute target-organ damage SUSPECTED based on presenting clinical symptoms; mandates emergency confirmation.",
+            )
+
+        return TargetOrganDamageState.ABSENT, [], "No acute target-organ damage identified across evaluated laboratory endpoints."
 
     def _calculate_evidence_grounding(
         self,
@@ -989,11 +1457,11 @@ class ConfidenceRecalibrator:
         # 1. Evaluate Objective Laboratory Biomarkers
         # ---------------------------------------------------------------------
 
-        # Analyte Group: Troponin (with Serial Timing, Assay Nuance & Interval Check)
+        # Analyte Group: Troponin (with Assay Nuance, Serial Timing & Protocol Validation - A5/A6)
         troponin_val = labs.get("cardiac_troponin_ng_ml") or labs.get("hs_troponin_i_ng_ml") or labs.get("hs_troponin_t_ng_ml")
-        assay_type = str(labs.get("cardiac_troponin_assay") or "").lower()
-        is_hs_assay = "hs" in assay_type or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None
-        troponin_cutoff = 0.014 if is_hs_assay else 0.04
+        troponin_cutoff, trop_unit, is_hs_assay, assay_name = self._resolve_troponin_cutoff(labs)
+        protocol_status, protocol_caveats, is_valid_series = self._validate_serial_troponin_protocol(labs)
+        quality_caveats.extend(protocol_caveats)
 
         if troponin_val is not None:
             trop_key = "cardiac_troponin_ng_ml"
@@ -1006,27 +1474,11 @@ class ConfidenceRecalibrator:
 
             try:
                 trop_num = float(troponin_val)
-                is_acute_infarct_claim = any(k in claim_lower for k in ["acute myocardial", "infarction", "stemi", "nstemi", "acute coronary"])
+                is_acute_infarct_claim = any(k in claim_lower for k in ["acute myocardial", "infarction", "stemi", "nstemi", "acute coronary", "acute ischemia"])
                 is_unstable_angina = "unstable angina" in claim_lower
                 is_rule_out = any(k in claim_lower for k in ["rule out", "ruled out", "normal troponin", "no myocardial necrosis"])
 
-                # Check serial timing, assay mismatch, and interval
-                serial_completed = bool(labs.get("serial_troponin_completed"))
-                assay_mismatch = bool(labs.get("troponin_assay_mismatch"))
-                sample_interval = labs.get("serial_sample_interval_hours")
-
-                if assay_mismatch:
-                    quality_caveats.append("Serial troponin assay mismatch (conventional vs high-sensitivity); serial delta cannot be computed across disparate assay technologies.")
-                    serial_completed = False
-
-                if sample_interval is not None:
-                    try:
-                        interval_float = float(sample_interval)
-                        if interval_float < 1.0:
-                            quality_caveats.append("Serial troponin interval < 1 hour is insufficient per ESC 0h/1h or 0h/3h protocol to rule in or rule out acute myocardial necrosis.")
-                            serial_completed = False
-                    except (ValueError, TypeError):
-                        pass
+                serial_completed = bool(labs.get("serial_troponin_completed")) and is_valid_series
 
                 if has_needs_review or has_provenance_issue:
                     evidence_classifications[trop_key] = EvidenceSupportClassification.UNVERIFIABLE.value
@@ -1035,7 +1487,6 @@ class ConfidenceRecalibrator:
                     credited_analyte_groups.add("troponin")
                     verified_evidence.append(trop_key)
                 elif is_unstable_angina:
-                    # In unstable angina, troponin is normal by definition; normal does NOT contradict unstable angina
                     if trop_num <= troponin_cutoff:
                         evidence_classifications[trop_key] = EvidenceSupportClassification.NEUTRAL.value
                         quality_caveats.append("Unstable angina presents with acute ischemia without troponin elevation; normal troponin is consistent with unstable angina.")
@@ -1046,7 +1497,7 @@ class ConfidenceRecalibrator:
                 elif is_acute_infarct_claim and trop_num <= troponin_cutoff:
                     if serial_completed:
                         evidence_classifications[trop_key] = EvidenceSupportClassification.CONTRADICTS.value
-                        conflicting_evidence.append(f"{trop_key} ({trop_num} ng/mL <= {troponin_cutoff} ref with completed serial evaluation)")
+                        conflicting_evidence.append(f"{trop_key} ({trop_num} {trop_unit} <= {troponin_cutoff} ref with completed serial evaluation)")
                     else:
                         evidence_classifications[trop_key] = EvidenceSupportClassification.INSUFFICIENT.value
                         quality_caveats.append("Single normal troponin without adequate serial testing does not rule out early acute coronary syndrome.")
@@ -1054,6 +1505,13 @@ class ConfidenceRecalibrator:
                     evidence_classifications[trop_key] = EvidenceSupportClassification.SUPPORTS.value
                     credited_analyte_groups.add("troponin")
                     verified_evidence.append(trop_key)
+                    # Check for ischemic context (symptoms or ECG) per Fourth Universal Definition
+                    has_ischemic_context = (
+                        bool(symptoms.get("symptoms"))
+                        or any(s in str(labs.get("resting_ecg") or "").lower() for s in ["st_elevation", "st_depression", "t_wave_inversion", "ischemi"])
+                    )
+                    if not has_ischemic_context:
+                        quality_caveats.append("Myocardial injury detected (troponin elevation > 99th percentile URL); Fourth Universal Definition of MI distinguishes myocardial injury from acute myocardial infarction pending clinical ischemic context.")
                 elif domain == "ischemia" or "troponin" in claim_lower or "cardiac" in claim_lower:
                     if trop_num <= troponin_cutoff and not is_acute_infarct_claim:
                         evidence_classifications[trop_key] = EvidenceSupportClassification.SUPPORTS.value
@@ -1083,7 +1541,6 @@ class ConfidenceRecalibrator:
                         evidence_classifications[ecg_key] = EvidenceSupportClassification.CONTRADICTS.value
                         conflicting_evidence.append(f"{ecg_key} (normal rhythm contradicts active STEMI)")
                     elif any(k in claim_lower for k in ["acute myocardial", "nstemi", "unstable angina"]):
-                        # Normal ECG alone is insufficient to exclude NSTEMI or Unstable Angina
                         evidence_classifications[ecg_key] = EvidenceSupportClassification.INSUFFICIENT.value
                         quality_caveats.append("Normal resting ECG does not exclude NSTEMI or unstable angina; serial troponin and clinical context are essential.")
                     else:
@@ -1093,43 +1550,44 @@ class ConfidenceRecalibrator:
                 else:
                     evidence_classifications[ecg_key] = EvidenceSupportClassification.NEUTRAL.value
 
-        # Analyte Group: Blood Pressure & Target-Organ Damage (Hypertensive Emergency vs Urgency)
+        # Analyte Group: Blood Pressure & Target-Organ Damage (Hypertensive Emergency vs Urgency - A3)
         sbp = labs.get("systolic_bp")
         dbp = labs.get("diastolic_bp")
         if sbp is not None or dbp is not None:
             bp_key = "blood_pressure_measurement"
             evidence_states["blood_pressure"] = EvidenceValidityState.VERIFIED_PRESENT.value
             is_htn_emergency_claim = any(k in claim_lower for k in ["hypertensive emergency", "malignant hypertension", "hypertensive crisis with target organ"])
+            is_htn_urgency_claim = any(k in claim_lower for k in ["hypertensive urgency", "severe asymptomatic hypertension"])
 
-            # Evaluate presence of acute target-organ damage
-            has_organ_damage = False
-            organ_damage_markers = []
-            if labs.get("serum_creatinine_mg_dl") is not None and float(labs.get("serum_creatinine_mg_dl", 0)) >= 2.0:
-                has_organ_damage = True
-                organ_damage_markers.append("acute kidney injury")
-            if labs.get("cardiac_troponin_ng_ml") is not None and float(labs.get("cardiac_troponin_ng_ml", 0)) > 0.04:
-                has_organ_damage = True
-                organ_damage_markers.append("myocardial injury")
-            if labs.get("target_organ_damage") is True:
-                has_organ_damage = True
-                organ_damage_markers.append("documented target organ damage")
+            tod_state, tod_markers, tod_notes = self._evaluate_target_organ_damage(labs, history, symptoms)
 
             if is_htn_emergency_claim:
-                if has_organ_damage:
+                if tod_state == TargetOrganDamageState.PRESENT:
                     evidence_classifications[bp_key] = EvidenceSupportClassification.SUPPORTS.value
                     credited_analyte_groups.add("blood_pressure")
                     credited_analyte_groups.add("target_organ_damage")
                     verified_evidence.append(bp_key)
                     verified_evidence.append("target_organ_damage")
+                elif tod_state == TargetOrganDamageState.UNKNOWN:
+                    evidence_classifications[bp_key] = EvidenceSupportClassification.INSUFFICIENT.value
+                    quality_caveats.append("Severe BP elevation with UNKNOWN target-organ damage status; emergency evaluation required.")
                 else:
                     evidence_classifications[bp_key] = EvidenceSupportClassification.INSUFFICIENT.value
                     quality_caveats.append("Severe BP elevation without documented acute target-organ damage represents Hypertensive Urgency, not Hypertensive Emergency.")
+            elif is_htn_urgency_claim:
+                if tod_state == TargetOrganDamageState.PRESENT:
+                    evidence_classifications[bp_key] = EvidenceSupportClassification.CONTRADICTS.value
+                    conflicting_evidence.append("Target-organ damage present contradicts asymptomatic hypertensive urgency")
+                else:
+                    evidence_classifications[bp_key] = EvidenceSupportClassification.SUPPORTS.value
+                    credited_analyte_groups.add("blood_pressure")
+                    verified_evidence.append(bp_key)
             elif domain == "hemodynamics" or any(k in claim_lower for k in ["blood pressure", "hypertens", "bp"]):
                 evidence_classifications[bp_key] = EvidenceSupportClassification.SUPPORTS.value
                 credited_analyte_groups.add("blood_pressure")
                 verified_evidence.append(bp_key)
 
-        # Analyte Group: Natriuretic Peptide (Heart Failure Decompensated vs Chronic + Renal Confounding)
+        # Analyte Group: Natriuretic Peptide (Heart Failure Decompensated vs Chronic + Confounding - A4)
         bnp = labs.get("bnp_pg_ml") or labs.get("nt_pro_bnp_pg_ml")
         if bnp is not None:
             bnp_key = "natriuretic_peptide"
@@ -1139,11 +1597,41 @@ class ConfidenceRecalibrator:
                 is_acute_hf = any(k in claim_lower for k in ["acute heart failure", "decompensated", "pulmonary edema"])
                 is_normal_peptide = bnp_num < 100.0
 
-                # Check renal confounding on BNP
+                # Confounder evaluation: Renal, Obesity, Age, AFib
                 egfr = labs.get("egfr_ml_min")
                 creat = labs.get("serum_creatinine_mg_dl")
                 if (egfr is not None and float(egfr) < 60.0) or (creat is not None and float(creat) > 1.8):
                     quality_caveats.append("Elevated natriuretic peptide in presence of impaired renal function (eGFR < 60 mL/min) may reflect reduced clearance; interpret alongside clinical congestion.")
+
+                bmi = labs.get("bmi") or history.get("bmi")
+                if (bmi is not None and float(bmi) >= 30.0) or history.get("obesity"):
+                    quality_caveats.append("Patient BMI >= 30 (obesity) is known to lower circulating natriuretic peptide levels by up to 50%; normal or borderline BNP does not rule out heart failure in obese patients.")
+
+                age = labs.get("age") or history.get("age")
+                if age is not None and float(age) > 75.0:
+                    quality_caveats.append("Patient age > 75 years raises natriuretic peptide baseline (age-adjusted NT-proBNP rule-in cutoff is 1800 pg/mL).")
+
+                ecg_str = str(labs.get("resting_ecg") or "").lower()
+                if "atrial_fibrillation" in ecg_str or "afib" in ecg_str:
+                    quality_caveats.append("Atrial fibrillation independently elevates baseline natriuretic peptides.")
+
+                # Echocardiogram / LVEF evaluation (HFrEF vs HFpEF)
+                lvef = labs.get("echocardiogram_lvef_percent") or labs.get("ejection_fraction") or labs.get("lvef")
+                if lvef is not None:
+                    try:
+                        lvef_val = float(lvef)
+                        if "hfref" in claim_lower and lvef_val > 40.0:
+                            quality_caveats.append(f"HFrEF claim contradicts LVEF {lvef_val}% (HFrEF defined as LVEF <= 40%).")
+                        elif "hfpef" in claim_lower and lvef_val < 50.0:
+                            quality_caveats.append(f"HFpEF claim contradicts LVEF {lvef_val}% (HFpEF defined as LVEF >= 50%).")
+                        elif lvef_val <= 40.0:
+                            credited_analyte_groups.add("cardiac_function")
+                            verified_evidence.append("cardiac_function (LVEF <= 40% HFrEF)")
+                        elif lvef_val >= 50.0:
+                            credited_analyte_groups.add("cardiac_function")
+                            verified_evidence.append("cardiac_function (LVEF >= 50% HFpEF)")
+                    except (ValueError, TypeError):
+                        pass
 
                 if is_acute_hf and is_normal_peptide:
                     evidence_classifications[bnp_key] = EvidenceSupportClassification.CONTRADICTS.value
@@ -1155,7 +1643,7 @@ class ConfidenceRecalibrator:
             except (ValueError, TypeError):
                 evidence_classifications[bnp_key] = EvidenceSupportClassification.UNVERIFIABLE.value
 
-        # Analyte Group: Glycemic Crisis Differentiation (DKA, HHS, Severe Hyperglycemia, Chronic Diabetes)
+        # Analyte Group: Glycemic Crisis Differentiation (DKA, HHS, Severe Hyperglycemia, Chronic Diabetes - A2)
         acute_glucose = labs.get("fasting_blood_glucose_mg_dl") or labs.get("random_blood_glucose_mg_dl") or labs.get("blood_glucose_mg_dl")
         chronic_glucose = labs.get("hba1c_percent")
         ketone_val = labs.get("beta_hydroxybutyrate_mmol_l") or labs.get("blood_ketones_mmol_l") or labs.get("serum_ketones_mmol_l") or labs.get("urine_ketones")
@@ -1166,16 +1654,72 @@ class ConfidenceRecalibrator:
         is_dka_claim = any(k in claim_lower for k in ["diabetic ketoacidosis", "dka", "ketoacidosis"])
         is_hhs_claim = any(k in claim_lower for k in ["hyperglycemic hyperosmolar", "hhs", "hyperosmolar hyperglycemic", "honk"])
 
+        # Check for Euglycemic DKA context (diabetes history or SGLT2i use with glucose < 250)
+        has_diabetes_history = (
+            any("diabet" in str(c).lower() for c in history.get("chronic_conditions", []))
+            or bool(labs.get("documented_diabetes"))
+            or bool(history.get("documented_diabetes"))
+        )
+        has_sglt2i = bool(labs.get("sglt2_inhibitor_use") or history.get("sglt2_inhibitor"))
+
+        # Urine ketones screening caveat
+        if labs.get("urine_ketones") is not None and labs.get("beta_hydroxybutyrate_mmol_l") is None:
+            quality_caveats.append("Urine dipstick acetoacetate is a qualitative screening test and not equivalent to quantitative serum beta-hydroxybutyrate; mandates serum confirmation.")
+
+        # Effective vs total osmolality
+        na_val = labs.get("serum_sodium_meq_l") or labs.get("serum_sodium_mmol_l") or labs.get("sodium_meq_l")
+        bun_val = labs.get("blood_urea_nitrogen_mg_dl") or labs.get("bun_mg_dl")
+        eff_osm = None
+        if na_val is not None and acute_glucose is not None:
+            try:
+                eff_osm = 2.0 * float(na_val) + (float(acute_glucose) / 18.0)
+                quality_caveats.append(f"Effective osmolality calculated: {eff_osm:.1f} mOsm/kg (excluding urea/BUN).")
+            except (ValueError, TypeError):
+                pass
+
+        # Mixed DKA/HHS presentation detection (A2)
+        if eff_osm is not None and eff_osm > 320.0 and (is_dka_claim or is_hhs_claim):
+            has_ketoacidosis = False
+            if ketone_val is not None:
+                try:
+                    if float(ketone_val) >= 3.0:
+                        has_ketoacidosis = True
+                except (ValueError, TypeError):
+                    pass
+            if ph_val is not None:
+                try:
+                    if float(ph_val) < 7.30:
+                        has_ketoacidosis = True
+                except (ValueError, TypeError):
+                    pass
+            if has_ketoacidosis:
+                quality_caveats.append("Mixed presentation of Diabetic Ketoacidosis (DKA) and Hyperglycemic Hyperosmolar State (HHS) identified.")
+
         if is_dka_claim:
-            # DKA mandates ketones and acidosis; HbA1c cannot confirm acute DKA
             if chronic_glucose is not None and acute_glucose is None and ketone_val is None:
                 evidence_classifications["hba1c_percent"] = EvidenceSupportClassification.INSUFFICIENT.value
                 quality_caveats.append("Elevated HbA1c confirms chronic glycemic exposure but cannot establish acute diabetic ketoacidosis (DKA) without ketones and acid-base testing.")
 
             if acute_glucose is not None:
+                try:
+                    g_num = float(acute_glucose)
+                    if g_num < 250.0 and (has_diabetes_history or has_sglt2i):
+                        quality_caveats.append("Euglycemic DKA presentation: blood glucose < 250 mg/dL in patient with documented diabetes/SGLT2i context accompanied by ketonemia and metabolic acidosis.")
+                        evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
+                        credited_analyte_groups.add("glycemia_acute")
+                        verified_evidence.append("glycemia_acute (euglycemic DKA presentation)")
+                    else:
+                        evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
+                        credited_analyte_groups.add("glycemia_acute")
+                        verified_evidence.append("glycemia_acute")
+                except (ValueError, TypeError):
+                    evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
+                    credited_analyte_groups.add("glycemia_acute")
+                    verified_evidence.append("glycemia_acute")
+            elif has_diabetes_history or has_sglt2i:
                 evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
                 credited_analyte_groups.add("glycemia_acute")
-                verified_evidence.append("glycemia_acute")
+                verified_evidence.append("documented_diabetes (euglycemic DKA context)")
 
             if ketone_val is not None:
                 evidence_states["ketones"] = EvidenceValidityState.VERIFIED_PRESENT.value
@@ -1188,6 +1732,9 @@ class ConfidenceRecalibrator:
                     elif k_num < 0.6:
                         evidence_classifications["ketones"] = EvidenceSupportClassification.CONTRADICTS.value
                         conflicting_evidence.append(f"ketones ({k_num} mmol/L normal contradicts active DKA)")
+                    else:
+                        credited_analyte_groups.add("ketones")
+                        verified_evidence.append("ketones")
                 except (ValueError, TypeError):
                     credited_analyte_groups.add("ketones")
                     verified_evidence.append("ketones")
@@ -1202,7 +1749,6 @@ class ConfidenceRecalibrator:
                 evidence_states["acid_base"] = EvidenceValidityState.NOT_COLLECTED.value
 
         elif is_hhs_claim:
-            # HHS mandates severe hyperglycemia and osmolality
             if chronic_glucose is not None and acute_glucose is None:
                 evidence_classifications["hba1c_percent"] = EvidenceSupportClassification.INSUFFICIENT.value
                 quality_caveats.append("HbA1c cannot confirm acute hyperosmolar hyperglycemic state without acute blood glucose and serum osmolality.")
@@ -1219,6 +1765,14 @@ class ConfidenceRecalibrator:
             else:
                 evidence_states["osmolality"] = EvidenceValidityState.NOT_COLLECTED.value
 
+        elif any(k in claim_lower for k in ["severe hyperglycemia", "marked hyperglycemia", "uncontrolled hyperglycemia"]):
+            if acute_glucose is not None:
+                glyc_key = "fasting_blood_glucose_mg_dl"
+                evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
+                credited_analyte_groups.add("glycemia_acute")
+                verified_evidence.append(glyc_key)
+                evidence_classifications[glyc_key] = EvidenceSupportClassification.SUPPORTS.value
+                quality_caveats.append("Severe hyperglycemia identified without diagnostic features of DKA or HHS.")
         elif acute_glucose is not None or chronic_glucose is not None:
             glyc_key = "fasting_blood_glucose_mg_dl" if acute_glucose is not None else "hba1c_percent"
             evidence_states["glycemia"] = EvidenceValidityState.VERIFIED_PRESENT.value
@@ -1362,6 +1916,75 @@ class ConfidenceRecalibrator:
 
         return max_penalty, notes, issue_ids
 
+    def _evaluate_evidence_group(
+        self,
+        group: EvidenceGroup,
+        labs: Dict[str, Any],
+        history: Dict[str, Any],
+        symptoms: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
+        """Evaluate whether a logical evidence group is satisfied by patient data."""
+        if group.description == "target_organ_damage":
+            tod_state, markers, tod_notes = self._evaluate_target_organ_damage(labs, history, symptoms)
+            if tod_state == TargetOrganDamageState.PRESENT:
+                return True, None
+            elif tod_state == TargetOrganDamageState.UNKNOWN:
+                return False, "target_organ_damage (status UNKNOWN: cardiac and renal biomarkers not evaluated)"
+            elif tod_state == TargetOrganDamageState.ABSENT:
+                return False, "target_organ_damage (absent: clinical presentation is hypertensive urgency, not emergency)"
+            elif tod_state == TargetOrganDamageState.SUSPECTED:
+                return False, "target_organ_damage (suspected based on symptoms, pending biomarker confirmation)"
+
+        def check_key(k: str) -> bool:
+            if labs.get(k) is not None:
+                return True
+            if k in ["documented_diabetes", "type_1_diabetes", "type_2_diabetes"]:
+                if labs.get("documented_diabetes") or history.get("documented_diabetes"):
+                    return True
+                conds = [str(c).lower() for c in history.get("chronic_conditions", [])]
+                if any("diabet" in c for c in conds):
+                    return True
+                return False
+            if k in ["sglt2_inhibitor_use", "sglt2_inhibitor"]:
+                if labs.get("sglt2_inhibitor_use") or history.get("sglt2_inhibitor"):
+                    return True
+                meds = [str(m).lower() for m in history.get("current_medications", [])]
+                if any("sglt2" in m for m in meds):
+                    return True
+                return False
+            if k == "effective_osmolality_mosm_kg":
+                na = labs.get("serum_sodium_meq_l") or labs.get("serum_sodium_mmol_l") or labs.get("sodium_meq_l")
+                glu = labs.get("fasting_blood_glucose_mg_dl") or labs.get("random_blood_glucose_mg_dl") or labs.get("blood_glucose_mg_dl")
+                if na is not None and glu is not None:
+                    return True
+            if k == "blood_pressure":
+                if labs.get("systolic_bp") is not None or labs.get("diastolic_bp") is not None or labs.get("blood_pressure") is not None:
+                    return True
+            if history.get(k) is not None:
+                return True
+            if symptoms.get(k) is not None:
+                return True
+            if k in [str(s).lower() for s in symptoms.get("symptoms", [])]:
+                return True
+            return False
+
+        if group.operator == "AND":
+            satisfied = all(check_key(k) for k in group.keys)
+        else:  # "OR"
+            matching = [k for k in group.keys if check_key(k)]
+            satisfied = len(matching) >= group.min_required
+
+        if satisfied:
+            return True, None
+
+        if group.description == "troponin":
+            desc = "cardiac_troponin_ng_ml"
+        elif group.description:
+            desc = group.description
+        else:
+            desc = group.keys[0] if group.keys else "essential_evidence"
+        return False, desc
+
     def _check_missing_essential_evidence(
         self,
         domain: str,
@@ -1397,18 +2020,13 @@ class ConfidenceRecalibrator:
             if is_exempt:
                 continue
 
-            # Check mandatory analyte groups
-            for group_name in req.mandatory_analyte_groups:
-                keys = ANALYTE_GROUPS.get(group_name, [])
-                has_evidence = any(labs.get(k) is not None for k in keys)
-                if not has_evidence:
-                    canonical_key = (
-                        group_name if group_name in ["target_organ_damage", "acid_base", "osmolality"]
-                        else (keys[0] if keys else group_name)
-                    )
-                    if canonical_key not in missing_keys:
-                        missing_keys.append(canonical_key)
-                        applied_cap = req.confidence_cap
+            # Check required logical evidence groups
+            for group in req.required_groups:
+                satisfied, missing_desc = self._evaluate_evidence_group(group, labs, history, symptoms)
+                if not satisfied and missing_desc:
+                    if missing_desc not in missing_keys:
+                        missing_keys.append(missing_desc)
+                        applied_cap = min(applied_cap, req.confidence_cap)
 
         if missing_keys:
             return True, applied_cap, missing_keys, f"Essential evidence missing: {', '.join(missing_keys)}"

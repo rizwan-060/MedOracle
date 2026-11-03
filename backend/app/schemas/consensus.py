@@ -33,6 +33,11 @@ class EvidenceSupportClassification(str, Enum):
     NEUTRAL = "NEUTRAL"
     INSUFFICIENT = "INSUFFICIENT"
     UNVERIFIABLE = "UNVERIFIABLE"
+    MISSING = "MISSING"
+    UNVERIFIED = "UNVERIFIED"
+    STALE = "STALE"
+    CONFLICTING_SOURCE = "CONFLICTING_SOURCE"
+    INVALID = "INVALID"
 
 
 class EvidenceValidityState(str, Enum):
@@ -49,6 +54,26 @@ class EvidenceValidityState(str, Enum):
     INCONCLUSIVE = "INCONCLUSIVE"
 
 
+class TargetOrganDamageState(str, Enum):
+    """Explicit states of acute target-organ damage in hypertensive presentations."""
+
+    PRESENT = "PRESENT"
+    ABSENT = "ABSENT"
+    UNKNOWN = "UNKNOWN"
+    SUSPECTED = "SUSPECTED"
+    UNVERIFIED = "UNVERIFIED"
+
+
+class SerialTroponinValidationStatus(str, Enum):
+    """Serial cardiac troponin protocol validation state."""
+
+    VALID_SERIAL_SERIES = "VALID_SERIAL_SERIES"
+    INSUFFICIENT_TIMING = "INSUFFICIENT_TIMING"
+    INCOMPLETE_SERIAL_SERIES = "INCOMPLETE_SERIAL_SERIES"
+    INCOMPATIBLE_ASSAY = "INCOMPATIBLE_ASSAY"
+    MISSING_TIMESTAMP = "MISSING_TIMESTAMP"
+    INVALID_SEQUENCE = "INVALID_SEQUENCE"
+    INSUFFICIENT_METADATA = "INSUFFICIENT_METADATA"
 class ContradictionSeverity(str, Enum):
     """Clinical severity grading for detected multi-agent contradictions."""
 
@@ -818,6 +843,26 @@ class ClaimRecalibrationRecord(BaseModel):
     evidence_states: Dict[str, str] = Field(
         default_factory=dict,
         description="Clinical validity and presence states for required analytes (VERIFIED_PRESENT, MISSING, STALE, AMBIGUOUS, etc.).",
+    )
+    conflicting_evidence_references: List[str] = Field(
+        default_factory=list,
+        description="Verified biomarker keys or clinical sources contradicting this claim.",
+    )
+    evidence_quality_caveats: List[str] = Field(
+        default_factory=list,
+        description="Quality and validation caveats regarding evidence supporting or affecting this claim.",
+    )
+    claim_support_score: Optional[float] = Field(
+        default=None,
+        description="Explicit claim support score (heuristic, not disease probability).",
+    )
+    heuristic_support_score: Optional[float] = Field(
+        default=None,
+        description="Alternative naming alias for claim support score.",
+    )
+    epistemic_doubt_score: Optional[float] = Field(
+        default=None,
+        description="Domain epistemic doubt associated with this claim.",
     )
     recalibration_explanation: str = Field(
         ...,

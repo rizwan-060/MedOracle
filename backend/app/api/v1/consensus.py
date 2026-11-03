@@ -9,6 +9,7 @@ Provides standalone endpoints for:
 import logging
 import time
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.agents.consensus.consensus_resolver import ConsensusResolver
 from app.agents.consensus.contradiction_detector import ContradictionDetector
@@ -78,6 +79,8 @@ def test_contradiction_detection(
             result=result,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Contradiction detection failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -145,6 +148,8 @@ def test_adversarial_debate(
             debate_transcript=transcript,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Adversarial debate protocol failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -234,6 +239,8 @@ def test_confidence_recalibration(
             recalibration_result=recalibration_result,
             execution_time_ms=execution_time_ms,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Confidence recalibration failed: %s", exc, exc_info=True)
         raise HTTPException(
