@@ -133,12 +133,14 @@ def test_full_graph_synchronous_execution():
     final_state = run_clinical_graph(initial_state)
 
     assert final_state["status"] == "completed"
-    assert final_state["current_phase"] == "risk_prediction_completed"
+    assert final_state["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed"]
     assert final_state["completed_at"] is not None
     assert final_state["symptom_output"] is not None
     assert final_state["medical_history_output"] is not None
     assert final_state["laboratory_output"] is not None
     assert final_state["risk_prediction_output"] is not None
+    assert final_state["consensus_resolution"] is not None
+    assert final_state["audit_transcript"] is not None
 
     # Reducer accumulated all 4 outputs
     assert len(final_state["agent_outputs"]) == 4

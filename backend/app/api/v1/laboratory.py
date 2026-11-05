@@ -4,13 +4,61 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, validate_patient_access
 from app.database.models import User
 from app.database.repositories import LabResultRepository
+import time
 from app.database.session import get_db
-from app.schemas.laboratory import LabResultCreate, LabResultResponse
+from app.schemas.laboratory import (
+    BiomarkerNormalizationBatchRequest,
+    BiomarkerNormalizationBatchResponse,
+    LabResultCreate,
+    LabResultResponse,
+)
+from app.services.biomarker_normalizer import BiomarkerEntityNormalizer
 
 router = APIRouter(prefix="/laboratory", tags=["Laboratory"])
+
+
+@router.post(
+    "/biomarkers/normalize",
+    response_model=BiomarkerNormalizationBatchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Normalize OCR-extracted laboratory biomarkers and perform canonical unit conversions (Step 8.4.3)",
+)
+def normalize_biomarkers(
+    payload: BiomarkerNormalizationBatchRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BiomarkerNormalizationBatchResponse:
+    """Normalize raw OCR-extracted laboratory items, convert units, and validate against clinical registries.
+
+    Features:
+    - Resolves raw test names (e.g. 'Fasting B.S.', 'S. Creatinine') to canonical MedOracle IDs.
+    - Strictly delineates non-interchangeable biomarkers (BNP vs. NT-proBNP; Troponin I vs. T; hs vs. standard).
+    - Converts SI and traditional clinical units (mmol/L -> mg/dL, µmol/L -> mg/dL, g/L -> g/dL).
+    - Retains full provenance: raw strings, conversion multipliers, laboratory reference intervals, and audit caveats.
+    - Returns clean canonical_biomarkers_dict ready for immediate consumption by downstream ML/risk models.
+    """
+    # Enforce strict tenant isolation: verify patient ownership relationship
+    validate_patient_access(payload.patient_id, current_user, db)
+
+    start_time = time.perf_counter()
+
+    batch_result = BiomarkerEntityNormalizer.normalize_batch(
+        extracted_items=[item.model_dump() for item in payload.extracted_items],
+        patient_id=current_user.id,
+        source_document_id=payload.source_document_id,
+        source_document_url=payload.source_document_url,
+        lab_name=payload.lab_name,
+        specimen_collection_date=payload.specimen_collection_date,
+        report_date=payload.report_date,
+    )
+
+    execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    batch_result["execution_time_ms"] = execution_time_ms
+
+    return BiomarkerNormalizationBatchResponse(**batch_result)
 
 
 @router.post("/", response_model=LabResultResponse, status_code=status.HTTP_201_CREATED)
@@ -21,7 +69,27 @@ def record_lab_result(
 ):
     """Record a clinical laboratory test report with biomarkers for the authenticated user."""
     repo = LabResultRepository(db)
-    lab = repo.create(user_id=current_user.id, **payload.model_dump())
+    raw_biomarkers = payload.biomarkers or {}
+
+    # End-to-end integration: Check if free-text keys or raw items were submitted in biomarkers dict
+    from app.clinical.biomarker_types import BIOMARKER_REGISTRY
+    extracted_items = []
+    for k, v in raw_biomarkers.items():
+        if k not in BIOMARKER_REGISTRY and not k.startswith("cardiac_troponin"):
+            extracted_items.append({"label": str(k), "value": v})
+
+    normalized_biomarkers = dict(raw_biomarkers)
+    if extracted_items:
+        batch_res = BiomarkerEntityNormalizer.normalize_batch(
+            extracted_items=extracted_items,
+            patient_id=current_user.id,
+            lab_name=payload.lab_name,
+        )
+        normalized_biomarkers.update(batch_res.get("canonical_biomarkers_dict", {}))
+
+    lab_dict = payload.model_dump()
+    lab_dict["biomarkers"] = normalized_biomarkers
+    lab = repo.create(user_id=current_user.id, **lab_dict)
     return lab
 
 

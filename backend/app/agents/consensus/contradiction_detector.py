@@ -21,6 +21,7 @@ from app.schemas.consensus import (
     ContradictionIssue,
     ContradictionMatrixResult,
     ContradictionSeverity,
+    ContradictionType,
 )
 
 logger = logging.getLogger("contradiction_detector")
@@ -28,6 +29,88 @@ logger = logging.getLogger("contradiction_detector")
 
 class ContradictionDetector:
     """Clinical Contradiction Detection Engine cross-referencing multi-agent hypotheses and data."""
+
+    # Normalization table for cardiac troponin assay 99th percentile URLs
+    TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
+        "hs_ctni_abbott": {
+            "name": "Abbott ARCHITECT/Alinity STAT High Sensitivity Troponin I",
+            "url_ng_ml": 0.026,
+            "url_overall_ng_l": 26.0,
+            "type": "hs-cTnI",
+        },
+        "hs_ctnt_roche": {
+            "name": "Roche Elecsys Troponin T hs",
+            "url_ng_ml": 0.014,
+            "url_overall_ng_l": 14.0,
+            "type": "hs-cTnT",
+        },
+        "hs_ctni_siemens": {
+            "name": "Siemens Atellica IM High-Sensitivity Troponin I",
+            "url_ng_ml": 0.045,
+            "url_overall_ng_l": 45.0,
+            "type": "hs-cTnI",
+        },
+        "hs_ctni_beckman": {
+            "name": "Beckman Coulter Access hsTnI",
+            "url_ng_ml": 0.018,
+            "url_overall_ng_l": 17.5,
+            "type": "hs-cTnI",
+        },
+        "conventional_ctni": {
+            "name": "Conventional cardiac Troponin I",
+            "url_ng_ml": 0.04,
+            "url_overall_ng_l": 40.0,
+            "type": "conventional-cTnI",
+        },
+        "conventional_ctnt": {
+            "name": "Conventional cardiac Troponin T",
+            "url_ng_ml": 0.01,
+            "url_overall_ng_l": 10.0,
+            "type": "conventional-cTnT",
+        },
+    }
+
+    def resolve_troponin_cutoff(self, labs: Dict[str, Any]) -> Tuple[float, str, str]:
+        """Resolve assay-specific 99th percentile upper reference limit (URL) for cardiac troponin."""
+        lab_url = labs.get("troponin_url_ng_ml") or labs.get("lab_reference_limit") or labs.get("reference_range_upper")
+        if lab_url is not None:
+            try:
+                return float(lab_url), "ng/mL", "Laboratory-Reported Reference URL"
+            except (ValueError, TypeError):
+                pass
+
+        assay_raw = str(labs.get("cardiac_troponin_assay") or labs.get("troponin_assay") or labs.get("assay") or "").lower()
+        unit_raw = str(labs.get("cardiac_troponin_unit") or labs.get("troponin_unit") or "ng/ml").lower()
+
+        profile_key = None
+        if assay_raw in self.TROPONIN_ASSAY_PROFILES:
+            profile_key = assay_raw
+        elif "abbott" in assay_raw or "architect" in assay_raw or "alinity" in assay_raw:
+            profile_key = "hs_ctni_abbott"
+        elif "roche" in assay_raw or "elecsys" in assay_raw or "hs_ctnt" in assay_raw or "hs-ctnt" in assay_raw:
+            profile_key = "hs_ctnt_roche"
+        elif "siemens" in assay_raw or "atellica" in assay_raw:
+            profile_key = "hs_ctni_siemens"
+        elif "beckman" in assay_raw or "access" in assay_raw:
+            profile_key = "hs_ctni_beckman"
+        elif "conventional_ctnt" in assay_raw:
+            profile_key = "conventional_ctnt"
+        elif "conventional" in assay_raw or "standard" in assay_raw:
+            profile_key = "conventional_ctni"
+        elif "hs" in assay_raw or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None:
+            profile_key = "hs_ctni_abbott"
+
+        if profile_key and profile_key in self.TROPONIN_ASSAY_PROFILES:
+            prof = self.TROPONIN_ASSAY_PROFILES[profile_key]
+            if "ng/l" in unit_raw or "pg/ml" in unit_raw:
+                return prof["url_overall_ng_l"], "ng/L", prof["name"]
+            else:
+                return prof["url_ng_ml"], "ng/mL", prof["name"]
+
+        is_hs = labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None or "hs" in assay_raw
+        if is_hs:
+            return 0.014, "ng/mL", "Generic hs-cTn"
+        return 0.04, "ng/mL", "Conventional cTn"
 
     # Normalization terms for statin drugs
     STATIN_NAMES: Set[str] = {
@@ -299,100 +382,113 @@ class ContradictionDetector:
         # Rule A1: Acute severe ischemic chest pain vs. normal cardiac troponin & ECG
         # IMPORTANT: Missing troponin (None) is UNTESTED and must never be treated as normal
         if has_ischemic_symptoms and severity >= 6 and troponin is not None:
-            troponin_normal = troponin < 0.04
-            ecg_normal = any(term in ecg for term in ["normal", "sinus_rhythm", "unremarkable"]) or not ecg
+            troponin_cutoff, trop_unit, assay_name = self.resolve_troponin_cutoff(labs)
+            try:
+                troponin_val = float(troponin)
+            except (ValueError, TypeError):
+                troponin_val = None
 
-            if troponin_normal:
-                unique_issue_suffix = uuid.uuid4().hex[:8]
+            if troponin_val is not None:
+                troponin_normal = troponin_val <= troponin_cutoff
+                ecg_ischemic = any(term in ecg for term in ["st_elevation", "st_depression", "t_wave_inversion", "acute_ischemia", "stemi", "ischemi"])
+                ecg_normal = (any(term in ecg for term in ["normal", "sinus_rhythm", "unremarkable"]) or not ecg) and not ecg_ischemic
 
-                # Distinguish initial testing from completed serial protocol
-                if not serial_completed:
-                    clinical_status = "provisional_discrepancy"
-                    is_confirmed = False
-                    issue_severity = ContradictionSeverity.MODERATE
-                    clinical_urgency = "urgent"
-                    rationale = (
-                        f"Patient reports acute ischemic symptoms (severity {int(severity)}/10), but initial cardiac "
-                        f"troponin ({troponin} ng/mL via {troponin_assay}) and resting ECG are non-elevated. "
-                        f"Initial troponin without completed serial protocol cannot definitively rule out evolving "
-                        f"myocardial necrosis. Serial sampling (0h/1h or 0h/3h delta algorithm) is clinically mandatory."
-                    )
-                    limitations = [
-                        "Initial troponin sampling performed without serial follow-up may precede detectable peripheral biomarker release.",
-                        "Unstable angina causes myocardial ischemia without irreversible necrosis and characteristically exhibits normal cardiac troponin and normal ECG.",
-                        f"Assay-specific URL: Reference limits vary by assay ({troponin_assay} vs hs-cTnT); laboratory assay reference validation required.",
-                    ]
-                else:
-                    # Completed serial testing rules out myocardial necrosis (>99% NPV),
-                    # but persistent ischemic symptoms mean the presentation is clinically unresolved (e.g. unstable angina).
-                    # DO NOT automatically classify as confirmed contradiction!
-                    clinical_status = "unresolved_presentation"
-                    is_confirmed = False
-                    issue_severity = ContradictionSeverity.MODERATE
-                    clinical_urgency = "urgent"
-                    rationale = (
-                        f"Patient reports severe chest pain (severity {int(severity)}/10), but completed serial cardiac "
-                        f"troponin testing ({troponin} ng/mL via {troponin_assay}) and resting ECG demonstrate no acute "
-                        f"myocardial necrosis. While acute infarction is excluded with >99% NPV, unstable angina, "
-                        f"coronary vasospasm, microvascular angina, or non-ischemic etiologies (GERD, pericarditis, "
-                        f"costochondritis) remain clinically unresolved."
-                    )
-                    limitations = [
-                        "Completed serial high-sensitivity troponin protocols (0h/1h or 0h/3h delta algorithm per ESC 2020/ACC 2022 guidelines) rule out myocardial necrosis (NSTEMI/STEMI) with >99% negative predictive value, but do not rule out unstable angina or ischemia without infarction.",
-                        "Unstable angina characteristically presents with severe ischemic chest pain without peripheral cardiac biomarker elevation due to absence of completed cell death.",
-                        f"Assay reference limits (99th percentile upper reference limit) vary across conventional and high-sensitivity assays ({troponin_assay}).",
-                        "Alternative non-coronary etiologies (acute pericarditis, esophageal spasm, costochondritis, pulmonary embolism) require clinical exclusion.",
-                    ]
+                if troponin_normal and ecg_normal:
+                    unique_issue_suffix = uuid.uuid4().hex[:8]
 
-                claims = {
-                    "Symptom Analysis Specialist": (
-                        f"Reports acute ischemic symptoms ({', '.join([s for s in symptom_list if s in ischemic_symptom_keywords] or ['chest pain'])}) "
-                        f"with severe intensity (severity: {int(severity)}/10, onset: {duration_hours or 'unknown'} hours ago)."
-                    ),
-                    "Laboratory Biomarker Specialist": (
-                        f"Cardiac biomarkers remain strictly within normal reference limits "
-                        f"(Troponin: {troponin} ng/mL [{troponin_assay}], Serial Completed: {serial_completed}, ECG: {ecg or 'Normal'})."
-                    ),
-                }
+                    # Distinguish initial testing from completed serial protocol
+                    if not serial_completed:
+                        clinical_status = "provisional_discrepancy"
+                        contra_type = ContradictionType.PATIENT_REPORTED_VS_OBJECTIVELY_MEASURED
+                        is_confirmed = False
+                        issue_severity = ContradictionSeverity.MODERATE
+                        clinical_urgency = "urgent"
+                        rationale = (
+                            f"Patient reports acute ischemic symptoms (severity {int(severity)}/10), but initial cardiac "
+                            f"troponin ({troponin_val} {trop_unit} via {assay_name}) and resting ECG are non-elevated (URL cutoff: {troponin_cutoff} {trop_unit}). "
+                            f"Initial troponin without completed serial protocol cannot definitively rule out evolving "
+                            f"myocardial necrosis. Serial sampling (0h/1h or 0h/3h delta algorithm) is clinically mandatory."
+                        )
+                        limitations = [
+                            "Initial troponin sampling performed without serial follow-up may precede detectable peripheral biomarker release.",
+                            "Unstable angina causes myocardial ischemia without irreversible necrosis and characteristically exhibits normal cardiac troponin and normal ECG.",
+                            f"Assay-specific URL: Reference limits vary by assay ({assay_name}); laboratory assay reference validation required.",
+                        ]
+                    else:
+                        # Completed serial testing rules out myocardial necrosis (>99% NPV),
+                        # but persistent ischemic symptoms mean the presentation is clinically unresolved (e.g. unstable angina).
+                        # DO NOT automatically classify as confirmed contradiction!
+                        clinical_status = "unresolved_presentation"
+                        contra_type = ContradictionType.DIFFERENT_CLINICAL_INTERPRETATIONS
+                        is_confirmed = False
+                        issue_severity = ContradictionSeverity.MODERATE
+                        clinical_urgency = "urgent"
+                        rationale = (
+                            f"Patient reports severe chest pain (severity {int(severity)}/10), but completed serial cardiac "
+                            f"troponin testing ({troponin_val} {trop_unit} via {assay_name}) and resting ECG demonstrate no acute "
+                            f"myocardial necrosis (URL cutoff: {troponin_cutoff} {trop_unit}). While acute infarction is excluded with >99% NPV, unstable angina, "
+                            f"coronary vasospasm, microvascular angina, or non-ischemic etiologies (GERD, pericarditis, "
+                            f"costochondritis) remain clinically unresolved."
+                        )
+                        limitations = [
+                            "Completed serial high-sensitivity troponin protocols (0h/1h or 0h/3h delta algorithm per ESC 2020/ACC 2022 guidelines) rule out myocardial necrosis (NSTEMI/STEMI) with >99% negative predictive value, but do not rule out unstable angina or ischemia without infarction.",
+                            "Unstable angina characteristically presents with severe ischemic chest pain without peripheral cardiac biomarker elevation due to absence of completed cell death.",
+                            f"Assay reference limits (99th percentile upper reference limit) vary across conventional and high-sensitivity assays ({assay_name}).",
+                            "Alternative non-coronary etiologies (acute pericarditis, esophageal spasm, costochondritis, pulmonary embolism) require clinical exclusion.",
+                        ]
 
-                issues.append(
-                    ContradictionIssue(
-                        issue_id=f"{prefix}-SUBJ-OBJ-001-{unique_issue_suffix}",
-                        rule_id="RULE-A1-ISCHEMIA-TROPONIN",
-                        rule_version="1.2.0",
-                        session_id=session_id,
-                        patient_id=patient_id,
-                        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
-                        severity=issue_severity,
-                        clinical_urgency=clinical_urgency,
-                        clinical_status=clinical_status,
-                        conflicting_agents=[
-                            "Symptom Analysis Specialist",
-                            "Laboratory Biomarker Specialist",
-                        ],
-                        diverging_claims=claims,
-                        normalized_values={
-                            "cardiac_troponin_ng_ml": troponin,
-                            "cardiac_troponin_assay": troponin_assay,
-                            "serial_troponin_completed": serial_completed,
-                            "symptom_duration_hours": duration_hours,
-                        },
-                        measurement_timestamps={
-                            "symptom_duration_hours": str(duration_hours) if duration_hours else None,
-                            "troponin_sampling": labs.get("test_date") or labs.get("timestamp"),
-                        },
-                        evidence_sources=["symptom_report", "laboratory_biomarkers", "resting_ecg"],
-                        physiological_rationale=rationale,
-                        clinical_limitations=limitations,
-                        suggested_challenge=(
-                            f"Challenge Symptom Specialist: Given normal {troponin_assay} (<0.04 ng/mL) and normal resting ECG "
-                            f"(Serial completed: {serial_completed}), what physiological evidence substantiates an acute coronary event "
-                            f"over non-cardiac causes or unstable angina?"
+                    claims = {
+                        "Symptom Analysis Specialist": (
+                            f"Reports acute ischemic symptoms ({', '.join([s for s in symptom_list if s in ischemic_symptom_keywords] or ['chest pain'])}) "
+                            f"with severe intensity (severity: {int(severity)}/10, onset: {duration_hours or 'unknown'} hours ago)."
                         ),
-                        evidence_references=["cardiac_troponin_ng_ml", "cardiac_troponin_assay", "serial_troponin_completed", "resting_ecg", "symptoms"],
-                        is_confirmed_contradiction=is_confirmed,
+                        "Laboratory Biomarker Specialist": (
+                            f"Cardiac biomarkers remain strictly within normal reference limits "
+                            f"(Troponin: {troponin_val} {trop_unit} [{assay_name}], URL: {troponin_cutoff} {trop_unit}, Serial Completed: {serial_completed}, ECG: {ecg or 'Normal'})."
+                        ),
+                    }
+
+                    issues.append(
+                        ContradictionIssue(
+                            issue_id=f"{prefix}-SUBJ-OBJ-001-{unique_issue_suffix}",
+                            rule_id="RULE-A1-ISCHEMIA-TROPONIN",
+                            rule_version="1.2.0",
+                            session_id=session_id,
+                            patient_id=patient_id,
+                            contradiction_type=contra_type,
+                            category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+                            severity=issue_severity,
+                            clinical_urgency=clinical_urgency,
+                            clinical_status=clinical_status,
+                            conflicting_agents=[
+                                "Symptom Analysis Specialist",
+                                "Laboratory Biomarker Specialist",
+                            ],
+                            diverging_claims=claims,
+                            normalized_values={
+                                "cardiac_troponin_ng_ml": troponin_val,
+                                "cardiac_troponin_assay": assay_name,
+                                "troponin_cutoff": troponin_cutoff,
+                                "troponin_unit": trop_unit,
+                                "serial_troponin_completed": serial_completed,
+                                "symptom_duration_hours": duration_hours,
+                            },
+                            measurement_timestamps={
+                                "symptom_duration_hours": str(duration_hours) if duration_hours else None,
+                                "troponin_sampling": labs.get("test_date") or labs.get("timestamp"),
+                            },
+                            evidence_sources=["symptom_report", "laboratory_biomarkers", "resting_ecg"],
+                            physiological_rationale=rationale,
+                            clinical_limitations=limitations,
+                            suggested_challenge=(
+                                f"Challenge Symptom Specialist: Given normal {assay_name} (<={troponin_cutoff} {trop_unit}) and normal resting ECG "
+                                f"(Serial completed: {serial_completed}), what physiological evidence substantiates an acute coronary event "
+                                f"over non-cardiac causes or unstable angina?"
+                            ),
+                            evidence_references=["cardiac_troponin_ng_ml", "cardiac_troponin_assay", "serial_troponin_completed", "resting_ecg", "symptoms"],
+                            is_confirmed_contradiction=is_confirmed,
+                        )
                     )
-                )
 
         # Rule A2: Acute severe dyspnea vs. normal natriuretic peptide (BNP / NT-proBNP)
         dyspnea_keywords = {"breathlessness", "shortness_of_breath", "dyspnea", "orthopnea"}
@@ -820,7 +916,17 @@ class ContradictionDetector:
                 )
 
                 # Drug specific latency: amlodipine 1-2 weeks; ACEi/ARB 2-4 weeks; diuretics 4-6 weeks
-                expected_latency_weeks = 1.0 if has_amlodipine else (4.0 if has_diuretic else 2.0)
+                # In combination therapy, the slowest-acting component dictates full therapeutic equilibration.
+                latencies = []
+                if has_diuretic:
+                    latencies.append(4.0)
+                if any(any(a in str(m.get("name", "")).lower() for a in ["lisinopril", "losartan", "enalapril", "valsartan", "ramipril"]) for m in antihypertensive_meds):
+                    latencies.append(2.0)
+                if has_amlodipine:
+                    latencies.append(1.0)
+                if not latencies:
+                    latencies.append(2.0)
+                expected_latency_weeks = max(latencies)
 
                 # Check duration if available
                 drug_duration = None

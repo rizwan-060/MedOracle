@@ -37,6 +37,13 @@ class ClinicalAgentState(TypedDict, total=False):
     errors: Annotated[List[str], operator.add]
     warnings: Annotated[List[str], operator.add]
 
+    # Consensus Resolution Pipeline (Step 12)
+    contradiction_result: Optional[Dict[str, Any]]
+    debate_transcript: Optional[Dict[str, Any]]
+    recalibration_result: Optional[Dict[str, Any]]
+    consensus_resolution: Optional[Dict[str, Any]]
+    audit_transcript: Optional[Dict[str, Any]]
+
     # Workflow Status Tracking
     current_phase: str
     status: str
@@ -71,6 +78,11 @@ def create_initial_graph_state(
         "medical_history_output": None,
         "laboratory_output": None,
         "risk_prediction_output": None,
+        "contradiction_result": None,
+        "debate_transcript": None,
+        "recalibration_result": None,
+        "consensus_resolution": None,
+        "audit_transcript": None,
         "agent_outputs": [],
         "errors": [],
         "warnings": [],

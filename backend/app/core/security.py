@@ -136,3 +136,43 @@ def get_current_user(
         )
 
     return user
+
+
+def validate_patient_access(
+    patient_id: Optional[str],
+    current_user: User,
+    db: Optional[Session] = None,
+) -> bool:
+    """Validate that the authenticated user has legitimate authorization to access patient_id.
+
+    Verifies:
+    1. If patient_id is omitted or equals current_user.id -> Authorized (accessing own record).
+    2. If patient_id matches current_user.patient_profile.id -> Authorized.
+    3. If db is provided and patient_id matches a PatientProfile owned by current_user.id in DB -> Authorized.
+    4. Otherwise -> Raises HTTP 403 Forbidden. No synthetic bypasses permitted.
+    """
+    if not patient_id or patient_id == current_user.id:
+        return True
+
+    # Check relation via in-memory current_user.patient_profile if already loaded
+    if getattr(current_user, "patient_profile", None) is not None:
+        if current_user.patient_profile.id == patient_id:
+            return True
+
+    # Persistent database-backed ownership validation
+    if db is not None:
+        from app.database.models import PatientProfile
+        from sqlalchemy import select
+        profile = db.scalars(
+            select(PatientProfile).where(
+                (PatientProfile.id == patient_id) & (PatientProfile.user_id == current_user.id)
+            )
+        ).first()
+        if profile is not None:
+            return True
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Cross-tenant access forbidden: Cannot access or process clinical data for another patient.",
+    )
+
