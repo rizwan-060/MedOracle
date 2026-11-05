@@ -557,6 +557,17 @@ class DebateProtocolEngine:
 
             # Default fallback for other rules
             else:
+                # Check if evidence references are present with non-None values in records
+                has_substantiating_evidence = any(
+                    (ev in labs and labs[ev] is not None)
+                    or (ev in history and history[ev] is not None)
+                    or (ev in symptoms and symptoms[ev] is not None)
+                    or (ev in scores and scores[ev] is not None)
+                    or (ev in ml and ml[ev] is not None)
+                    for ev in issue.evidence_references
+                ) if issue.evidence_references else False
+
+                disposition = RebuttalDisposition.DEFEND if has_substantiating_evidence else RebuttalDisposition.INCONCLUSIVE
                 rebuttals.append(
                     AgentRebuttal(
                         rebuttal_id=rebuttal_id,
@@ -564,14 +575,16 @@ class DebateProtocolEngine:
                         issue_id=ch.issue_id,
                         round_number=2,
                         responding_agent=ch.challenged_agent,
-                        disposition=RebuttalDisposition.DEFEND,
+                        disposition=disposition,
                         rebuttal_text=(
-                            f"Defends claim within {issue.category.value}: Clinical presentation exhibits valid domain perspective. "
-                            "Disagreement is maintained for consensus weighting."
+                            f"Evaluates claim within {issue.category.value}: "
+                            + ("Clinical presentation exhibits valid domain perspective. Disagreement is maintained for consensus weighting."
+                               if disposition == RebuttalDisposition.DEFEND
+                               else "Evidence is indeterminate or unverified in current patient records. Rebuttal remains inconclusive pending diagnostic workup.")
                         ),
                         grounding_evidence=issue.evidence_references,
                         acknowledged_limitations=issue.clinical_limitations,
-                        evidence_missing=False,
+                        evidence_missing=not has_substantiating_evidence,
                     )
                 )
                 status_map[ch.challenge_id] = ChallengeStatus.UNRESOLVED_DISAGREEMENT
