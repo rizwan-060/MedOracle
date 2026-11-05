@@ -588,3 +588,85 @@ def test_audit_transcript_cryptographic_tamper_evidence(
     tampered_transcript.original_claims[0]["claim_text"] = "TAMPERED FRAUDULENT CLAIM"
     assert tampered_transcript.verify_transcript_integrity() is False
 
+
+
+# =============================================================================
+# Remediation Verification Tests (Defects DEF-12.4-1 to DEF-12.4-3)
+# =============================================================================
+
+def test_claim_state_insufficient_evidence_precedence_over_unsupported(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """DEF-12.4-1: Missing mandatory evidence must resolve to INSUFFICIENT_EVIDENCE rather than UNSUPPORTED."""
+    from app.schemas.consensus import ClaimConsensusState
+
+    # Specialist makes positive acute MI claim, but troponin is missing/untested
+    recal = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Symptom Analysis Specialist",
+            "findings": "Possible acute myocardial ischemia.",
+            "confidence": 85.0,
+        }],
+        symptoms_data={"symptoms": ["chest_pain"]},
+        laboratory_data={},
+    )
+    # Even if debate outcome was marked "unsupported" due to absent data:
+    recal.recalibrated_claims[0].debate_outcome = "unsupported"
+
+    resolution = resolver.resolve_consensus(
+        recalibration_result=recal,
+        laboratory_data={},
+        symptoms_data={"symptoms": ["chest_pain"]},
+    )
+    assert len(resolution.claim_resolutions) == 1
+    cr = resolution.claim_resolutions[0]
+    assert cr.consensus_state == ClaimConsensusState.INSUFFICIENT_EVIDENCE
+    assert "missing" in cr.resolution_rationale.lower()
+
+
+def test_verify_evidence_references_ignores_none_values(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """DEF-12.4-2: A biomarker present in labs dict with value None must be flagged as unverified."""
+    recal = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Laboratory Specialist",
+            "findings": "Cardiac troponin evaluation.",
+            "confidence": 80.0,
+        }],
+        laboratory_data={},
+    )
+    recal.recalibrated_claims[0].grounding_evidence_references = ["cardiac_troponin_ng_ml"]
+
+    resolution = resolver.resolve_consensus(
+        recalibration_result=recal,
+        laboratory_data={"cardiac_troponin_ng_ml": None},
+    )
+
+    verified, unverified = resolver.verify_evidence_references(
+        claim_resolutions=resolution.claim_resolutions,
+        labs={"cardiac_troponin_ng_ml": None},
+        history={},
+        symptoms={},
+    )
+    # cardiac_troponin_ng_ml has value None so it must NOT be verified
+    assert "cardiac_troponin_ng_ml" not in verified
+    assert "cardiac_troponin_ng_ml" in unverified
+
+
+def test_safety_override_assay_specific_troponin(resolver: ConsensusResolver) -> None:
+    """DEF-12.4-3: Troponin 0.020 ng/mL on Roche hs-cTnT (URL 0.014) must trigger emergent ACS safety override."""
+    labs = {
+        "cardiac_troponin_ng_ml": 0.020,
+        "cardiac_troponin_assay": "hs_ctnt_roche",
+    }
+    warnings = resolver.extract_safety_overrides(
+        claim_resolutions=[],
+        symptoms={"symptoms": []},
+        labs=labs,
+        history={},
+    )
+    assert len(warnings) >= 1
+    assert any("acute coronary" in w.condition_name.lower() for w in warnings)
