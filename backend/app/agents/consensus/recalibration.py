@@ -1232,6 +1232,13 @@ class ConfidenceRecalibrator:
 
         has_contrastive_clause = any(d in claim_lower for d in [", but ", "; but ", ", however ", "; however ", ", although ", " but ", " however ", " although "])
 
+        if has_contrastive_clause and clauses:
+            primary_text = clauses[0]
+            primary_negated = any(m in primary_text for m in negation_markers) and "cannot be ruled out" not in primary_text and "cannot rule out" not in primary_text
+            if not primary_negated and is_negated:
+                is_negated = False
+                intent_cat = "CURRENT_POSITIVE_DIAGNOSIS" if is_confirmed else "CURRENT_SUSPECTED_DIAGNOSIS"
+
         return {
             "intent_category": intent_cat,
             "is_negated": is_negated,
@@ -1310,8 +1317,16 @@ class ConfidenceRecalibrator:
 
         if timestamps and isinstance(timestamps, (list, tuple)) and len(timestamps) >= 2:
             try:
-                t0 = datetime.fromisoformat(str(timestamps[0]).replace("Z", "+00:00"))
-                t1 = datetime.fromisoformat(str(timestamps[1]).replace("Z", "+00:00"))
+                def _parse_ts(ts_raw: Any) -> datetime:
+                    dt = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    else:
+                        dt = dt.astimezone(timezone.utc)
+                    return dt
+
+                t0 = _parse_ts(timestamps[0])
+                t1 = _parse_ts(timestamps[1])
                 delta_h = (t1 - t0).total_seconds() / 3600.0
                 if delta_h < 0:
                     caveats.append("Serial troponin sample timestamps in reverse chronological order.")
@@ -1563,15 +1578,18 @@ class ConfidenceRecalibrator:
 
             if is_htn_emergency_claim:
                 if tod_state == TargetOrganDamageState.PRESENT:
+                    evidence_states["target_organ_damage"] = EvidenceValidityState.VERIFIED_PRESENT.value
                     evidence_classifications[bp_key] = EvidenceSupportClassification.SUPPORTS.value
                     credited_analyte_groups.add("blood_pressure")
                     credited_analyte_groups.add("target_organ_damage")
                     verified_evidence.append(bp_key)
                     verified_evidence.append("target_organ_damage")
                 elif tod_state == TargetOrganDamageState.UNKNOWN:
+                    evidence_states["target_organ_damage"] = EvidenceValidityState.NOT_COLLECTED.value
                     evidence_classifications[bp_key] = EvidenceSupportClassification.INSUFFICIENT.value
                     quality_caveats.append("Severe BP elevation with UNKNOWN target-organ damage status; emergency evaluation required.")
                 else:
+                    evidence_states["target_organ_damage"] = EvidenceValidityState.VERIFIED_PRESENT.value
                     evidence_classifications[bp_key] = EvidenceSupportClassification.INSUFFICIENT.value
                     quality_caveats.append("Severe BP elevation without documented acute target-organ damage represents Hypertensive Urgency, not Hypertensive Emergency.")
             elif is_htn_urgency_claim:
