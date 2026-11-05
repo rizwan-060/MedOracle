@@ -92,6 +92,7 @@ from app.schemas.consensus import (
     AgentRebuttal,
     ChallengeStatus,
     ClaimRecalibrationRecord,
+    ClinicalEvidenceItem,
     ConfidenceRecalibrationResult,
     ContradictionCategory,
     ContradictionIssue,
@@ -103,11 +104,15 @@ from app.schemas.consensus import (
     DebateTestResponse,
     DebateTranscript,
     DomainEpistemicDoubt,
+    EvidenceSourceType,
+    EvidenceSupportClassification,
+    EvidenceValidityState,
     NLIAnalysisRecord,
     NLIRelation,
     RebuttalDisposition,
     RecalibrationTestRequest,
     RecalibrationTestResponse,
+    TargetOrganDamageState,
 )
 
 __all__ = [
@@ -193,5 +198,10 @@ __all__ = [
     "ConfidenceRecalibrationResult",
     "RecalibrationTestRequest",
     "RecalibrationTestResponse",
+    "ClinicalEvidenceItem",
+    "EvidenceSourceType",
+    "EvidenceValidityState",
+    "EvidenceSupportClassification",
+    "TargetOrganDamageState",
 ]
 
