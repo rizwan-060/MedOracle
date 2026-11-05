@@ -978,3 +978,52 @@ def test_troponin_assay_specific_cutoffs(recalibrator: ConfidenceRecalibrator) -
     assert is_hs3 is False
 
 
+
+
+# =============================================================================
+# Remediation Verification Tests (Defects DEF-12.3-1 to DEF-12.3-3)
+# =============================================================================
+
+def test_mixed_naive_and_aware_serial_timestamps_handled_safely(recalibrator: ConfidenceRecalibrator) -> None:
+    """DEF-12.3-1: Serial troponin timestamps with mixed naive and aware ISO formats must not raise TypeError."""
+    labs = {
+        "serial_troponin_completed": True,
+        "serial_timestamps": ["2026-11-05T08:00:00", "2026-11-05T10:00:00+00:00"],
+    }
+    status, caveats, is_valid = recalibrator._validate_serial_troponin_protocol(labs)
+    assert is_valid is True
+    assert status == "VALID_SERIAL_SERIES"
+
+
+def test_tod_state_unknown_explicitly_recorded(recalibrator: ConfidenceRecalibrator) -> None:
+    """DEF-12.3-2: When target-organ damage is unknown, evidence_states must record NOT_COLLECTED."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Risk Prediction Specialist",
+            "findings": "Hypertensive emergency with marked blood pressure elevation.",
+            "confidence": 85.0,
+        }],
+        laboratory_data={"systolic_bp": 210.0, "diastolic_bp": 130.0},
+    )
+    assert len(result.recalibrated_claims) == 1
+    record = result.recalibrated_claims[0]
+    assert record.evidence_states.get("target_organ_damage") == "NOT_COLLECTED"
+    assert record.evidence_classifications.get("blood_pressure_measurement") == "INSUFFICIENT"
+
+
+def test_contrastive_clause_does_not_waive_positive_claim_biomarker_requirement(recalibrator: ConfidenceRecalibrator) -> None:
+    """DEF-12.3-3: Positive acute claim with contrastive negation clause must still enforce missing essential evidence cap."""
+    result = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Symptom Analysis Specialist",
+            "findings": "Possible acute myocardial ischemia, but troponin normal.",
+            "confidence": 85.0,
+        }],
+        symptoms_data={"symptoms": ["chest_pain"]},
+        laboratory_data={},  # Troponin is missing/untested!
+    )
+    assert len(result.recalibrated_claims) == 1
+    record = result.recalibrated_claims[0]
+    # Primary clause is positive acute ischemia, so missing troponin must cap confidence
+    assert record.missing_evidence_cap_applied is True
+    assert record.final_confidence <= 40.0
