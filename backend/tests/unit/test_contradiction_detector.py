@@ -754,3 +754,93 @@ def test_epistemic_doubt_capped_at_one(detector: ContradictionDetector) -> None:
 
     assert result.contradictions_detected is True
     assert 0.0 <= result.preliminary_epistemic_doubt <= 1.0
+
+
+# =============================================================================
+# Remediation Verification Tests (Defects DEF-12.1-1 to DEF-12.1-4)
+# =============================================================================
+
+def test_rule_a1_high_sensitivity_troponin_elevated_not_contradicted(detector: ContradictionDetector) -> None:
+    """DEF-12.1-1: High-sensitivity troponin above assay URL (e.g. Roche hs-cTnT 0.035 ng/mL > 0.014)
+
+    must NOT be flagged as non-elevated or contradicted by ischemic symptoms.
+    """
+    symptoms = {
+        "symptoms": ["chest_pain", "angina"],
+        "severity": 8,
+        "duration_hours": 3.0,
+    }
+    labs = {
+        "cardiac_troponin_ng_ml": 0.035,
+        "cardiac_troponin_assay": "hs_ctnt_roche",
+        "serial_troponin_completed": False,
+        "resting_ecg": "normal_sinus_rhythm",
+    }
+    result = detector.evaluate_contradictions(symptoms_data=symptoms, laboratory_data=labs)
+    # Since troponin is elevated (> 0.014), it is consistent with acute ischemia/myocardial injury, NOT a normal-troponin contradiction
+    assert not any("SUBJ-OBJ-001" in i.issue_id for i in result.issues)
+
+
+def test_rule_a1_acute_ischemic_ecg_not_contradicted_despite_early_normal_troponin(detector: ContradictionDetector) -> None:
+    """DEF-12.1-2: Acute STEMI on ECG with early non-elevated troponin must NOT trigger Rule A1 normal-findings contradiction."""
+    symptoms = {
+        "symptoms": ["chest_pain"],
+        "severity": 9,
+        "duration_hours": 1.0,
+    }
+    labs = {
+        "cardiac_troponin_ng_ml": 0.01,
+        "cardiac_troponin_assay": "hs_cTnI",
+        "serial_troponin_completed": False,
+        "resting_ecg": "st_elevation_in_anterior_leads",
+    }
+    result = detector.evaluate_contradictions(symptoms_data=symptoms, laboratory_data=labs)
+    # Resting ECG is acute ischemic, so normal troponin does not make the findings normal
+    assert not any("SUBJ-OBJ-001" in i.issue_id for i in result.issues)
+
+
+def test_rule_b2_combination_antihypertensive_latency_respected(detector: ContradictionDetector) -> None:
+    """DEF-12.1-4: Combination amlodipine + HCTZ must respect the 4-week diuretic equilibration window."""
+    history = {
+        "current_medications": [
+            {
+                "name": "Amlodipine",
+                "dosage": "5mg",
+                "treatment_duration_weeks": 2.5,
+            },
+            {
+                "name": "Hydrochlorothiazide",
+                "dosage": "25mg",
+                "treatment_duration_weeks": 2.5,
+            },
+        ],
+        "chronic_conditions": ["hypertension"],
+    }
+    labs = {
+        "systolic_bp": 150.0,
+        "diastolic_bp": 94.0,
+    }
+    result = detector.evaluate_contradictions(medical_history_data=history, laboratory_data=labs)
+    # 2.5 weeks is within the 4-week diuretic latency window, so Rule B2 should be skipped
+    assert not any("MED-BIO-002" in i.issue_id for i in result.issues)
+
+
+def test_contradiction_taxonomy_types_assigned(detector: ContradictionDetector) -> None:
+    """DEF-12.1-3: Verify issues have formal ContradictionType taxonomy values."""
+    from app.schemas.consensus import ContradictionType
+
+    symptoms = {
+        "symptoms": ["chest_pain"],
+        "severity": 8,
+        "duration_hours": 2.0,
+    }
+    labs = {
+        "cardiac_troponin_ng_ml": 0.01,
+        "serial_troponin_completed": False,
+        "resting_ecg": "normal_sinus_rhythm",
+    }
+    result = detector.evaluate_contradictions(symptoms_data=symptoms, laboratory_data=labs)
+    assert result.contradictions_detected is True
+    issue = next(i for i in result.issues if "SUBJ-OBJ-001" in i.issue_id)
+    assert isinstance(issue.contradiction_type, ContradictionType)
+    assert issue.contradiction_type == ContradictionType.PATIENT_REPORTED_VS_OBJECTIVELY_MEASURED
