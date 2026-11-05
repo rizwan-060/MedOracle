@@ -86,6 +86,22 @@ class ContradictionSeverity(str, Enum):
     CRITICAL = "critical"
 
 
+class ContradictionType(str, Enum):
+    """Formal taxonomy of clinical contradiction and discrepancy types (Section 4.1)."""
+
+    DIRECT_CLINICAL_CONTRADICTION = "direct_clinical_contradiction"
+    MEASUREMENT_DISCREPANCY = "measurement_discrepancy"
+    TEMPORAL_DISCREPANCY = "temporal_discrepancy"
+    HISTORICAL_VS_CURRENT_DISCREPANCY = "historical_vs_current_discrepancy"
+    PATIENT_REPORTED_VS_OBJECTIVELY_MEASURED = "patient_reported_vs_objectively_measured"
+    DIFFERENT_CLINICAL_INTERPRETATIONS = "different_clinical_interpretations"
+    MISSING_EVIDENCE = "missing_evidence"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    UNVERIFIED_EVIDENCE = "unverified_evidence"
+    UNSUPPORTED_AGENT_ASSERTION = "unsupported_agent_assertion"
+    INCONCLUSIVE_EVIDENCE = "inconclusive_evidence"
+
+
 class ContradictionCategory(str, Enum):
     """Clinical category of physiological or pharmacological discordance."""
 
@@ -119,6 +135,10 @@ class ContradictionIssue(BaseModel):
     patient_id: Optional[str] = Field(
         default=None,
         description="Traceable patient identifier.",
+    )
+    contradiction_type: ContradictionType = Field(
+        default=ContradictionType.DIRECT_CLINICAL_CONTRADICTION,
+        description="Formal taxonomy type distinguishing direct contradictions from measurement, temporal, or unverified claims.",
     )
     category: ContradictionCategory = Field(
         ...,
