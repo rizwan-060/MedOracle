@@ -534,6 +534,17 @@ class DebateProtocolEngine:
 
             # Default fallback for other rules
             else:
+                # Check if evidence references are present with non-None values in records
+                has_substantiating_evidence = any(
+                    (ev in labs and labs[ev] is not None)
+                    or (ev in history and history[ev] is not None)
+                    or (ev in symptoms and symptoms[ev] is not None)
+                    or (ev in scores and scores[ev] is not None)
+                    or (ev in ml and ml[ev] is not None)
+                    for ev in issue.evidence_references
+                ) if issue.evidence_references else False
+
+                disposition = RebuttalDisposition.DEFEND if has_substantiating_evidence else RebuttalDisposition.INCONCLUSIVE
                 rebuttals.append(
                     AgentRebuttal(
                         rebuttal_id=rebuttal_id,
@@ -541,17 +552,80 @@ class DebateProtocolEngine:
                         issue_id=ch.issue_id,
                         round_number=2,
                         responding_agent=ch.challenged_agent,
-                        disposition=RebuttalDisposition.DEFEND,
+                        disposition=disposition,
                         rebuttal_text=(
-                            f"Defends claim within {issue.category.value}: Clinical presentation exhibits valid domain perspective. "
-                            "Disagreement is maintained for consensus weighting."
+                            f"Evaluates claim within {issue.category.value}: "
+                            + ("Clinical presentation exhibits valid domain perspective. Disagreement is maintained for consensus weighting."
+                               if disposition == RebuttalDisposition.DEFEND
+                               else "Evidence is indeterminate or unverified in current patient records. Rebuttal remains inconclusive pending diagnostic workup.")
                         ),
                         grounding_evidence=issue.evidence_references,
                         acknowledged_limitations=issue.clinical_limitations,
-                        evidence_missing=False,
+                        evidence_missing=not has_substantiating_evidence,
                     )
                 )
                 status_map[ch.challenge_id] = ChallengeStatus.UNRESOLVED_DISAGREEMENT
+
+        # Universal evidence verification: Rebuttals must cite evidence actually present with non-None values
+        for rebuttal in rebuttals:
+            missing_evidence_keys = []
+            for ev in rebuttal.grounding_evidence:
+                ev_str = str(ev).lower()
+                found = False
+
+                def has_val(d: Dict[str, Any], k: str) -> bool:
+                    if not isinstance(d, dict):
+                        return False
+                    if k in d and d[k] is not None:
+                        val = d[k]
+                        if isinstance(val, (list, dict, str)) and len(val) == 0:
+                            return False
+                        return True
+                    for key, val in d.items():
+                        if str(key).lower() == k.lower() and val is not None:
+                            if isinstance(val, (list, dict, str)) and len(val) == 0:
+                                return False
+                            return True
+                    return False
+
+                if has_val(labs, ev) or has_val(labs, ev_str):
+                    found = True
+                elif has_val(history, ev) or has_val(history, ev_str):
+                    found = True
+                elif has_val(symptoms, ev) or has_val(symptoms, ev_str):
+                    found = True
+                elif has_val(scores, ev) or has_val(scores, ev_str):
+                    found = True
+                elif has_val(ml, ev) or has_val(ml, ev_str):
+                    found = True
+                elif ev in ["current_medications", "chronic_conditions"] and has_val(history, ev):
+                    found = True
+                elif ev in ["symptoms", "duration_hours", "severity"] and has_val(symptoms, ev):
+                    found = True
+                elif ev_str in ["systolic_bp", "diastolic_bp"] and (has_val(labs, "systolic_bp") or has_val(labs, "diastolic_bp")):
+                    found = True
+                elif ev in ["adherence_notes", "notes"]:
+                    if has_val(history, "notes") or has_val(history, "adherence_notes"):
+                        found = True
+                    elif isinstance(history.get("current_medications"), list):
+                        for m in history["current_medications"]:
+                            if isinstance(m, dict) and m.get("adherence") is not None:
+                                found = True
+                                break
+
+                if not found:
+                    missing_evidence_keys.append(ev)
+
+            if missing_evidence_keys:
+                rebuttal.evidence_missing = True
+                for missing_k in missing_evidence_keys:
+                    rebuttal.acknowledged_limitations.append(
+                        f"Cited evidence key '{missing_k}' is not documented or unverified in current patient records."
+                    )
+                # If defending without actual supporting patient records, claim is unsupported
+                if rebuttal.disposition == RebuttalDisposition.DEFEND:
+                    rebuttal.disposition = RebuttalDisposition.UNSUPPORTED
+                    status_map[rebuttal.challenge_id] = ChallengeStatus.UNSUPPORTED
 
         return rebuttals, status_map
 

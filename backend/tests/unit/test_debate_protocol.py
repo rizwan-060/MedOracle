@@ -279,3 +279,93 @@ def test_nli_empty_claims_return_uncertain(nli_engine: SemanticNLIEngine) -> Non
 
     assert record.relation == NLIRelation.UNCERTAIN
     assert record.confidence <= 0.60
+
+
+# =============================================================================
+# Remediation Verification Tests (Defects DEF-12.2-1 to DEF-12.2-3)
+# =============================================================================
+
+def test_missing_none_biomarker_flagged_as_missing_evidence(debate_engine: DebateProtocolEngine) -> None:
+    """DEF-12.2-1: Biomarkers mapped to None in labs must NOT be treated as verified grounding evidence."""
+    from app.schemas.consensus import (
+        ContradictionCategory,
+        ContradictionIssue,
+        ContradictionMatrixResult,
+        ContradictionSeverity,
+        RebuttalDisposition,
+        ChallengeStatus,
+    )
+
+    issue = ContradictionIssue(
+        issue_id="ISSUE-TEST-001",
+        rule_id="RULE-CUSTOM-FALLBACK",
+        category=ContradictionCategory.SUBJECTIVE_VS_OBJECTIVE,
+        severity=ContradictionSeverity.MODERATE,
+        conflicting_agents=["Symptom Analysis Specialist", "Laboratory Biomarker Specialist"],
+        diverging_claims={"Symptom Analysis Specialist": "Acute ischemia claim", "Laboratory Biomarker Specialist": "Untested troponin"},
+        suggested_challenge="Challenge claim",
+        physiological_rationale="Testing rationale",
+        evidence_references=["cardiac_troponin_ng_ml"],
+    )
+    cm = ContradictionMatrixResult(
+        contradictions_detected=True,
+        total_contradictions=1,
+        issues=[issue],
+        summary="Test matrix",
+    )
+    # Labs has the key but its value is None (uncollected/missing)
+    labs = {"cardiac_troponin_ng_ml": None}
+
+    transcript = debate_engine.execute_debate(
+        contradiction_result=cm,
+        laboratory_data=labs,
+    )
+
+    assert len(transcript.rebuttals) == 1
+    rebuttal = transcript.rebuttals[0]
+    assert rebuttal.evidence_missing is True
+    assert rebuttal.disposition in [RebuttalDisposition.UNSUPPORTED, RebuttalDisposition.INCONCLUSIVE]
+
+
+def test_adherence_notes_in_history_recognized(debate_engine: DebateProtocolEngine) -> None:
+    """DEF-12.2-3: Adherence notes documented under 'notes' in medical_history_data must be recognized."""
+    from app.schemas.consensus import (
+        ContradictionCategory,
+        ContradictionIssue,
+        ContradictionMatrixResult,
+        ContradictionSeverity,
+    )
+
+    issue = ContradictionIssue(
+        issue_id="ISSUE-STATIN-001",
+        rule_id="RULE-B1-STATIN-LDL",
+        category=ContradictionCategory.HISTORY_MEDICATION_VS_BIOMARKER,
+        severity=ContradictionSeverity.MODERATE,
+        conflicting_agents=["Medical History Specialist", "Laboratory Biomarker Specialist"],
+        diverging_claims={"Medical History Specialist": "Statin therapy", "Laboratory Biomarker Specialist": "LDL 220"},
+        suggested_challenge="Challenge adherence",
+        physiological_rationale="Adherence testing",
+        evidence_references=["current_medications", "ldl_cholesterol_mg_dl"],
+    )
+    cm = ContradictionMatrixResult(
+        contradictions_detected=True,
+        total_contradictions=1,
+        issues=[issue],
+        summary="Test matrix",
+    )
+    history = {
+        "current_medications": [{"name": "Atorvastatin", "adherence": "inconsistent"}],
+        "notes": "Patient reports missing pills frequently.",
+    }
+    labs = {"ldl_cholesterol_mg_dl": 220.0}
+
+    transcript = debate_engine.execute_debate(
+        contradiction_result=cm,
+        medical_history_data=history,
+        laboratory_data=labs,
+    )
+
+    assert len(transcript.rebuttals) == 1
+    rebuttal = transcript.rebuttals[0]
+    # Should NOT be flagged as missing evidence since adherence notes and medications exist
+    assert rebuttal.evidence_missing is False
