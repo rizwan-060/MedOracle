@@ -418,18 +418,27 @@ class ConsensusResolver:
         """Verify evidence citations against patient data payload to prevent hallucinated/unverified citations."""
         valid_keys: Set[str] = set()
 
-        for k in labs.keys():
-            valid_keys.add(k.lower())
-        for k in history.keys():
-            valid_keys.add(k.lower())
+        def _add_valid_keys(source: Dict[str, Any]):
+            if not isinstance(source, dict):
+                return
+            for k, v in source.items():
+                if v is not None:
+                    if isinstance(v, (list, dict, str)) and len(v) == 0:
+                        continue
+                    valid_keys.add(k.lower())
+
+        _add_valid_keys(labs)
+        _add_valid_keys(history)
+        _add_valid_keys(symptoms)
+
         if isinstance(history.get("chronic_conditions"), list):
             for cond in history["chronic_conditions"]:
-                valid_keys.add(str(cond).lower())
-        for k in symptoms.keys():
-            valid_keys.add(k.lower())
+                if cond:
+                    valid_keys.add(str(cond).lower())
         if isinstance(symptoms.get("symptoms"), list):
             for sym in symptoms["symptoms"]:
-                valid_keys.add(str(sym).lower())
+                if sym:
+                    valid_keys.add(str(sym).lower())
 
         alias_map = {
             "troponin": "cardiac_troponin_ng_ml",
@@ -535,17 +544,17 @@ class ConsensusResolver:
             reason = record.concession_reason or "Claim formally conceded or withdrawn during multi-agent adversarial debate."
             return ClaimConsensusState.WITHDRAWN, f"Claim withdrawn by specialist ({reason})."
 
-        # 2. State: UNSUPPORTED
-        if record.debate_outcome == "unsupported":
-            return ClaimConsensusState.UNSUPPORTED, "Claim lacked any verified clinical evidence during adversarial cross-examination."
-
-        # 3. State: INSUFFICIENT_EVIDENCE
+        # 2. State: INSUFFICIENT_EVIDENCE (Missing mandatory diagnostic testing takes clinical precedence over debate defense)
         if record.missing_evidence_cap_applied:
             missing_str = ", ".join(record.missing_evidence_details)
             return (
                 ClaimConsensusState.INSUFFICIENT_EVIDENCE,
                 f"Mandatory diagnostic evidence is missing ({missing_str}); confidence strictly capped at {record.missing_evidence_cap_value:.0f}%.",
             )
+
+        # 3. State: UNSUPPORTED (Reserved for claims with present evidence that lacked empirical support)
+        if record.debate_outcome == "unsupported":
+            return ClaimConsensusState.UNSUPPORTED, "Claim lacked any verified clinical evidence during adversarial cross-examination."
 
         has_insufficient_class = any(
             cls in [EvidenceSupportClassification.INSUFFICIENT.value, "MISSING"]
@@ -632,7 +641,9 @@ class ConsensusResolver:
         is_troponin_elevated = False
         if troponin_val is not None:
             try:
-                is_troponin_elevated = float(troponin_val) > 0.04
+                assay_str = str(labs.get("cardiac_troponin_assay") or "").lower()
+                cutoff = 0.014 if ("roche" in assay_str or "hs_ctnt" in assay_str) else 0.026 if ("abbott" in assay_str or "hs" in assay_str) else 0.04
+                is_troponin_elevated = float(troponin_val) > cutoff
             except (ValueError, TypeError):
                 pass
 
