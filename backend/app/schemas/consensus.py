@@ -46,6 +46,7 @@ class EvidenceValidityState(str, Enum):
     """Clinical validity and presence state of required evidence."""
 
     VERIFIED_PRESENT = "VERIFIED_PRESENT"
+    PRESENT = "PRESENT"
     NOT_COLLECTED = "NOT_COLLECTED"
     NOT_AVAILABLE = "NOT_AVAILABLE"
     MISSING = "MISSING"
@@ -54,6 +55,115 @@ class EvidenceValidityState(str, Enum):
     STALE = "STALE"
     INSUFFICIENT = "INSUFFICIENT"
     INCONCLUSIVE = "INCONCLUSIVE"
+    UNVERIFIED = "UNVERIFIED"
+    CONFLICTING_SOURCE = "CONFLICTING_SOURCE"
+
+
+class EvidenceSourceType(str, Enum):
+    """Origin source type for clinical evidence items."""
+
+    LAB = "LAB"
+    CLINICAL_NOTE = "CLINICAL_NOTE"
+    MEDICATION = "MEDICATION"
+    VITAL_SIGN = "VITAL_SIGN"
+    IMAGING = "IMAGING"
+    PATIENT_REPORTED = "PATIENT_REPORTED"
+    ECG = "ECG"
+    GENOMIC = "GENOMIC"
+    CALCULATED_SCORE = "CALCULATED_SCORE"
+    SYSTEM_INFERRED = "SYSTEM_INFERRED"
+
+
+class ClinicalEvidenceItem(BaseModel):
+    """Canonical structured clinical evidence contract shared across all consensus engines.
+
+    Adheres strictly to the 10 Clinical Evidence Principles:
+    1. Missing evidence != False evidence.
+    2. Invalid evidence != False evidence.
+    3. Unverified evidence != Verified evidence.
+    4. Non-empty dictionary != Valid evidence.
+    5. Agent assertions != Evidence.
+    6. Concessions in debate != Proof.
+    7. Claim verification requires source provenance.
+    8. Validity states must be strictly checked.
+    9. Stale evidence cannot override acute findings.
+    10. Interpretation must match evidence status.
+    """
+
+    evidence_id: str = Field(
+        ...,
+        description="Globally unique identifier for the evidence item.",
+    )
+    patient_id: Optional[str] = Field(
+        default=None,
+        description="Identifier of the patient.",
+    )
+    analysis_id: Optional[str] = Field(
+        default=None,
+        description="Identifier of the analysis session.",
+    )
+    source_type: EvidenceSourceType = Field(
+        ...,
+        description="Source type (LAB, VITAL_SIGN, CLINICAL_NOTE, MEDICATION, etc.).",
+    )
+    source_record_id: Optional[str] = Field(
+        default=None,
+        description="Underlying record ID from the source system.",
+    )
+    canonical_concept: str = Field(
+        ...,
+        description="Standardized clinical analyte or concept name (e.g. 'cardiac_troponin', 'systolic_bp').",
+    )
+    raw_value: Any = Field(
+        ...,
+        description="Raw unmodified value from source.",
+    )
+    normalized_value: Optional[Any] = Field(
+        default=None,
+        description="Clinically normalized numerical or standard categorical value.",
+    )
+    unit: Optional[str] = Field(
+        default=None,
+        description="Unit of measurement (e.g. 'ng/mL', 'mg/dL', 'mmHg').",
+    )
+    reference_range: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Reference interval or 99th percentile upper reference limit.",
+    )
+    assay_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Assay manufacturer, analytical sensitivity, detection limit, or instrument details.",
+    )
+    collection_timestamp: Optional[datetime] = Field(
+        default=None,
+        description="UTC datetime of sample collection or observation.",
+    )
+    original_timezone: Optional[str] = Field(
+        default=None,
+        description="Original timezone string of observation if provided.",
+    )
+    provenance: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Full audit provenance metadata.",
+    )
+    is_verified: bool = Field(
+        default=False,
+        description="True if provenanced from authenticated, objective clinical record.",
+    )
+    validity_state: EvidenceValidityState = Field(
+        default=EvidenceValidityState.UNVERIFIED,
+        description="Strict validity state.",
+    )
+    associated_claim_ids: List[str] = Field(
+        default_factory=list,
+        description="Identifiers of claims supported, contradicted, or informed by this evidence.",
+    )
+    interpretation: EvidenceSupportClassification = Field(
+        default=EvidenceSupportClassification.NEUTRAL,
+        description="Interpretation relative to associated claims.",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TargetOrganDamageState(str, Enum):

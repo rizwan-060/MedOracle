@@ -88,3 +88,7 @@ docs/*.pdf
 # Feedback & active learning buffer
 datasets/feedback/
 
+
+# Scratch directory
+scratch/
+scratch/*

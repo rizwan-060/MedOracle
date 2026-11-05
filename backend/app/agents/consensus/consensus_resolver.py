@@ -673,15 +673,29 @@ class ConsensusResolver:
         # 2. Diabetic Ketoacidosis (DKA) / Hyperosmolar Hyperglycemic State (HHS) Alert
         glucose_val = labs.get("fasting_blood_glucose_mg_dl") or labs.get("random_blood_glucose_mg_dl") or labs.get("blood_glucose_mg_dl")
         ketone_val = labs.get("blood_ketones_mmol_l") or labs.get("beta_hydroxybutyrate_mmol_l")
+        osmolality_val = labs.get("serum_osmolality_mosm_kg") or labs.get("serum_osmolality") or labs.get("effective_osmolality_mosm_kg")
         has_dka_claim = any(
-            any(k in c.original_claim.lower() for k in ["diabetic ketoacidosis", "dka", "ketoacidosis", "hyperglycemic hyperosmolar", "hhs"])
+            any(k in c.original_claim.lower() for k in ["diabetic ketoacidosis", "dka", "ketoacidosis"])
+            for c in claim_resolutions
+        )
+        has_hhs_claim = any(
+            any(k in c.original_claim.lower() for k in ["hyperglycemic hyperosmolar", "hhs", "hyperosmolar state"])
             for c in claim_resolutions
         )
 
         is_severe_hyperglycemia = False
+        glucose_num = 0.0
         if glucose_val is not None:
             try:
-                is_severe_hyperglycemia = float(glucose_val) >= 300.0
+                glucose_num = float(glucose_val)
+                is_severe_hyperglycemia = glucose_num >= 300.0
+            except (ValueError, TypeError):
+                pass
+
+        is_hyperosmolar = False
+        if osmolality_val is not None:
+            try:
+                is_hyperosmolar = float(osmolality_val) >= 320.0
             except (ValueError, TypeError):
                 pass
 
@@ -692,7 +706,19 @@ class ConsensusResolver:
             except (ValueError, TypeError):
                 pass
 
-        if has_dka_claim or (is_severe_hyperglycemia and (is_ketonemia or ketone_val is None)):
+        if has_hhs_claim or (glucose_num >= 600.0 and is_hyperosmolar):
+            warnings.append(
+                SafetyOverrideWarning(
+                    warning_id=f"WARN-HHS-{uuid.uuid4().hex[:6]}",
+                    condition_name="Suspected Hyperosmolar Hyperglycemic State (HHS)",
+                    level=SafetyOverrideLevel.EMERGENT,
+                    lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
+                    trigger_rationale="Profound hyperglycemia (glucose >= 600 mg/dL) concurrent with severe hyperosmolality (>= 320 mOsm/kg) indicating life-threatening Hyperosmolar Hyperglycemic State.",
+                    action_recommendation="Immediate emergency medical intervention recommended: intensive aggressive isotonic fluid resuscitation, electrolyte management, continuous hemodynamic monitoring, and controlled intravenous insulin protocol in an ICU/monitored setting.",
+                    overrides_consensus=True,
+                )
+            )
+        elif has_dka_claim or (is_severe_hyperglycemia and (is_ketonemia or ketone_val is None)):
             warnings.append(
                 SafetyOverrideWarning(
                     warning_id=f"WARN-DKA-{uuid.uuid4().hex[:6]}",
@@ -729,6 +755,14 @@ class ConsensusResolver:
         has_htn_emerg_claim = any("hypertensive emergency" in c.original_claim.lower() for c in claim_resolutions)
 
         if is_severe_bp:
+            has_tod_tests = (
+                labs.get("serum_creatinine_mg_dl") is not None
+                or labs.get("cardiac_troponin_ng_ml") is not None
+                or labs.get("hs_troponin_i_ng_ml") is not None
+                or labs.get("resting_ecg") is not None
+                or labs.get("target_organ_damage") is not None
+            )
+
             if has_tod or has_htn_emerg_claim:
                 warnings.append(
                     SafetyOverrideWarning(
@@ -741,6 +775,19 @@ class ConsensusResolver:
                         overrides_consensus=True,
                     )
                 )
+            elif not has_tod_tests:
+                # Severe BP without TOD assessment must remain UNKNOWN/SUSPECTED and never be called urgency
+                warnings.append(
+                    SafetyOverrideWarning(
+                        warning_id=f"WARN-HTN-UNDET-{uuid.uuid4().hex[:6]}",
+                        condition_name="Severe Blood Pressure Elevation (Target-Organ Damage Undetermined)",
+                        level=SafetyOverrideLevel.URGENT,
+                        lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
+                        trigger_rationale=f"Severe blood pressure elevation ({sbp}/{dbp} mmHg) with undetermined target-organ damage status. Cannot classify as urgency without objective clinical screening.",
+                        action_recommendation="Immediate prompt evaluation recommended for repeated blood pressure measurements and mandatory target-organ screening (ECG, creatinine, troponin, fundoscopy).",
+                        overrides_consensus=True,
+                    )
+                )
             else:
                 warnings.append(
                     SafetyOverrideWarning(
@@ -748,7 +795,7 @@ class ConsensusResolver:
                         condition_name="Severe Blood Pressure Elevation (Hypertensive Urgency)",
                         level=SafetyOverrideLevel.URGENT,
                         lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
-                        trigger_rationale=f"Severe blood pressure elevation ({sbp}/{dbp} mmHg) without documented acute target-organ damage.",
+                        trigger_rationale=f"Severe blood pressure elevation ({sbp}/{dbp} mmHg) without documented acute target-organ damage following objective evaluation.",
                         action_recommendation="Prompt outpatient or urgent care medical evaluation recommended within 24 hours for oral antihypertensive adjustment and surveillance for target-organ involvement.",
                         overrides_consensus=True,
                     )
@@ -984,12 +1031,23 @@ class ConsensusResolver:
             f"Global residual epistemic doubt is {recalibration_result.global_epistemic_doubt_score:.3f}."
         )
 
-        # Compute deterministic cryptographic milestone hashes
-        m1_hash = hashlib.sha256(json.dumps(original_claims, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
-        m2_hash = hashlib.sha256(json.dumps(contradiction_records, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
-        m3_hash = hashlib.sha256(json.dumps({"challenges": challenges, "rebuttals": rebuttals}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
-        m4_hash = hashlib.sha256(json.dumps({"scores": recalibrated_scores, "doubts": epistemic_doubts}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
-        m5_hash = hashlib.sha256(json.dumps({"claims": [c.model_dump() for c in claim_resolutions], "warnings": [w.model_dump() for w in safety_warnings]}, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")).hexdigest()
+        previous_block_hash = f"GENESIS-BLOCK-{session_id}"
+
+        # Compute deterministic cryptographic milestone hashes chained sequentially
+        m1_payload = f"{previous_block_hash}:{json.dumps(original_claims, sort_keys=True, separators=(',', ':'), default=str)}"
+        m1_hash = hashlib.sha256(m1_payload.encode("utf-8")).hexdigest()
+
+        m2_payload = f"{m1_hash}:{json.dumps(contradiction_records, sort_keys=True, separators=(',', ':'), default=str)}"
+        m2_hash = hashlib.sha256(m2_payload.encode("utf-8")).hexdigest()
+
+        m3_payload = f"{m2_hash}:{json.dumps({'challenges': challenges, 'rebuttals': rebuttals}, sort_keys=True, separators=(',', ':'), default=str)}"
+        m3_hash = hashlib.sha256(m3_payload.encode("utf-8")).hexdigest()
+
+        m4_payload = f"{m3_hash}:{json.dumps({'scores': recalibrated_scores, 'doubts': epistemic_doubts}, sort_keys=True, separators=(',', ':'), default=str)}"
+        m4_hash = hashlib.sha256(m4_payload.encode("utf-8")).hexdigest()
+
+        m5_payload = f"{m4_hash}:{json.dumps({'claims': [c.model_dump() for c in claim_resolutions], 'warnings': [w.model_dump() for w in safety_warnings]}, sort_keys=True, separators=(',', ':'), default=str)}"
+        m5_hash = hashlib.sha256(m5_payload.encode("utf-8")).hexdigest()
 
         milestone_hashes = {
             "milestone_1_pre_debate_claims": m1_hash,
@@ -998,8 +1056,6 @@ class ConsensusResolver:
             "milestone_4_confidence_recalibration": m4_hash,
             "milestone_5_consensus_resolution": m5_hash,
         }
-
-        previous_block_hash = f"GENESIS-BLOCK-{session_id}"
 
         transcript = AuditDebateTranscript(
             transcript_id=transcript_token,

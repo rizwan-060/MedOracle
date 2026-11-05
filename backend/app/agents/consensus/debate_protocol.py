@@ -624,7 +624,7 @@ class DebateProtocolEngine:
                         f"Cited evidence key '{missing_k}' is not documented or unverified in current patient records."
                     )
                 # If defending without actual supporting patient records, claim is unsupported
-                if rebuttal.disposition == RebuttalDisposition.DEFEND:
+                if rebuttal.disposition in [RebuttalDisposition.DEFEND, RebuttalDisposition.INCONCLUSIVE]:
                     rebuttal.disposition = RebuttalDisposition.UNSUPPORTED
                     status_map[rebuttal.challenge_id] = ChallengeStatus.UNSUPPORTED
 

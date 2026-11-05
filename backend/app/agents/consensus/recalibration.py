@@ -214,8 +214,10 @@ TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
         "type": "hs-cTnI",
         "standard_unit": "ng/L",
         "url_overall_ng_l": 26.0,
-        "url_female_ng_l": 16.0,
-        "url_male_ng_l": 34.0,
+        "url_female_ng_l": 15.6,
+        "url_male_ng_l": 34.2,
+        "url_female_ng_ml": 0.0156,
+        "url_male_ng_ml": 0.0342,
         "url_ng_ml": 0.026,
     },
     "hs_ctnt_roche": {
@@ -224,7 +226,9 @@ TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
         "standard_unit": "ng/L",
         "url_overall_ng_l": 14.0,
         "url_female_ng_l": 9.0,
-        "url_male_ng_l": 15.0,
+        "url_male_ng_l": 15.5,
+        "url_female_ng_ml": 0.009,
+        "url_male_ng_ml": 0.0155,
         "url_ng_ml": 0.014,
     },
     "hs_ctni_siemens": {
@@ -232,13 +236,21 @@ TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
         "type": "hs-cTnI",
         "standard_unit": "ng/L",
         "url_overall_ng_l": 45.0,
+        "url_female_ng_l": 34.0,
+        "url_male_ng_l": 53.0,
+        "url_female_ng_ml": 0.034,
+        "url_male_ng_ml": 0.053,
         "url_ng_ml": 0.045,
     },
     "hs_ctni_beckman": {
         "name": "Beckman Coulter Access hs-cTnI",
         "type": "hs-cTnI",
         "standard_unit": "ng/L",
-        "url_overall_ng_l": 18.0,
+        "url_overall_ng_l": 17.5,
+        "url_female_ng_l": 11.6,
+        "url_male_ng_l": 19.8,
+        "url_female_ng_ml": 0.0116,
+        "url_male_ng_ml": 0.0198,
         "url_ng_ml": 0.018,
     },
     "conventional_ctni": {
@@ -246,14 +258,22 @@ TROPONIN_ASSAY_PROFILES: Dict[str, Dict[str, Any]] = {
         "type": "cTnI",
         "standard_unit": "ng/mL",
         "url_overall_ng_l": 40.0,
+        "url_male_ng_l": 40.0,
+        "url_female_ng_l": 40.0,
+        "url_male_ng_ml": 0.04,
+        "url_female_ng_ml": 0.04,
         "url_ng_ml": 0.04,
     },
     "conventional_ctnt": {
         "name": "Conventional cTnT",
         "type": "cTnT",
         "standard_unit": "ng/mL",
-        "url_overall_ng_l": 100.0,
-        "url_ng_ml": 0.10,
+        "url_overall_ng_l": 10.0,
+        "url_male_ng_l": 10.0,
+        "url_female_ng_l": 10.0,
+        "url_male_ng_ml": 0.01,
+        "url_female_ng_ml": 0.01,
+        "url_ng_ml": 0.01,
     },
 }
 
@@ -1255,7 +1275,11 @@ class ConfidenceRecalibrator:
             "clauses": [{"clause_text": c} for c in clauses],
         }
 
-    def _resolve_troponin_cutoff(self, labs: Dict[str, Any]) -> Tuple[float, str, bool, Optional[str]]:
+    def _resolve_troponin_cutoff(
+        self,
+        labs: Dict[str, Any],
+        sex: Optional[str] = None,
+    ) -> Tuple[float, str, bool, Optional[str]]:
         """Resolve assay-specific 99th percentile upper reference limit (URL) for cardiac troponin (A5)."""
         lab_url = labs.get("troponin_url_ng_ml") or labs.get("lab_reference_limit") or labs.get("reference_range_upper")
         if lab_url is not None:
@@ -1286,16 +1310,33 @@ class ConfidenceRecalibrator:
         elif "hs" in assay_raw or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None:
             profile_key = "hs_ctni_abbott"
 
+        resolved_sex = str(sex or labs.get("sex") or labs.get("gender") or "").lower()
+        is_female = resolved_sex in ["female", "f", "woman"]
+        is_male = resolved_sex in ["male", "m", "man"]
+        is_ng_l = "ng/l" in unit_raw or "pg/ml" in unit_raw
+
         if profile_key and profile_key in TROPONIN_ASSAY_PROFILES:
             prof = TROPONIN_ASSAY_PROFILES[profile_key]
             is_hs = "hs" in prof["type"].lower()
-            if "ng/l" in unit_raw or "pg/ml" in unit_raw:
+            if is_ng_l:
+                if is_female and "url_female_ng_l" in prof:
+                    return prof["url_female_ng_l"], "ng/L", is_hs, f"{prof['name']} (Female 99th %ile URL)"
+                elif is_male and "url_male_ng_l" in prof:
+                    return prof["url_male_ng_l"], "ng/L", is_hs, f"{prof['name']} (Male 99th %ile URL)"
                 return prof["url_overall_ng_l"], "ng/L", is_hs, prof["name"]
             else:
+                if is_female and "url_female_ng_ml" in prof:
+                    return prof["url_female_ng_ml"], "ng/mL", is_hs, f"{prof['name']} (Female 99th %ile URL)"
+                elif is_male and "url_male_ng_ml" in prof:
+                    return prof["url_male_ng_ml"], "ng/mL", is_hs, f"{prof['name']} (Male 99th %ile URL)"
                 return prof["url_ng_ml"], "ng/mL", is_hs, prof["name"]
 
         is_hs_key = labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None or "hs" in assay_raw
         if is_hs_key:
+            if is_female:
+                return 0.009, "ng/mL", True, "Generic hs-cTn (Female URL, Platform Unspecified)"
+            elif is_male:
+                return 0.0155, "ng/mL", True, "Generic hs-cTn (Male URL, Platform Unspecified)"
             return 0.014, "ng/mL", True, "Generic hs-cTn"
         else:
             return 0.04, "ng/mL", False, "Conventional cTn"

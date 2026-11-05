@@ -36,46 +36,80 @@ class ContradictionDetector:
             "name": "Abbott ARCHITECT/Alinity STAT High Sensitivity Troponin I",
             "url_ng_ml": 0.026,
             "url_overall_ng_l": 26.0,
+            "url_male_ng_l": 34.2,
+            "url_female_ng_l": 15.6,
+            "url_male_ng_ml": 0.0342,
+            "url_female_ng_ml": 0.0156,
             "type": "hs-cTnI",
         },
         "hs_ctnt_roche": {
             "name": "Roche Elecsys Troponin T hs",
             "url_ng_ml": 0.014,
             "url_overall_ng_l": 14.0,
+            "url_male_ng_l": 15.5,
+            "url_female_ng_l": 9.0,
+            "url_male_ng_ml": 0.0155,
+            "url_female_ng_ml": 0.009,
             "type": "hs-cTnT",
         },
         "hs_ctni_siemens": {
             "name": "Siemens Atellica IM High-Sensitivity Troponin I",
             "url_ng_ml": 0.045,
             "url_overall_ng_l": 45.0,
+            "url_male_ng_l": 53.0,
+            "url_female_ng_l": 34.0,
+            "url_male_ng_ml": 0.053,
+            "url_female_ng_ml": 0.034,
             "type": "hs-cTnI",
         },
         "hs_ctni_beckman": {
             "name": "Beckman Coulter Access hsTnI",
             "url_ng_ml": 0.018,
             "url_overall_ng_l": 17.5,
+            "url_male_ng_l": 19.8,
+            "url_female_ng_l": 11.6,
+            "url_male_ng_ml": 0.0198,
+            "url_female_ng_ml": 0.0116,
             "type": "hs-cTnI",
         },
         "conventional_ctni": {
             "name": "Conventional cardiac Troponin I",
             "url_ng_ml": 0.04,
             "url_overall_ng_l": 40.0,
+            "url_male_ng_l": 40.0,
+            "url_female_ng_l": 40.0,
+            "url_male_ng_ml": 0.04,
+            "url_female_ng_ml": 0.04,
             "type": "conventional-cTnI",
         },
         "conventional_ctnt": {
             "name": "Conventional cardiac Troponin T",
             "url_ng_ml": 0.01,
             "url_overall_ng_l": 10.0,
+            "url_male_ng_l": 10.0,
+            "url_female_ng_l": 10.0,
+            "url_male_ng_ml": 0.01,
+            "url_female_ng_ml": 0.01,
             "type": "conventional-cTnT",
         },
     }
 
-    def resolve_troponin_cutoff(self, labs: Dict[str, Any]) -> Tuple[float, str, str]:
-        """Resolve assay-specific 99th percentile upper reference limit (URL) for cardiac troponin."""
+    def resolve_troponin_cutoff(
+        self,
+        labs: Dict[str, Any],
+        sex: Optional[str] = None,
+    ) -> Tuple[float, str, str]:
+        """Resolve assay-specific 99th percentile upper reference limit (URL) for cardiac troponin.
+
+        Supports sex-specific 99th percentile URLs for high-sensitivity assays (Abbott hs-cTnI:
+        M 34.2 ng/L, F 15.6 ng/L; Roche hs-cTnT: M 15.5 ng/L, F 9.0 ng/L per 4th Universal Definition
+        of Myocardial Infarction / ESC 2020). If platform is unspecified, flags assay_uncertain.
+        """
         lab_url = labs.get("troponin_url_ng_ml") or labs.get("lab_reference_limit") or labs.get("reference_range_upper")
         if lab_url is not None:
             try:
-                return float(lab_url), "ng/mL", "Laboratory-Reported Reference URL"
+                val = float(lab_url)
+                return val, "ng/mL", "Laboratory-Reported Reference URL"
             except (ValueError, TypeError):
                 pass
 
@@ -100,17 +134,34 @@ class ContradictionDetector:
         elif "hs" in assay_raw or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None:
             profile_key = "hs_ctni_abbott"
 
+        resolved_sex = str(sex or labs.get("sex") or labs.get("gender") or "").lower()
+        is_female = resolved_sex in ["female", "f", "woman"]
+        is_male = resolved_sex in ["male", "m", "man"]
+        is_ng_l = "ng/l" in unit_raw or "pg/ml" in unit_raw
+
         if profile_key and profile_key in self.TROPONIN_ASSAY_PROFILES:
             prof = self.TROPONIN_ASSAY_PROFILES[profile_key]
-            if "ng/l" in unit_raw or "pg/ml" in unit_raw:
+            if is_ng_l:
+                if is_female and "url_female_ng_l" in prof:
+                    return prof["url_female_ng_l"], "ng/L", f"{prof['name']} (Female 99th %ile URL)"
+                elif is_male and "url_male_ng_l" in prof:
+                    return prof["url_male_ng_l"], "ng/L", f"{prof['name']} (Male 99th %ile URL)"
                 return prof["url_overall_ng_l"], "ng/L", prof["name"]
             else:
+                if is_female and "url_female_ng_ml" in prof:
+                    return prof["url_female_ng_ml"], "ng/mL", f"{prof['name']} (Female 99th %ile URL)"
+                elif is_male and "url_male_ng_ml" in prof:
+                    return prof["url_male_ng_ml"], "ng/mL", f"{prof['name']} (Male 99th %ile URL)"
                 return prof["url_ng_ml"], "ng/mL", prof["name"]
 
         is_hs = labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None or "hs" in assay_raw
         if is_hs:
-            return 0.014, "ng/mL", "Generic hs-cTn"
-        return 0.04, "ng/mL", "Conventional cTn"
+            if is_female:
+                return 0.009, "ng/mL", "Generic hs-cTn (Female URL, Platform Unspecified)"
+            elif is_male:
+                return 0.0155, "ng/mL", "Generic hs-cTn (Male URL, Platform Unspecified)"
+            return 0.014, "ng/mL", "Generic hs-cTn (Unspecified Platform)"
+        return 0.04, "ng/mL", "Conventional cTn (Unspecified Platform)"
 
     # Normalization terms for statin drugs
     STATIN_NAMES: Set[str] = {
@@ -382,7 +433,9 @@ class ContradictionDetector:
         # Rule A1: Acute severe ischemic chest pain vs. normal cardiac troponin & ECG
         # IMPORTANT: Missing troponin (None) is UNTESTED and must never be treated as normal
         if has_ischemic_symptoms and severity >= 6 and troponin is not None:
-            troponin_cutoff, trop_unit, assay_name = self.resolve_troponin_cutoff(labs)
+            resolved_sex = symptoms.get("sex") or labs.get("sex") or labs.get("gender")
+            troponin_cutoff, trop_unit, assay_name = self.resolve_troponin_cutoff(labs, sex=resolved_sex)
+            assay_uncertain = "Unspecified Platform" in assay_name
             try:
                 troponin_val = float(troponin)
             except (ValueError, TypeError):
@@ -472,6 +525,7 @@ class ContradictionDetector:
                                 "troponin_unit": trop_unit,
                                 "serial_troponin_completed": serial_completed,
                                 "symptom_duration_hours": duration_hours,
+                                "assay_uncertain": assay_uncertain,
                             },
                             measurement_timestamps={
                                 "symptom_duration_hours": str(duration_hours) if duration_hours else None,
@@ -928,15 +982,21 @@ class ContradictionDetector:
                     latencies.append(2.0)
                 expected_latency_weeks = max(latencies)
 
-                # Check duration if available
+                # Check duration and adherence
                 drug_duration = None
+                adherence_inconsistent = False
                 for m in antihypertensive_meds:
                     d = m.get("treatment_duration_weeks")
-                    if d is not None:
+                    if d is not None and drug_duration is None:
                         drug_duration = float(d)
-                        break
+                    adh = str(m.get("adherence") or "").lower()
+                    if adh in ["inconsistent", "poor", "non_compliant", "partial", "non-adherent", "missed", "irregular"]:
+                        adherence_inconsistent = True
+                if any(w in history_notes for w in ["non-compliance", "forgets", "inconsistent", "stopped", "irregular", "non-adherent", "misses doses", "under-dosing"]):
+                    adherence_inconsistent = True
 
-                if drug_duration is not None and drug_duration < expected_latency_weeks:
+                # If drug duration is within expected latency and adherence is adequate, expected latency applies
+                if drug_duration is not None and drug_duration < expected_latency_weeks and not adherence_inconsistent:
                     logger.info("Rule B2 skipped: Antihypertensive within drug-specific latency window.")
                 else:
                     unique_issue_suffix = uuid.uuid4().hex[:8]
@@ -945,6 +1005,18 @@ class ContradictionDetector:
                         "Medical History Specialist": f"Documents active antihypertensive therapy ({antihypertensive_names_str}).",
                         "Laboratory Biomarker Specialist": f"Demonstrates uncontrolled Stage 2 Hypertension (BP: {int(sbp)}/{int(dbp)} mmHg).",
                     }
+                    if adherence_inconsistent:
+                        b2_rationale = (
+                            f"Documented medication non-adherence or irregular compliance explains persistent Stage 2 Hypertension "
+                            f"({int(sbp)}/{int(dbp)} mmHg) despite prescribed {antihypertensive_names_str}. Suboptimal compliance "
+                            f"impairs therapeutic blood pressure stabilization."
+                        )
+                    else:
+                        b2_rationale = (
+                            f"Antihypertensive agents should lower peripheral vascular resistance and maintain systolic BP < 130 mmHg. "
+                            f"Elevated Stage 2 readings ({int(sbp)}/{int(dbp)} mmHg) despite documented therapy suggest apparent treatment resistance, "
+                            f"suboptimal adherence, white-coat effect, or inadequate dosing. Certainty is tempered by measurement conditions."
+                        )
                     issues.append(
                         ContradictionIssue(
                             issue_id=f"{prefix}-MED-BIO-002-{unique_issue_suffix}",
@@ -966,14 +1038,11 @@ class ContradictionDetector:
                                 "systolic_bp_mmhg": sbp,
                                 "diastolic_bp_mmhg": dbp,
                                 "expected_latency_weeks": expected_latency_weeks,
+                                "adherence_inconsistent": adherence_inconsistent,
                             },
                             measurement_timestamps={"vitals_measurement": labs.get("test_date") or labs.get("timestamp")},
                             evidence_sources=["medical_history", "vital_signs"],
-                            physiological_rationale=(
-                                f"Antihypertensive agents should lower peripheral vascular resistance and maintain systolic BP < 130 mmHg. "
-                                f"Elevated Stage 2 readings ({int(sbp)}/{int(dbp)} mmHg) despite documented therapy suggest apparent treatment resistance, "
-                                f"suboptimal adherence, white-coat effect, or inadequate dosing. Certainty is tempered by measurement conditions."
-                            ),
+                            physiological_rationale=b2_rationale,
                             clinical_limitations=[
                                 "Antihypertensive pharmacodynamics vary widely by drug class (e.g. amlodipine reaches full steady-state efficacy in 1-2 weeks, lisinopril/losartan in 2-4 weeks, thiazides in 4-6 weeks).",
                                 "Single isolated in-clinic blood pressure measurement is susceptible to white-coat effect, stress, cuff artifact, and diurnal fluctuation; 24h ABPM or home BP log is required.",
