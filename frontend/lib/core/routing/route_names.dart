@@ -1,5 +1,14 @@
 /// Route paths and names for the MedOracle router.
 abstract final class RouteNames {
+  // --- Onboarding -------------------------------------------------------------
+  static const String onboardingRoot = '/onboarding';
+  static const String onboardingWelcome = '$onboardingRoot/welcome';
+  static const String onboardingCareTeam = '$onboardingRoot/care-team';
+  static const String onboardingProfile = '$onboardingRoot/profile';
+  static const String onboardingBody = '$onboardingRoot/body';
+  static const String onboardingHabits = '$onboardingRoot/habits';
+  static const String onboardingPath = '$onboardingRoot/path';
+
   // --- Auth -------------------------------------------------------------------
   static const String login = '/login';
   static const String signup = '/signup';

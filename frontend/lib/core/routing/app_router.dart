@@ -4,6 +4,12 @@ import 'package:go_router/go_router.dart';
 import '../../features/assessment/screens/assessment_primary_finding_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
+import '../../features/onboarding/screens/onboarding_body_screen.dart';
+import '../../features/onboarding/screens/onboarding_care_team_screen.dart';
+import '../../features/onboarding/screens/onboarding_habits_screen.dart';
+import '../../features/onboarding/screens/onboarding_path_screen.dart';
+import '../../features/onboarding/screens/onboarding_profile_screen.dart';
+import '../../features/onboarding/screens/onboarding_welcome_screen.dart';
 import '../../features/dashboard/screens/home_dashboard_screen.dart';
 import '../../features/doctors/screens/doctor_recommendation_screen.dart';
 import '../../features/assessment/screens/assessment_ai_reasoning_consensus_screen.dart';
@@ -18,9 +24,10 @@ import 'route_names.dart';
 
 /// Application router.
 ///
-/// Authentication is the entry point at `/login`, routing forward to
-/// `/dashboard`. Both `/` and `/auth` redirect to `/login`, and `/signup`
-/// holds the account-creation form.
+/// Onboarding is the entry point at `/onboarding/welcome`; its final step
+/// routes to `/signup`. Authentication remains available at `/login`, routing
+/// forward to `/dashboard`. Both `/` and `/onboarding` enter onboarding, while
+/// `/auth` redirects to `/login`.
 ///
 /// Intake wizard:
 /// ```text
@@ -45,14 +52,51 @@ import 'route_names.dart';
 /// ```
 GoRouter createAppRouter() {
   return GoRouter(
-    initialLocation: RouteNames.login,
+    initialLocation: RouteNames.onboardingWelcome,
     routes: <RouteBase>[
-      // --- Auth -------------------------------------------------------------
+      // --- Onboarding -------------------------------------------------------
       GoRoute(
         path: '/',
         redirect: (BuildContext context, GoRouterState state) =>
-            RouteNames.login,
+            RouteNames.onboardingWelcome,
       ),
+      GoRoute(
+        path: RouteNames.onboardingRoot,
+        redirect: (BuildContext context, GoRouterState state) =>
+            RouteNames.onboardingWelcome,
+      ),
+      GoRoute(
+        path: RouteNames.onboardingWelcome,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingWelcomeScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboardingCareTeam,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingCareTeamScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboardingProfile,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingProfileScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboardingBody,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingBodyScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboardingHabits,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingHabitsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.onboardingPath,
+        builder: (BuildContext context, GoRouterState state) =>
+            const OnboardingPathScreen(),
+      ),
+
+      // --- Auth -------------------------------------------------------------
       GoRoute(
         path: '/auth',
         redirect: (BuildContext context, GoRouterState state) =>

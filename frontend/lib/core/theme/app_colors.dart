@@ -102,6 +102,22 @@ abstract final class AppColors {
   static const Color pastelBlush = Color(0xFFF8E5E5);
   static const Color pastelButter = Color(0xFFF9F3DC);
 
+  /// Onboarding reference tokens. These stay in the theme so widget files
+  /// never hardcode design-ref hex values.
+  static const Color onboardingPeachSurface = Color(0xFFFDF1E6);
+  static const Color onboardingPeachBorder = Color(0xFFF3C9A4);
+  static const Color onboardingAmber = Color(0xFFF0A56E);
+  static const Color onboardingSlateLight = Color(0xFF8AACC0);
+  static const Color onboardingSlateSoft = Color(0xFF6C8FA3);
+  static const Color onboardingSlateDeep = Color(0xFF5C7E94);
+  static const Color onboardingMutedInk = Color(0xFF5E7382);
+  static const Color onboardingHint = Color(0xFF8DA1B0);
+  static const Color onboardingLine = Color(0xFFC9D6DE);
+  static const Color onboardingGaugeLow = Color(0xFFD5DEE5);
+  static const Color onboardingGaugeHealthy = Color(0xFFBFD8CE);
+  static const Color onboardingGaugeMid = Color(0xFFEBD9B8);
+  static const Color onboardingGaugeHigh = Color(0xFFE3BFB1);
+
   /// White copy on the slate hero header.
   static const Color authOnSlate = Color(0xFFFFFFFF);
   static const Color authOnSlateMuted = Color(0xD9FFFFFF); // 85%
