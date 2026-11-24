@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Evenly weighted two-column layout with a 12px gutter, matching the
 /// design's "Relative / Age at Diagnosis" pairing.
