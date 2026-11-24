@@ -224,7 +224,7 @@ class _SymptomsScreenState extends ConsumerState<SymptomsScreen> {
                       onTap: () => context.go(RouteNames.step4Labs),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(RouteNames.step2Medications),
+                      onTap: () => context.go(RouteNames.step2b),
                     ),
                   ],
                 ),

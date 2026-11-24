@@ -6,13 +6,13 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/dashboard/screens/home_dashboard_screen.dart';
 import '../../features/doctors/screens/doctor_recommendation_screen.dart';
-import '../../features/intake/screens/step1_chronic_conditions_and_history_input_screen.dart';
 import '../../features/assessment/screens/assessment_ai_reasoning_consensus_screen.dart';
-import '../../features/intake/screens/step4_vitals_and_blood_tests_input_screen.dart';
-import '../../features/intake/screens/step2_medications_and_family_history_input_screen.dart';
-import '../../features/intake/screens/step5_data_review_and_submission_screen.dart';
+import '../../features/intake/screen/step2b_medications_and_family_history.dart';
+import '../../features/intake/screen/step3_symptoms.dart';
+import '../../features/intake/screen/step4_labs_and_vitals.dart';
+import '../../features/intake/screen/step5_review_and_confirm.dart';
+import '../../features/intake/screen/step_2_medication_and_family_history.dart';
 import '../../features/assessment/screens/assessment_risk_trajectory_forecast_screen.dart';
-import '../../features/intake/screens/step3_symptoms_and_severity_input_screen.dart';
 import '../../features/simulation/screens/simulate_lifestyle_screen.dart';
 import 'route_names.dart';
 
@@ -85,37 +85,47 @@ GoRouter createAppRouter() {
       GoRoute(
         path: RouteNames.step1Clinical,
         builder: (BuildContext context, GoRouterState state) =>
-            const ClinicalStatusScreen(),
+            const Step2MedicationAndFamilyHistoryScreen(),
       ),
       GoRoute(
         path: '/intake/step-2a',
         redirect: (BuildContext context, GoRouterState state) =>
-            RouteNames.step1Clinical,
+            RouteNames.step2Medications,
       ),
       GoRoute(
         path: RouteNames.step2Medications,
         builder: (BuildContext context, GoRouterState state) =>
-            const MedicationsFamilyScreen(),
+            const Step2MedicationAndFamilyHistoryScreen(),
       ),
       GoRoute(
-        path: '/intake/step-2b',
+        path: RouteNames.step2ClinicalStatus,
+        builder: (BuildContext context, GoRouterState state) =>
+            const Step2MedicationAndFamilyHistoryScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.step2b,
+        builder: (BuildContext context, GoRouterState state) =>
+            const Step2BMedicationsAndFamilyHistoryScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.step2bShort,
         redirect: (BuildContext context, GoRouterState state) =>
-            RouteNames.step2Medications,
+            RouteNames.step2b,
       ),
       GoRoute(
         path: RouteNames.step3Symptoms,
         builder: (BuildContext context, GoRouterState state) =>
-            const SymptomsScreen(),
+            const SymptomsReviewScreen(),
       ),
       GoRoute(
         path: RouteNames.step4Labs,
         builder: (BuildContext context, GoRouterState state) =>
-            const LabsVitalsScreen(),
+            const LabsAndVitalsScreen(),
       ),
       GoRoute(
         path: RouteNames.step5Review,
         builder: (BuildContext context, GoRouterState state) =>
-            const ReviewConfirmScreen(),
+            const ReviewAndConfirmScreen(),
       ),
 
       // --- Results flow -----------------------------------------------------

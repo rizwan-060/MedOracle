@@ -1,25 +1,31 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Visual phase of the Step 2A clinical-status screen.
+enum ClinicalStatusPhase { empty, adding, done }
+
 /// Immutable form state for the "Clinical Status" wizard step.
 class ClinicalStatusState {
   const ClinicalStatusState({
-    this.conditions = const ['Hypertension', 'Dyslipidemia'],
-    this.surgeries = const ['Appendectomy'],
-    this.allergies = const ['Penicillin'],
+    this.phase = ClinicalStatusPhase.empty,
+    this.conditions = const <String>[],
+    this.surgeries = const <String>['Appendectomy'],
+    this.allergies = const <String>['Penicillin', 'Latex'],
     this.conditionQuery = '',
     this.notes = '',
   });
 
+  final ClinicalStatusPhase phase;
   final List<String> conditions;
   final List<String> surgeries;
   final List<String> allergies;
 
-  /// Live text inside the "Chronic Conditions" typeahead field.
+  /// Live text inside the "Search or add conditions..." field.
   final String conditionQuery;
 
   final String notes;
 
   ClinicalStatusState copyWith({
+    ClinicalStatusPhase? phase,
     List<String>? conditions,
     List<String>? surgeries,
     List<String>? allergies,
@@ -27,6 +33,7 @@ class ClinicalStatusState {
     String? notes,
   }) {
     return ClinicalStatusState(
+      phase: phase ?? this.phase,
       conditions: conditions ?? this.conditions,
       surgeries: surgeries ?? this.surgeries,
       allergies: allergies ?? this.allergies,
@@ -49,14 +56,40 @@ class ClinicalStatusController extends Notifier<ClinicalStatusState> {
     final String candidate = (name ?? state.conditionQuery).trim();
     if (candidate.isEmpty || state.conditions.contains(candidate)) return;
     state = state.copyWith(
+      phase: ClinicalStatusPhase.adding,
       conditions: [...state.conditions, candidate],
       conditionQuery: '',
     );
   }
 
   void removeCondition(String condition) {
+    final List<String> remaining =
+        state.conditions.where((c) => c != condition).toList();
     state = state.copyWith(
-      conditions: state.conditions.where((c) => c != condition).toList(),
+      phase: remaining.isEmpty
+          ? ClinicalStatusPhase.empty
+          : ClinicalStatusPhase.adding,
+      conditions: remaining,
+    );
+  }
+
+  /// Moves the screen from "adding" to the "conditions added" summary.
+  void completeAdding() {
+    state = state.copyWith(phase: ClinicalStatusPhase.done);
+  }
+
+  /// Returns from the summary to the editable "adding" state.
+  void editConditions() {
+    if (state.conditions.isEmpty) return;
+    state = state.copyWith(phase: ClinicalStatusPhase.adding);
+  }
+
+  /// Clears all conditions (used by "I don't have any").
+  void clearConditions() {
+    state = state.copyWith(
+      phase: ClinicalStatusPhase.empty,
+      conditions: const <String>[],
+      conditionQuery: '',
     );
   }
 

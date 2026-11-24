@@ -15,6 +15,9 @@ abstract final class RouteNames {
   static const String intakeRoot = '/intake';
   static const String step1Clinical = '$intakeRoot/step-1';
   static const String step2Medications = '$intakeRoot/step-2';
+  static const String step2ClinicalStatus = '/step_2_medication_and_family_history';
+  static const String step2b = '/intake/step-2b';
+  static const String step2bShort = '/step/2b';
   static const String step3Symptoms = '$intakeRoot/step-3';
   static const String step4Labs = '$intakeRoot/step-4';
   static const String step5Review = '$intakeRoot/step-5';

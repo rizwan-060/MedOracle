@@ -86,8 +86,21 @@ abstract final class AppColors {
   /// Ember call-to-action used by the authentication references.
   static const Color authCta = Color(0xFFB5583A);
 
+  /// Canonical terracotta accent for the intake flow.
+  static const Color terraCotta = authCta;
+
   /// Deep ink used for values typed into authentication fields.
   static const Color authInk = Color(0xFF1E2A33);
+
+  /// Canonical deep ink for primary copy on design-reference surfaces.
+  static const Color deepInk = authInk;
+
+  /// Pastel surfaces from the design reference palette.
+  static const Color pastelMist = Color(0xFFDCE6ED);
+  static const Color pastelSage = Color(0xFFE2ECE9);
+  static const Color pastelSand = Color(0xFFF4ECE1);
+  static const Color pastelBlush = Color(0xFFF8E5E5);
+  static const Color pastelButter = Color(0xFFF9F3DC);
 
   /// White copy on the slate hero header.
   static const Color authOnSlate = Color(0xFFFFFFFF);

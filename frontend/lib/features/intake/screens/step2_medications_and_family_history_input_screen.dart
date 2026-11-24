@@ -201,7 +201,7 @@ class MedicationsFamilyScreen extends ConsumerWidget {
                       onTap: () => context.go(RouteNames.step3Symptoms),
                     ),
                     BackTextButton(
-                      onTap: () => context.go(RouteNames.step1Clinical),
+                      onTap: () => context.go(RouteNames.step2Medications),
                     ),
                   ],
                 ),

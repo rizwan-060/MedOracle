@@ -108,8 +108,7 @@ class ClinicalStatusScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     GradientNextButton(
                       label: 'Next: Medications & Family',
-                      onTap: () =>
-                          context.go(RouteNames.step2Medications),
+                      onTap: () => context.go(RouteNames.step2b),
                     ),
                     BackTextButton(
                       onTap: () => context.go(RouteNames.dashboard),
