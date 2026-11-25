@@ -107,6 +107,8 @@ abstract final class AppColors {
   static const Color onboardingPeachSurface = Color(0xFFFDF1E6);
   static const Color onboardingPeachBorder = Color(0xFFF3C9A4);
   static const Color onboardingAmber = Color(0xFFF0A56E);
+  static const Color onboardingHeartFill = Color(0xFFF6C9A3);
+  static const Color onboardingHeartStroke = Color(0xFFE8935A);
   static const Color onboardingSlateLight = Color(0xFF8AACC0);
   static const Color onboardingSlateSoft = Color(0xFF6C8FA3);
   static const Color onboardingSlateDeep = Color(0xFF5C7E94);
@@ -117,6 +119,29 @@ abstract final class AppColors {
   static const Color onboardingGaugeHealthy = Color(0xFFBFD8CE);
   static const Color onboardingGaugeMid = Color(0xFFEBD9B8);
   static const Color onboardingGaugeHigh = Color(0xFFE3BFB1);
+  static const Color onboardingLabelInk = Color(0xFF334155);
+  static const Color onboardingInfoBody = Color(0xFF4A5B66);
+  static const Color onboardingCoreBorder = Color(0xFF3E5F77);
+  static const Color onboardingVitalsFill = Color(0xFFA8C0D0);
+  static const Color onboardingVitalsBorder = Color(0xFF6B8AA0);
+  static const Color onboardingHistoryFill = Color(0xFFA8C4B0);
+  static const Color onboardingHistoryBorder = Color(0xFF6B9080);
+  static const Color onboardingLifestyleFill = Color(0xFFD8C4A0);
+  static const Color onboardingLifestyleBorder = Color(0xFF9D8050);
+  static const Color onboardingRiskFill = Color(0xFFD8A8A8);
+  static const Color onboardingRiskBorder = Color(0xFFA07070);
+  static const Color onboardingCounterfactualFill = Color(0xFFD4C77A);
+  static const Color onboardingCounterfactualBorder = Color(0xFFA09850);
+  static const Color onboardingAgeFill = Color(0xFFE6F0F2);
+  static const Color onboardingSexFill = Color(0xFFE4EEE3);
+  static const Color onboardingBloodFill = Color(0xFFF4ECE1);
+  static const Color onboardingNumberFill = Color(0xFFE6EDF1);
+  static const Color onboardingStepperShadow = Color(0xFF36566D);
+  static const Color onboardingAgeSubLabel = Color(0xFF4D6573);
+  static const Color onboardingFoldSurface = Color(0xFFC7D9E0);
+  static const Color onboardingPinHighlight = Color(0xFFFF8A80);
+  static const Color onboardingPinMid = Color(0xFFD93025);
+  static const Color onboardingPinDeep = Color(0xFF9B1C14);
 
   /// White copy on the slate hero header.
   static const Color authOnSlate = Color(0xFFFFFFFF);
