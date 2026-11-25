@@ -670,3 +670,119 @@ def test_safety_override_assay_specific_troponin(resolver: ConsensusResolver) ->
     )
     assert len(warnings) >= 1
     assert any("acute coronary" in w.condition_name.lower() for w in warnings)
+
+
+def test_hhs_2024_effective_and_total_osmolality_and_mixed_dka_hhs(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Verify 2024 Hyperglycemic Crises Consensus Report criteria:
+    - Glucose >= 600 mg/dL + effective osmolality > 300 mOsm/kg (or total > 320 mOsm/kg)
+    - Absence of ketonemia/acidosis -> pure HHS
+    - Presence of ketonemia/acidosis -> Mixed DKA/HHS
+    """
+    # Pure HHS via calculated effective osmolality (2 * 140 + 720 / 18 = 320 > 300)
+    labs_hhs = {
+        "fasting_blood_glucose_mg_dl": 720.0,
+        "serum_sodium_meq_l": 140.0,
+        "blood_urea_nitrogen_mg_dl": 28.0,
+        "beta_hydroxybutyrate_mmol_l": 0.4,
+        "blood_ph": 7.36,
+        "serum_bicarbonate_mmol_l": 22.0,
+    }
+    warnings_hhs = resolver.extract_safety_overrides([], {"symptoms": ["confusion"]}, labs_hhs, {})
+    assert any("Hyperosmolar Hyperglycemic State (HHS)" in w.condition_name for w in warnings_hhs)
+    assert not any("Mixed" in w.condition_name for w in warnings_hhs)
+
+    # Mixed DKA/HHS when ketoacidosis is also present
+    labs_mixed = {
+        "fasting_blood_glucose_mg_dl": 650.0,
+        "serum_sodium_meq_l": 136.0,  # eff_osm = 272 + 36.1 = 308.1 > 300
+        "beta_hydroxybutyrate_mmol_l": 4.2,
+        "blood_ph": 7.18,
+        "serum_bicarbonate_mmol_l": 11.0,
+    }
+    warnings_mixed = resolver.extract_safety_overrides([], {"symptoms": ["confusion"]}, labs_mixed, {})
+    assert any("Mixed Diabetic Ketoacidosis / Hyperosmolar Hyperglycemic State" in w.condition_name for w in warnings_mixed)
+
+
+def test_unknown_troponin_assay_never_silently_rules_out_acs(
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Verify unknown troponin assay is not silently substituted to rule out myocardial injury."""
+    recal = recalibrator.recalibrate_panel(
+        agent_outputs=[{
+            "agent_role": "Laboratory Specialist",
+            "findings": "Normal troponin rules out myocardial necrosis.",
+            "confidence": 90.0,
+        }],
+        laboratory_data={"cardiac_troponin_ng_ml": 0.012},  # No assay specified!
+    )
+    claim = recal.recalibrated_claims[0]
+    assert claim.evidence_classifications.get("cardiac_troponin_ng_ml") == "UNVERIFIABLE"
+    assert any("assay" in c.lower() or "unspecified" in c.lower() for c in claim.evidence_quality_caveats)
+
+
+def test_audit_transcript_milestone_chain_and_db_reload_verification(
+    resolver: ConsensusResolver,
+    recalibrator: ConfidenceRecalibrator,
+) -> None:
+    """Verify milestone hash chain detects tampering and survives DB persistence & reload."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.database.models import AnalysisSession, Base, User
+    from app.schemas.consensus import AuditDebateTranscript
+
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+
+    try:
+        user = User(id="u-audit-1", email="audit@medoracle.local", hashed_password="x", full_name="Audit Test")
+        db.add(user)
+        db.commit()
+
+        labs = {"fasting_blood_glucose_mg_dl": 290.0, "systolic_bp": 155.0}
+        recal = recalibrator.recalibrate_panel(
+            agent_outputs=[{"agent_role": "Endocrinologist", "findings": "Hyperglycemia.", "confidence": 82.0}],
+            laboratory_data=labs,
+            session_id="sess-audit-001",
+            patient_id="u-audit-1",
+        )
+        resolution = resolver.resolve_consensus(
+            recalibration_result=recal,
+            laboratory_data=labs,
+            session_id="sess-audit-001",
+            analysis_id="sess-audit-001",
+            patient_id="u-audit-1",
+        )
+
+        # Persist to AnalysisSession
+        session_row = AnalysisSession(
+            id="sess-audit-001",
+            user_id="u-audit-1",
+            status="completed",
+            current_phase="consensus_resolution_completed",
+            progress_percent=100,
+            consensus_verdict=resolution.model_dump(mode="json"),
+            debate_summary=resolution.audit_transcript.model_dump(mode="json"),
+        )
+        db.add(session_row)
+        db.commit()
+        db.expire_all()
+
+        # Reload from DB and verify integrity
+        reloaded = db.query(AnalysisSession).filter(AnalysisSession.id == "sess-audit-001").first()
+        assert reloaded is not None
+        loaded_transcript = AuditDebateTranscript.model_validate(reloaded.debate_summary)
+        assert loaded_transcript.verify_milestone_chain() is True
+        assert loaded_transcript.verify_transcript_integrity() is True
+
+        # Tamper detection: modifying milestone_hashes must fail verification even if canonical hash is untouched
+        bad_chain = loaded_transcript.model_copy(deep=True)
+        bad_chain.milestone_hashes["milestone_2_contradictions_detected"] = "0" * 64
+        assert bad_chain.verify_milestone_chain() is False
+        assert bad_chain.verify_transcript_integrity() is False
+    finally:
+        db.close()

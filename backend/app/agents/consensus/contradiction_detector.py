@@ -766,17 +766,29 @@ class ContradictionDetector:
             if hba1c is not None and hba1c >= 10.0:
                 glucose_desc.append(f"HbA1c: {hba1c}%")
 
-            # Check for acute metabolic decompensation (DKA / HHS)
+            # Check for acute metabolic decompensation (DKA / HHS - 2024 Consensus Report)
             ketones = labs.get("ketones") or labs.get("urine_ketones") or labs.get("serum_ketones")
+            bhb = labs.get("beta_hydroxybutyrate_mmol_l") or labs.get("blood_ketones_mmol_l")
             anion_gap = labs.get("anion_gap")
-            bicarbonate = labs.get("bicarbonate") or labs.get("serum_bicarbonate")
-            serum_osmolality = labs.get("serum_osmolality")
+            bicarbonate = labs.get("bicarbonate") or labs.get("serum_bicarbonate") or labs.get("serum_bicarbonate_mmol_l")
+            serum_osmolality = labs.get("serum_osmolality") or labs.get("serum_osmolality_mosm_kg")
+            effective_osmolality = labs.get("effective_osmolality_mosm_kg")
+            if effective_osmolality is None:
+                na_val = labs.get("serum_sodium_meq_l") or labs.get("serum_sodium_mmol_l") or labs.get("sodium_meq_l")
+                if na_val is not None and fasting_glucose is not None:
+                    try:
+                        effective_osmolality = 2.0 * float(na_val) + (float(fasting_glucose) / 18.0)
+                    except (ValueError, TypeError):
+                        pass
 
             has_decompensation_evidence = (
-                ketones in [True, "positive", "high", "large", "moderate"]
+                str(ketones or "").lower() in ["true", "positive", "high", "large", "moderate", "2+", "3+", "4+"]
+                or ketones is True
+                or (bhb is not None and float(bhb) >= 3.0)
                 or (anion_gap is not None and float(anion_gap) > 12.0)
                 or (bicarbonate is not None and float(bicarbonate) < 18.0)
                 or (serum_osmolality is not None and float(serum_osmolality) > 320.0)
+                or (effective_osmolality is not None and float(effective_osmolality) > 300.0)
             )
 
             if has_decompensation_evidence:

@@ -671,9 +671,41 @@ class ConsensusResolver:
             )
 
         # 2. Diabetic Ketoacidosis (DKA) / Hyperosmolar Hyperglycemic State (HHS) Alert
+        # 2. Diabetic Ketoacidosis (DKA) / Hyperosmolar Hyperglycemic State (HHS) Alert (2024 Consensus Report)
         glucose_val = labs.get("fasting_blood_glucose_mg_dl") or labs.get("random_blood_glucose_mg_dl") or labs.get("blood_glucose_mg_dl")
         ketone_val = labs.get("blood_ketones_mmol_l") or labs.get("beta_hydroxybutyrate_mmol_l")
         osmolality_val = labs.get("serum_osmolality_mosm_kg") or labs.get("serum_osmolality") or labs.get("effective_osmolality_mosm_kg")
+        ketone_val = labs.get("beta_hydroxybutyrate_mmol_l") or labs.get("blood_ketones_mmol_l") or labs.get("serum_ketones_mmol_l") or labs.get("urine_ketones")
+        ph_val = labs.get("blood_ph") or labs.get("arterial_ph") or labs.get("venous_ph")
+        bicarb_val = labs.get("serum_bicarbonate_mmol_l") or labs.get("bicarbonate_mEq_L") or labs.get("bicarbonate")
+        na_val = labs.get("serum_sodium_meq_l") or labs.get("serum_sodium_mmol_l") or labs.get("sodium_meq_l")
+        bun_val = labs.get("blood_urea_nitrogen_mg_dl") or labs.get("bun_mg_dl")
+
+        eff_osm = None
+        if labs.get("effective_osmolality_mosm_kg") is not None:
+            try:
+                eff_osm = float(labs.get("effective_osmolality_mosm_kg"))
+            except (ValueError, TypeError):
+                pass
+        if eff_osm is None and na_val is not None and glucose_val is not None:
+            try:
+                eff_osm = 2.0 * float(na_val) + (float(glucose_val) / 18.0)
+            except (ValueError, TypeError):
+                pass
+
+        total_osm = None
+        raw_total_osm = labs.get("serum_osmolality_mosm_kg") or labs.get("serum_osmolality")
+        if raw_total_osm is not None:
+            try:
+                total_osm = float(raw_total_osm)
+            except (ValueError, TypeError):
+                pass
+        if total_osm is None and eff_osm is not None and bun_val is not None:
+            try:
+                total_osm = eff_osm + (float(bun_val) / 2.8)
+            except (ValueError, TypeError):
+                pass
+
         has_dka_claim = any(
             any(k in c.original_claim.lower() for k in ["diabetic ketoacidosis", "dka", "ketoacidosis"])
             for c in claim_resolutions
@@ -698,27 +730,60 @@ class ConsensusResolver:
                 is_hyperosmolar = float(osmolality_val) >= 320.0
             except (ValueError, TypeError):
                 pass
+        is_hyperosmolar = (
+            (eff_osm is not None and eff_osm > 300.0)
+            or (total_osm is not None and total_osm > 320.0)
+        )
 
         is_ketonemia = False
         if ketone_val is not None:
+            k_str = str(ketone_val).strip().lower()
             try:
                 is_ketonemia = float(ketone_val) >= 1.5
             except (ValueError, TypeError):
                 pass
+                is_ketonemia = float(k_str) >= 1.5
+            except ValueError:
+                is_ketonemia = any(tok in k_str for tok in ["2+", "3+", "4+", "large", "moderate", "high"])
+
+        is_acidotic = False
+        try:
+            if ph_val is not None and float(ph_val) < 7.30:
+                is_acidotic = True
+        except (ValueError, TypeError):
+            pass
+        try:
+            if bicarb_val is not None and float(bicarb_val) < 18.0:
+                is_acidotic = True
+        except (ValueError, TypeError):
+            pass
 
         if has_hhs_claim or (glucose_num >= 600.0 and is_hyperosmolar):
-            warnings.append(
-                SafetyOverrideWarning(
-                    warning_id=f"WARN-HHS-{uuid.uuid4().hex[:6]}",
-                    condition_name="Suspected Hyperosmolar Hyperglycemic State (HHS)",
-                    level=SafetyOverrideLevel.EMERGENT,
-                    lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
-                    trigger_rationale="Profound hyperglycemia (glucose >= 600 mg/dL) concurrent with severe hyperosmolality (>= 320 mOsm/kg) indicating life-threatening Hyperosmolar Hyperglycemic State.",
-                    action_recommendation="Immediate emergency medical intervention recommended: intensive aggressive isotonic fluid resuscitation, electrolyte management, continuous hemodynamic monitoring, and controlled intravenous insulin protocol in an ICU/monitored setting.",
-                    overrides_consensus=True,
+            if is_ketonemia or is_acidotic:
+                warnings.append(
+                    SafetyOverrideWarning(
+                        warning_id=f"WARN-MIXED-DKA-HHS-{uuid.uuid4().hex[:6]}",
+                        condition_name="Suspected Mixed Diabetic Ketoacidosis / Hyperosmolar Hyperglycemic State (DKA/HHS)",
+                        level=SafetyOverrideLevel.EMERGENT,
+                        lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
+                        trigger_rationale="Profound hyperglycemia (>= 600 mg/dL) with hyperosmolality (effective > 300 or total > 320 mOsm/kg) concurrent with ketonemia/metabolic acidosis.",
+                        action_recommendation="Immediate emergency ICU-level intervention recommended: aggressive isotonic fluid resuscitation, electrolyte replacement, and continuous intravenous insulin protocol.",
+                        overrides_consensus=True,
+                    )
                 )
-            )
-        elif has_dka_claim or (is_severe_hyperglycemia and (is_ketonemia or ketone_val is None)):
+            else:
+                warnings.append(
+                    SafetyOverrideWarning(
+                        warning_id=f"WARN-HHS-{uuid.uuid4().hex[:6]}",
+                        condition_name="Suspected Hyperosmolar Hyperglycemic State (HHS)",
+                        level=SafetyOverrideLevel.EMERGENT,
+                        lifecycle_state=SafetyOverrideLifecycleState.ACTIVE,
+                        trigger_rationale="Profound hyperglycemia (glucose >= 600 mg/dL) concurrent with hyperosmolality (effective > 300 mOsm/kg or total > 320 mOsm/kg) in the absence of significant ketonemia and metabolic acidosis.",
+                        action_recommendation="Immediate emergency medical intervention recommended: intensive aggressive isotonic fluid resuscitation, electrolyte management, continuous hemodynamic monitoring, and controlled intravenous insulin protocol in an ICU/monitored setting.",
+                        overrides_consensus=True,
+                    )
+                )
+        elif has_dka_claim or (is_severe_hyperglycemia and (is_ketonemia or is_acidotic or ketone_val is None)):
             warnings.append(
                 SafetyOverrideWarning(
                     warning_id=f"WARN-DKA-{uuid.uuid4().hex[:6]}",

@@ -532,8 +532,8 @@ CLAIM_REQUIREMENT_REGISTRY: List[ClinicalEvidenceRequirement] = [
             "no evidence of",
         ],
         confidence_cap=35.0,
-        guideline_reference="ADA Standards of Care 2024: Hyperglycemic Crises in Adults",
-        rationale="Diagnostic confirmation of HHS mandates marked hyperglycemia (>600 mg/dL) and effective hyperosmolality (>320 mOsm/kg) in the absence of significant ketoacidosis.",
+        guideline_reference="2024 Hyperglycemic Crises Consensus Report (ADA/EASD/JBDS/AACE/DTS)",
+        rationale="Diagnostic confirmation of HHS mandates plasma glucose >=600 mg/dL and effective serum osmolality >300 mOsm/kg (or total serum osmolality >320 mOsm/kg) in the absence of significant ketonemia and metabolic acidosis.",
     ),
     ClinicalEvidenceRequirement(
         requirement_id="REQ-SEVERE-HYPERGLYCEMIA",
@@ -1307,8 +1307,6 @@ class ConfidenceRecalibrator:
             profile_key = "conventional_ctnt"
         elif "conventional" in assay_raw or "standard" in assay_raw:
             profile_key = "conventional_ctni"
-        elif "hs" in assay_raw or labs.get("hs_troponin_i_ng_ml") is not None or labs.get("hs_troponin_t_ng_ml") is not None:
-            profile_key = "hs_ctni_abbott"
 
         resolved_sex = str(sex or labs.get("sex") or labs.get("gender") or "").lower()
         is_female = resolved_sex in ["female", "f", "woman"]
@@ -1337,9 +1335,9 @@ class ConfidenceRecalibrator:
                 return 0.009, "ng/mL", True, "Generic hs-cTn (Female URL, Platform Unspecified)"
             elif is_male:
                 return 0.0155, "ng/mL", True, "Generic hs-cTn (Male URL, Platform Unspecified)"
-            return 0.014, "ng/mL", True, "Generic hs-cTn"
+            return 0.014, "ng/mL", True, "Generic hs-cTn (Platform Unspecified)"
         else:
-            return 0.04, "ng/mL", False, "Conventional cTn"
+            return 0.04, "ng/mL", False, "Conventional cTn (Platform Unspecified)"
 
     def _validate_serial_troponin_protocol(self, labs: Dict[str, Any]) -> Tuple[str, List[str], bool]:
         """Validate serial cardiac troponin testing against protocol standards (ESC 0h/1h, 0h/2h, 0h/3h) (A6)."""
@@ -1515,16 +1513,22 @@ class ConfidenceRecalibrator:
 
         # Analyte Group: Troponin (with Assay Nuance, Serial Timing & Protocol Validation - A5/A6)
         troponin_val = labs.get("cardiac_troponin_ng_ml") or labs.get("hs_troponin_i_ng_ml") or labs.get("hs_troponin_t_ng_ml")
-        troponin_cutoff, trop_unit, is_hs_assay, assay_name = self._resolve_troponin_cutoff(labs)
+        patient_sex = history.get("sex") or history.get("gender") or labs.get("sex") or labs.get("gender")
+        troponin_cutoff, trop_unit, is_hs_assay, assay_name = self._resolve_troponin_cutoff(labs, sex=patient_sex)
+        assay_uncertain = "Platform Unspecified" in str(assay_name or "")
         protocol_status, protocol_caveats, is_valid_series = self._validate_serial_troponin_protocol(labs)
         quality_caveats.extend(protocol_caveats)
+        if assay_uncertain and troponin_val is not None and (domain == "ischemia" or "troponin" in claim_lower or "myocardial" in claim_lower or "coronary" in claim_lower):
+            quality_caveats.append(
+                f"Troponin assay platform unspecified ({assay_name}); 99th percentile URL cannot be authoritatively verified."
+            )
 
         if troponin_val is not None:
             trop_key = "cardiac_troponin_ng_ml"
             evidence_states["troponin"] = (
                 EvidenceValidityState.INVALID.value if has_provenance_issue
                 else EvidenceValidityState.STALE.value if has_stale_evidence
-                else EvidenceValidityState.AMBIGUOUS.value if has_locale_ambiguity
+                else EvidenceValidityState.AMBIGUOUS.value if (has_locale_ambiguity or assay_uncertain)
                 else EvidenceValidityState.VERIFIED_PRESENT.value
             )
 
@@ -1539,9 +1543,13 @@ class ConfidenceRecalibrator:
                 if has_needs_review or has_provenance_issue:
                     evidence_classifications[trop_key] = EvidenceSupportClassification.UNVERIFIABLE.value
                 elif is_rule_out and trop_num <= troponin_cutoff:
-                    evidence_classifications[trop_key] = EvidenceSupportClassification.SUPPORTS.value
-                    credited_analyte_groups.add("troponin")
-                    verified_evidence.append(trop_key)
+                    if assay_uncertain:
+                        evidence_classifications[trop_key] = EvidenceSupportClassification.UNVERIFIABLE.value
+                        quality_caveats.append("Cannot authoritatively rule out myocardial injury without assay-specific 99th percentile URL.")
+                    else:
+                        evidence_classifications[trop_key] = EvidenceSupportClassification.SUPPORTS.value
+                        credited_analyte_groups.add("troponin")
+                        verified_evidence.append(trop_key)
                 elif is_unstable_angina:
                     if trop_num <= troponin_cutoff:
                         evidence_classifications[trop_key] = EvidenceSupportClassification.NEUTRAL.value
@@ -1725,33 +1733,76 @@ class ConfidenceRecalibrator:
         if labs.get("urine_ketones") is not None and labs.get("beta_hydroxybutyrate_mmol_l") is None:
             quality_caveats.append("Urine dipstick acetoacetate is a qualitative screening test and not equivalent to quantitative serum beta-hydroxybutyrate; mandates serum confirmation.")
 
-        # Effective vs total osmolality
+        # Effective vs total osmolality (2024 Hyperglycemic Crises Consensus Report)
         na_val = labs.get("serum_sodium_meq_l") or labs.get("serum_sodium_mmol_l") or labs.get("sodium_meq_l")
         bun_val = labs.get("blood_urea_nitrogen_mg_dl") or labs.get("bun_mg_dl")
         eff_osm = None
-        if na_val is not None and acute_glucose is not None:
+        total_osm = None
+        if labs.get("effective_osmolality_mosm_kg") is not None:
+            try:
+                eff_osm = float(labs.get("effective_osmolality_mosm_kg"))
+            except (ValueError, TypeError):
+                pass
+        if eff_osm is None and na_val is not None and acute_glucose is not None:
             try:
                 eff_osm = 2.0 * float(na_val) + (float(acute_glucose) / 18.0)
                 quality_caveats.append(f"Effective osmolality calculated: {eff_osm:.1f} mOsm/kg (excluding urea/BUN).")
             except (ValueError, TypeError):
                 pass
+        if labs.get("serum_osmolality_mosm_kg") is not None:
+            try:
+                total_osm = float(labs.get("serum_osmolality_mosm_kg"))
+            except (ValueError, TypeError):
+                pass
+        if total_osm is None and eff_osm is not None and bun_val is not None:
+            try:
+                total_osm = eff_osm + (float(bun_val) / 2.8)
+                quality_caveats.append(f"Total serum osmolality calculated: {total_osm:.1f} mOsm/kg.")
+            except (ValueError, TypeError):
+                pass
 
-        # Mixed DKA/HHS presentation detection (A2)
-        if eff_osm is not None and eff_osm > 320.0 and (is_dka_claim or is_hhs_claim):
-            has_ketoacidosis = False
-            if ketone_val is not None:
-                try:
-                    if float(ketone_val) >= 3.0:
-                        has_ketoacidosis = True
-                except (ValueError, TypeError):
-                    pass
-            if ph_val is not None:
-                try:
-                    if float(ph_val) < 7.30:
-                        has_ketoacidosis = True
-                except (ValueError, TypeError):
-                    pass
-            if has_ketoacidosis:
+        is_hhs_hyperosmolar = (
+            (eff_osm is not None and eff_osm > 300.0)
+            or (total_osm is not None and total_osm > 320.0)
+        )
+
+        # Helper for ketone & acid-base evaluation
+        ketone_positive = False
+        ketone_negative = False
+        if ketone_val is not None:
+            k_str = str(ketone_val).strip().lower()
+            try:
+                k_float = float(k_str)
+                if k_float >= 3.0:
+                    ketone_positive = True
+                elif k_float < 0.6:
+                    ketone_negative = True
+            except ValueError:
+                if any(tok in k_str for tok in ["2+", "3+", "4+", "large", "moderate", "high"]):
+                    ketone_positive = True
+                elif any(tok in k_str for tok in ["negative", "neg", "trace", "1+", "small", "none"]):
+                    ketone_negative = True
+
+        acidosis_present = False
+        acidosis_absent = False
+        try:
+            ph_num = float(ph_val) if ph_val is not None else None
+        except (ValueError, TypeError):
+            ph_num = None
+        try:
+            bicarb_num = float(bicarb_val) if bicarb_val is not None else None
+        except (ValueError, TypeError):
+            bicarb_num = None
+        if (ph_num is not None and ph_num < 7.30) or (bicarb_num is not None and bicarb_num < 18.0):
+            acidosis_present = True
+        elif (ph_num is not None and ph_num >= 7.30) and (bicarb_num is None or bicarb_num >= 18.0):
+            acidosis_absent = True
+        elif (bicarb_num is not None and bicarb_num >= 18.0) and ph_num is None:
+            acidosis_absent = True
+
+        # Mixed DKA/HHS presentation detection (2024 Consensus Report: effective > 300 or total > 320 + ketoacidosis)
+        if is_hhs_hyperosmolar and (is_dka_claim or is_hhs_claim):
+            if ketone_positive or acidosis_present:
                 quality_caveats.append("Mixed presentation of Diabetic Ketoacidosis (DKA) and Hyperglycemic Hyperosmolar State (HHS) identified.")
 
         if is_dka_claim:
@@ -1767,10 +1818,13 @@ class ConfidenceRecalibrator:
                         evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
                         credited_analyte_groups.add("glycemia_acute")
                         verified_evidence.append("glycemia_acute (euglycemic DKA presentation)")
-                    else:
+                    elif g_num >= 200.0 or has_diabetes_history:
                         evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
                         credited_analyte_groups.add("glycemia_acute")
                         verified_evidence.append("glycemia_acute")
+                    else:
+                        evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
+                        conflicting_evidence.append(f"glucose ({g_num} mg/dL < 200 without documented diabetes)")
                 except (ValueError, TypeError):
                     evidence_states["glycemia_acute"] = EvidenceValidityState.VERIFIED_PRESENT.value
                     credited_analyte_groups.add("glycemia_acute")
@@ -1782,19 +1836,14 @@ class ConfidenceRecalibrator:
 
             if ketone_val is not None:
                 evidence_states["ketones"] = EvidenceValidityState.VERIFIED_PRESENT.value
-                try:
-                    k_num = float(ketone_val)
-                    if k_num >= 3.0:
-                        evidence_classifications["ketones"] = EvidenceSupportClassification.SUPPORTS.value
-                        credited_analyte_groups.add("ketones")
-                        verified_evidence.append("ketones")
-                    elif k_num < 0.6:
-                        evidence_classifications["ketones"] = EvidenceSupportClassification.CONTRADICTS.value
-                        conflicting_evidence.append(f"ketones ({k_num} mmol/L normal contradicts active DKA)")
-                    else:
-                        credited_analyte_groups.add("ketones")
-                        verified_evidence.append("ketones")
-                except (ValueError, TypeError):
+                if ketone_positive:
+                    evidence_classifications["ketones"] = EvidenceSupportClassification.SUPPORTS.value
+                    credited_analyte_groups.add("ketones")
+                    verified_evidence.append("ketones")
+                elif ketone_negative:
+                    evidence_classifications["ketones"] = EvidenceSupportClassification.CONTRADICTS.value
+                    conflicting_evidence.append(f"ketones ({ketone_val} normal/low contradicts active DKA)")
+                else:
                     credited_analyte_groups.add("ketones")
                     verified_evidence.append("ketones")
             else:
@@ -1802,8 +1851,16 @@ class ConfidenceRecalibrator:
 
             if ph_val is not None or bicarb_val is not None:
                 evidence_states["acid_base"] = EvidenceValidityState.VERIFIED_PRESENT.value
-                credited_analyte_groups.add("acid_base")
-                verified_evidence.append("acid_base")
+                if acidosis_present:
+                    evidence_classifications["acid_base"] = EvidenceSupportClassification.SUPPORTS.value
+                    credited_analyte_groups.add("acid_base")
+                    verified_evidence.append("acid_base")
+                elif acidosis_absent:
+                    evidence_classifications["acid_base"] = EvidenceSupportClassification.CONTRADICTS.value
+                    conflicting_evidence.append("acid_base (pH >= 7.30 and/or HCO3 >= 18 contradicts DKA acidosis)")
+                else:
+                    credited_analyte_groups.add("acid_base")
+                    verified_evidence.append("acid_base")
             else:
                 evidence_states["acid_base"] = EvidenceValidityState.NOT_COLLECTED.value
 
@@ -1817,12 +1874,15 @@ class ConfidenceRecalibrator:
                 credited_analyte_groups.add("glycemia_acute")
                 verified_evidence.append("glycemia_acute")
 
-            if osmolality_val is not None:
+            if osmolality_val is not None or eff_osm is not None or total_osm is not None:
                 evidence_states["osmolality"] = EvidenceValidityState.VERIFIED_PRESENT.value
                 credited_analyte_groups.add("osmolality")
                 verified_evidence.append("osmolality")
             else:
                 evidence_states["osmolality"] = EvidenceValidityState.NOT_COLLECTED.value
+
+            if ketone_positive or acidosis_present:
+                quality_caveats.append("Significant ketonemia or metabolic acidosis present; consider Mixed DKA/HHS rather than pure HHS.")
 
         elif any(k in claim_lower for k in ["severe hyperglycemia", "marked hyperglycemia", "uncontrolled hyperglycemia"]):
             if acute_glucose is not None:

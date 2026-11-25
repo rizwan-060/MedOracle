@@ -1259,12 +1259,48 @@ class AuditDebateTranscript(BaseModel):
         canonical_json = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
+    def verify_milestone_chain(self) -> bool:
+        """Verify sequential SHA-256 milestone hash linkage across all 5 deliberation checkpoints."""
+        if not self.milestone_hashes:
+            return False
+        prev_hash = self.previous_block_hash or f"GENESIS-BLOCK-{self.session_id}"
+        m1_payload = f"{prev_hash}:{json.dumps(self.original_claims, sort_keys=True, separators=(',', ':'), default=str)}"
+        expected_m1 = hashlib.sha256(m1_payload.encode("utf-8")).hexdigest()
+        if self.milestone_hashes.get("milestone_1_pre_debate_claims") != expected_m1:
+            return False
+
+        m2_payload = f"{expected_m1}:{json.dumps(self.contradiction_records, sort_keys=True, separators=(',', ':'), default=str)}"
+        expected_m2 = hashlib.sha256(m2_payload.encode("utf-8")).hexdigest()
+        if self.milestone_hashes.get("milestone_2_contradictions_detected") != expected_m2:
+            return False
+
+        m3_payload = f"{expected_m2}:{json.dumps({'challenges': self.challenges, 'rebuttals': self.rebuttals}, sort_keys=True, separators=(',', ':'), default=str)}"
+        expected_m3 = hashlib.sha256(m3_payload.encode("utf-8")).hexdigest()
+        if self.milestone_hashes.get("milestone_3_debate_exchanges") != expected_m3:
+            return False
+
+        m4_payload = f"{expected_m3}:{json.dumps({'scores': self.recalibrated_claim_support_scores, 'doubts': self.epistemic_doubt_values}, sort_keys=True, separators=(',', ':'), default=str)}"
+        expected_m4 = hashlib.sha256(m4_payload.encode("utf-8")).hexdigest()
+        if self.milestone_hashes.get("milestone_4_confidence_recalibration") != expected_m4:
+            return False
+
+        m5_payload = f"{expected_m4}:{json.dumps({'claims': [c.model_dump() for c in self.claim_resolutions], 'warnings': [w.model_dump() for w in self.clinical_safety_warnings]}, sort_keys=True, separators=(',', ':'), default=str)}"
+        expected_m5 = hashlib.sha256(m5_payload.encode("utf-8")).hexdigest()
+        if self.milestone_hashes.get("milestone_5_consensus_resolution") != expected_m5:
+            return False
+
+        return True
+
     def verify_transcript_integrity(self) -> bool:
-        """Verify that the transcript has not been altered since sealing."""
+        """Verify tamper-evident canonical SHA-256 hash and sequential milestone chain."""
         if not self.canonical_transcript_hash:
             return False
         expected = self.compute_transcript_hash()
-        return self.canonical_transcript_hash == expected
+        if self.canonical_transcript_hash != expected:
+            return False
+        if self.milestone_hashes and not self.verify_milestone_chain():
+            return False
+        return True
 
 
 class ConsensusResolutionResult(BaseModel):
