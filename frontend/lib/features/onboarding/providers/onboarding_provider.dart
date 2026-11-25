@@ -97,8 +97,21 @@ class OnboardingState {
 
 /// Session-scoped controller for the onboarding wizard.
 class OnboardingController extends Notifier<OnboardingState> {
+  /// Step 1 starts clean: default age, no sex/blood type, no pinned notes.
+  static const OnboardingState _initialState = OnboardingState(
+    age: 30,
+    sex: null,
+    bloodType: null,
+    profileStep: 0,
+    profileDone: <String, bool>{
+      'age': false,
+      'sex': false,
+      'blood': false,
+    },
+  );
+
   @override
-  OnboardingState build() => const OnboardingState();
+  OnboardingState build() => _initialState;
 
   static const List<String> _profileKeys = <String>['age', 'sex', 'blood'];
 
@@ -122,7 +135,7 @@ class OnboardingController extends Notifier<OnboardingState> {
     }
   }
 
-  /// Restores the live OB3 entry state.
+  /// Explicitly restores the live OB3 entry state from a user action.
   void resetProfile() {
     state = state.copyWith(
       age: 30,
