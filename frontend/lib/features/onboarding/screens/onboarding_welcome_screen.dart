@@ -12,8 +12,8 @@ import '../widgets/onboarding_type.dart';
 
 /// Onboarding 1 — Welcome.
 ///
-/// The reference shows three stacked feature cards with an automatic 4.5s
-/// carousel, tappable dots and horizontal swipe support.
+/// Three fixed cards are stacked on top of each other. Only one is interactive
+/// and fully visible; the other two fade, slide and scale out of the way.
 class OnboardingWelcomeScreen extends StatefulWidget {
   const OnboardingWelcomeScreen({super.key});
 
@@ -24,41 +24,47 @@ class OnboardingWelcomeScreen extends StatefulWidget {
 }
 
 class _OnboardingWelcomeScreenState extends State<OnboardingWelcomeScreen> {
-  int _card = 0;
-  Timer? _timer;
+  static const Duration _cardDuration = Duration(milliseconds: 700);
+  static const Duration _autoAdvanceDelay = Duration(milliseconds: 4500);
+  static const double _cardHeight = 404;
+  static const double _hiddenSlidePixels = 18;
 
-  static const List<_Feature> _features = <_Feature>[
-    _Feature(
+  static const List<_WelcomeCardData> _cards = <_WelcomeCardData>[
+    _WelcomeCardData(
       title: 'Data & Report',
       subtitle: 'Your health, in one clear report',
       body: 'Answer simple questions about your body, habits and health history. '
           'We turn them into a complete report that explains your heart health '
           'in plain words.',
-      chips: <String>['About 5 minutes', 'Lab values optional'],
-      illustration: ReportIllustration(),
+      pills: <String>['About 5 minutes', 'Lab values optional'],
+      painter: ReportIllustrationPainter(),
     ),
-    _Feature(
+    _WelcomeCardData(
       title: 'AI Team Consensus',
       subtitle: 'Five AI doctors review your case',
       body: 'Five expert AI doctor agents study your answers and debate them. '
           'You see where they agree, where they differ, and exactly why.',
-      chips: <String>['Full debate shown', 'Reasons in plain words'],
-      illustration: ConsensusIllustration(),
+      pills: <String>['Full debate shown', 'Reasons in plain words'],
+      painter: ConsensusIllustrationPainter(),
     ),
-    _Feature(
+    _WelcomeCardData(
       title: 'Future & Lifestyle Simulator',
       subtitle: 'See how small habits change your future',
       body: 'Try changes like walking more or quitting smoking, and watch your '
           'future heart-health path move before you commit to anything.',
-      chips: <String>['Try what-if changes', 'Stays on your device'],
-      illustration: TrajectoryIllustration(),
+      pills: <String>['Try what-if changes', 'Stays on your device'],
+      painter: TrajectoryIllustrationPainter(),
     ),
   ];
+
+  int _current = 0;
+  Timer? _timer;
+  double? _pointerDownDx;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    _restartTimer();
   }
 
   @override
@@ -67,27 +73,39 @@ class _OnboardingWelcomeScreenState extends State<OnboardingWelcomeScreen> {
     super.dispose();
   }
 
-  void _startTimer() {
+  void _restartTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 4500), (_) {
-      if (mounted) {
-        setState(() => _card = (_card + 1) % _features.length);
-      }
+    _timer = Timer(_autoAdvanceDelay, () {
+      if (!mounted) return;
+      setState(() => _current = (_current + 1) % _cards.length);
+      _restartTimer();
     });
   }
 
-  void _select(int index) {
-    setState(() => _card = index % _features.length);
-    _startTimer();
+  void _goTo(int index) {
+    setState(() => _current = index % _cards.length);
+    _restartTimer();
   }
 
-  void _handleSwipe(DragEndDetails details) {
-    final double velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() < 200) return;
-    final int next = velocity < 0
-        ? (_card + 1) % _features.length
-        : (_card + _features.length - 1) % _features.length;
-    _select(next);
+  void _next() => _goTo(_current + 1);
+
+  void _previous() => _goTo(_current + _cards.length - 1);
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointerDownDx = event.localPosition.dx;
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    final double? downDx = _pointerDownDx;
+    _pointerDownDx = null;
+    if (downDx == null) return;
+
+    final double deltaX = event.localPosition.dx - downDx;
+    if (deltaX > 40) {
+      _previous();
+    } else {
+      _next();
+    }
   }
 
   @override
@@ -97,146 +115,177 @@ class _OnboardingWelcomeScreenState extends State<OnboardingWelcomeScreen> {
       title: 'Welcome to MedOracle',
       subtitle: 'Prevention is far better than diagnosis.',
       ctaLabel: 'Get started',
+      // The reference shows a back affordance with no destination.
+      onBack: () {},
       onCta: () => OnboardingNavigation.next(
         context,
         RouteNames.onboardingCareTeam,
       ),
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onHorizontalDragEnd: _handleSwipe,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 700),
-                        child: _FeatureCard(
-                          key: ValueKey<int>(_card),
-                          feature: _features[_card],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OnboardingDots(index: _card, onTap: _select),
-                  ],
+      child: Padding(
+        // OnboardingShell supplies the shared 20px horizontal padding.
+        padding: const EdgeInsets.only(top: 16),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _onPointerDown,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: (_) => _pointerDownDx = null,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: _cardHeight,
+                  child: Stack(
+                    children: <Widget>[
+                      for (int index = 0; index < _cards.length; index++)
+                        _stackedCard(index),
+                    ],
+                  ),
                 ),
               ),
+              OnboardingDots(index: _current, onTap: _goTo),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _stackedCard(int index) {
+    final bool visible = index == _current;
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: _cardDuration,
+          curve: Curves.ease,
+          child: AnimatedSlide(
+            offset: visible
+                ? Offset.zero
+                : Offset(0, _hiddenSlidePixels / _cardHeight),
+            duration: _cardDuration,
+            curve: Curves.ease,
+            child: AnimatedScale(
+              scale: visible ? 1 : 0.98,
+              duration: _cardDuration,
+              curve: Curves.ease,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _WelcomeCard(data: _cards[index]),
+              ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 }
 
-class _Feature {
-  const _Feature({
+class _WelcomeCardData {
+  const _WelcomeCardData({
     required this.title,
     required this.subtitle,
     required this.body,
-    required this.chips,
-    required this.illustration,
+    required this.pills,
+    required this.painter,
   });
 
   final String title;
   final String subtitle;
   final String body;
-  final List<String> chips;
-  final Widget illustration;
+  final List<String> pills;
+  final CustomPainter painter;
 }
 
-class _FeatureCard extends StatelessWidget {
-  const _FeatureCard({super.key, required this.feature});
+class _WelcomeCard extends StatelessWidget {
+  const _WelcomeCard({required this.data});
 
-  final _Feature feature;
+  final _WelcomeCardData data;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 404,
-      width: double.infinity,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          feature.illustration,
-          const SizedBox(height: 16),
-          Text(
-            feature.title,
-            style: OnboardingType.serif(
-              23,
-              FontWeight.w600,
-              AppColors.textPrimary,
-              height: 28 / 23,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        WelcomeIllustration(painter: data.painter),
+        const SizedBox(height: 16),
+        Text(
+          data.title,
+          style: OnboardingType.serif(
+            23,
+            FontWeight.w600,
+            AppColors.deepInk,
+            height: 28 / 23,
           ),
-          const SizedBox(height: 4),
-          Text(
-            feature.subtitle,
-            style: OnboardingType.sans(
-              15,
-              FontWeight.w500,
-              AppColors.headerText,
-              height: 22 / 15,
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          data.subtitle,
+          style: OnboardingType.sans(
+            15,
+            FontWeight.w500,
+            AppColors.headerText,
+            height: 22 / 15,
           ),
-          const SizedBox(height: 8),
-          Text(
-            feature.body,
-            style: OnboardingType.sans(
-              14,
-              FontWeight.w300,
-              AppColors.textPrimary.withValues(alpha: 0.82),
-              height: 22 / 14,
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          data.body,
+          style: OnboardingType.sans(
+            14.5,
+            FontWeight.w300,
+            AppColors.deepInk.withValues(alpha: 0.8),
+            height: 22 / 14.5,
           ),
-          const Spacer(),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: feature.chips
-                .map((String label) => _FeatureChip(label: label))
-                .toList(),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: data.pills
+              .map((String label) => _Pill(label: label))
+              .toList(),
+        ),
+      ],
     );
   }
 }
 
-class _FeatureChip extends StatelessWidget {
-  const _FeatureChip({required this.label});
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.onboardingPeachSurface,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.onboardingPeachBorder, width: 1.5),
+        border: Border.all(
+          color: AppColors.onboardingPeachBorder,
+          width: 1.5,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(
-            Icons.check_rounded,
-            size: 13,
-            color: AppColors.mutedGreen,
+          const CustomPaint(
+            painter: PillCheckPainter(),
+            size: Size(14, 14),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 6),
           Text(
             label,
             style: OnboardingType.sans(
-              12,
+              12.5,
               FontWeight.w500,
-              AppColors.textPrimary,
+              AppColors.deepInk,
             ),
           ),
         ],

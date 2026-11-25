@@ -37,7 +37,7 @@ class OnboardingProgress extends StatelessWidget {
   }
 }
 
-/// Three small position dots used inside the Welcome screen cards.
+/// Three animated page dots used under the Welcome card stack.
 class OnboardingDots extends StatelessWidget {
   const OnboardingDots({
     super.key,
@@ -50,30 +50,34 @@ class OnboardingDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(3, (int i) {
-        final bool active = i == index;
-        return Semantics(
-          button: true,
-          label: 'Feature card ${i + 1}',
-          child: GestureDetector(
-            onTap: () => onTap(i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: active ? 24 : 8,
-              height: 8,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.headerText
-                    : AppColors.headerText.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(999),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List<Widget>.generate(3, (int i) {
+          final bool active = i == index;
+          return Semantics(
+            button: true,
+            label: 'Feature card ${i + 1}',
+            child: GestureDetector(
+              onTap: () => onTap(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.ease,
+                width: active ? 24 : 8,
+                height: 8,
+                margin: EdgeInsets.only(right: i == 2 ? 0 : 8),
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.headerText
+                      : AppColors.headerText.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
+      ),
     );
   }
 }
