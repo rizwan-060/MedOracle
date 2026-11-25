@@ -205,3 +205,29 @@ __all__ = [
     "TargetOrganDamageState",
 ]
 
+from app.schemas.trajectory import (
+    BiomarkerTrendSummary,
+    DiseaseTrajectoryResult,
+    HorizonProjection,
+    LongitudinalFeatureVector,
+    TrajectoryComparisonResponse,
+    TrajectoryDirection,
+    TrajectoryForecastRequest,
+    TrajectoryForecastResponse,
+    TrajectoryObservationCreate,
+    TrajectoryObservationResponse,
+)
+
+__all__.extend([
+    "BiomarkerTrendSummary",
+    "DiseaseTrajectoryResult",
+    "HorizonProjection",
+    "LongitudinalFeatureVector",
+    "TrajectoryComparisonResponse",
+    "TrajectoryDirection",
+    "TrajectoryForecastRequest",
+    "TrajectoryForecastResponse",
+    "TrajectoryObservationCreate",
+    "TrajectoryObservationResponse",
+])
+

@@ -30,6 +30,7 @@ from app.graph.nodes import (
     recalibration_node,
     risk_prediction_node,
     symptom_node,
+    trajectory_node,
 )
 from app.graph.state import ClinicalAgentState
 
@@ -60,18 +61,20 @@ def build_clinical_orchestration_graph(include_consensus: bool = True) -> StateG
     builder.add_edge("laboratory_node", "risk_prediction_node")
 
     if include_consensus:
-        # 4. Register consensus deliberation nodes (Step 12)
+        # 4. Register consensus deliberation nodes (Step 12) + Trajectory Forecasting
         builder.add_node("contradiction_node", contradiction_node)
         builder.add_node("debate_node", debate_node)
         builder.add_node("recalibration_node", recalibration_node)
         builder.add_node("consensus_node", consensus_node)
+        builder.add_node("trajectory_node", trajectory_node)
 
-        # 5. Wire full Step 12 consensus pipeline
+        # 5. Wire full Step 12 consensus + trajectory forecasting pipeline
         builder.add_edge("risk_prediction_node", "contradiction_node")
         builder.add_edge("contradiction_node", "debate_node")
         builder.add_edge("debate_node", "recalibration_node")
         builder.add_edge("recalibration_node", "consensus_node")
-        builder.add_edge("consensus_node", END)
+        builder.add_edge("consensus_node", "trajectory_node")
+        builder.add_edge("trajectory_node", END)
     else:
         builder.add_edge("risk_prediction_node", END)
 

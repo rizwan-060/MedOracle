@@ -315,6 +315,7 @@ def test_clinical_graph_pipeline(
             recalibration_result=final_state.get("recalibration_result"),
             consensus_resolution=final_state.get("consensus_resolution"),
             audit_transcript=final_state.get("audit_transcript"),
+            disease_trajectory=final_state.get("disease_trajectory"),
             errors=final_state.get("errors") or [],
             warnings=final_state.get("warnings") or [],
         )

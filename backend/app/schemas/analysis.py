@@ -275,6 +275,7 @@ class ClinicalGraphPipelineTestResponse(BaseModel):
     recalibration_result: Optional[Dict[str, Any]] = None
     consensus_resolution: Optional[Dict[str, Any]] = None
     audit_transcript: Optional[Dict[str, Any]] = None
+    disease_trajectory: Optional[Dict[str, Any]] = None
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 

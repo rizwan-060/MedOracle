@@ -12,6 +12,7 @@ from app.core.cache import CacheManager
 from app.database.models import (
     AgentOutput,
     AnalysisSession,
+    DiseaseTrajectoryForecast,
     Doctor,
     DiagnosticFeedback,
     LabResult,
@@ -19,6 +20,7 @@ from app.database.models import (
     PatientProfile,
     RiskResult,
     SymptomReport,
+    TrajectoryOutcomeObservation,
     TrainedModel,
     User,
 )
@@ -542,4 +544,86 @@ class DiagnosticFeedbackRepository:
         )
         self.db.execute(stmt)
         self.db.commit()
+
+
+class TrajectoryForecastRepository:
+    """Data access repository for Disease Trajectory Forecasts and subsequent outcome observations."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(
+        self,
+        user_id: str,
+        model_version: str,
+        model_type: str,
+        disease_domain: str,
+        overall_direction: str,
+        forecast_payload: Dict[str, Any],
+        current_risk_percent: Optional[float] = None,
+        epistemic_doubt_score: float = 0.0,
+        input_evidence_refs: Optional[List[str]] = None,
+        safety_warnings_preserved: Optional[List[Dict[str, Any]]] = None,
+        analysis_session_id: Optional[str] = None,
+        forecast_id: Optional[str] = None,
+    ) -> DiseaseTrajectoryForecast:
+        record = DiseaseTrajectoryForecast(
+            id=forecast_id,
+            user_id=user_id,
+            analysis_session_id=analysis_session_id,
+            model_version=model_version,
+            model_type=model_type,
+            disease_domain=disease_domain,
+            overall_direction=overall_direction,
+            current_risk_percent=current_risk_percent,
+            epistemic_doubt_score=epistemic_doubt_score,
+            forecast_payload=forecast_payload,
+            input_evidence_refs=input_evidence_refs or [],
+            safety_warnings_preserved=safety_warnings_preserved or [],
+        )
+        self.db.add(record)
+        self.db.commit()
+        self.db.refresh(record)
+        return record
+
+    def get_by_id(self, forecast_id: str, user_id: Optional[str] = None) -> Optional[DiseaseTrajectoryForecast]:
+        stmt = select(DiseaseTrajectoryForecast).where(DiseaseTrajectoryForecast.id == forecast_id)
+        if user_id:
+            stmt = stmt.where(DiseaseTrajectoryForecast.user_id == user_id)
+        return self.db.scalars(stmt).first()
+
+    def list_by_user_id(self, user_id: str, limit: int = 20) -> List[DiseaseTrajectoryForecast]:
+        stmt = (
+            select(DiseaseTrajectoryForecast)
+            .where(DiseaseTrajectoryForecast.user_id == user_id)
+            .order_by(DiseaseTrajectoryForecast.created_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def record_observation(
+        self,
+        forecast_id: str,
+        user_id: str,
+        actual_outcome_label: Optional[int] = None,
+        observed_risk_percent: Optional[float] = None,
+        observed_biomarkers: Optional[Dict[str, Any]] = None,
+        notes: Optional[str] = None,
+        observed_at: Optional[Any] = None,
+    ) -> TrajectoryOutcomeObservation:
+        kwargs: Dict[str, Any] = {
+            "forecast_id": forecast_id,
+            "user_id": user_id,
+            "actual_outcome_label": actual_outcome_label,
+            "observed_risk_percent": observed_risk_percent,
+            "observed_biomarkers": observed_biomarkers or {},
+            "notes": notes,
+        }
+        if observed_at is not None:
+            kwargs["observed_at"] = observed_at
+        obs = TrajectoryOutcomeObservation(**kwargs)
+        self.db.add(obs)
+        self.db.commit()
+        self.db.refresh(obs)
+        return obs
 

@@ -12,6 +12,7 @@ from app.api.v1.patient import router as patient_router
 from app.api.v1.predictions import router as predictions_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.symptoms import router as symptoms_router
+from app.api.v1.trajectory import router as trajectory_router
 
 v1_router = APIRouter()
 
@@ -27,6 +28,7 @@ v1_router.include_router(nlp_router)
 v1_router.include_router(llm_router)
 v1_router.include_router(agents_router)
 v1_router.include_router(consensus_router)
+v1_router.include_router(trajectory_router)
 
 
 

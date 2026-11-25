@@ -411,3 +411,59 @@ class DiagnosticFeedback(Base):
     user = relationship("User", back_populates="diagnostic_feedbacks")
     analysis_session = relationship("AnalysisSession")
 
+
+class DiseaseTrajectoryForecast(Base):
+    """Persisted disease trajectory forecast record with provenance, horizon projections, and uncertainty."""
+
+    __tablename__ = "disease_trajectory_forecasts"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    analysis_session_id = Column(
+        String(36), ForeignKey("analysis_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    model_version = Column(String(100), nullable=False)
+    model_type = Column(String(60), nullable=False)
+    disease_domain = Column(String(50), default="cardiovascular", nullable=False)
+    overall_direction = Column(String(30), nullable=False)
+    current_risk_percent = Column(Float, nullable=True)
+    epistemic_doubt_score = Column(Float, default=0.0, nullable=False)
+    forecast_payload = Column(JSON, nullable=False)
+    input_evidence_refs = Column(JSON, default=list, nullable=False)
+    safety_warnings_preserved = Column(JSON, default=list, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    observations = relationship(
+        "TrajectoryOutcomeObservation",
+        back_populates="forecast",
+        cascade="all, delete-orphan",
+    )
+
+
+class TrajectoryOutcomeObservation(Base):
+    """Subsequent observed clinical outcome recorded against an earlier trajectory forecast."""
+
+    __tablename__ = "trajectory_outcome_observations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    forecast_id = Column(
+        String(36), ForeignKey("disease_trajectory_forecasts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    observed_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    actual_outcome_label = Column(Integer, nullable=True)  # 0 or 1
+    observed_risk_percent = Column(Float, nullable=True)
+    observed_biomarkers = Column(JSON, default=dict, nullable=False)
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationships
+    forecast = relationship("DiseaseTrajectoryForecast", back_populates="observations")
+

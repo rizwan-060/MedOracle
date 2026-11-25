@@ -142,7 +142,7 @@ def test_full_graph_synchronous_execution():
     final_state = run_clinical_graph(initial_state)
 
     assert final_state["status"] == "completed"
-    assert final_state["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed"]
+    assert final_state["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed", "trajectory_forecasting_completed"]
     assert final_state["completed_at"] is not None
     assert final_state["symptom_output"] is not None
     assert final_state["medical_history_output"] is not None

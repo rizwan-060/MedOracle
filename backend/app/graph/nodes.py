@@ -318,3 +318,37 @@ def consensus_node(state: ClinicalAgentState) -> Dict[str, Any]:
             "warnings": ["Consensus resolution failed."],
             "status": "failed",
         }
+
+
+def trajectory_node(state: ClinicalAgentState) -> Dict[str, Any]:
+    """Execute Disease Trajectory Forecasting after Step 12 Consensus Resolution."""
+    logger.info("Executing trajectory_node for session: %s", state.get("session_id"))
+    try:
+        from app.agents.disease_trajectory_agent import DiseaseTrajectoryAgent
+
+        agent = DiseaseTrajectoryAgent()
+        long_hist = state.get("longitudinal_history") or {}
+        result = agent.forecast_trajectory(
+            patient_id=state.get("user_id") or "anon",
+            analysis_session_id=state.get("session_id"),
+            lab_history=long_hist.get("lab_history"),
+            symptom_history=long_hist.get("symptom_history"),
+            current_labs=state.get("laboratory_data") or {},
+            current_symptoms=state.get("symptoms_data") or {},
+            medical_history_data=state.get("medical_history_data") or {},
+            clinical_scores=state.get("clinical_scores") or {},
+            ml_predictions=state.get("ml_predictions") or {},
+            consensus_resolution=state.get("consensus_resolution"),
+        )
+        return {
+            "disease_trajectory": result.model_dump(),
+            "current_phase": "trajectory_forecasting_completed",
+            "status": "completed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        logger.error("trajectory_node failed: %s", exc, exc_info=True)
+        return {
+            "errors": [f"DiseaseTrajectoryAgent execution failure: {str(exc)}"],
+            "warnings": ["Disease trajectory forecasting unavailable; consensus output preserved."],
+        }

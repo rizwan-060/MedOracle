@@ -79,8 +79,9 @@ def test_authenticated_pipeline_success(client: TestClient, db_session):
 
     assert data["session_id"].startswith("session_")
     assert data["status"] == "completed"
-    assert data["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed"]
+    assert data["current_phase"] in ["risk_prediction_completed", "consensus_resolution_completed", "trajectory_forecasting_completed"]
     assert data["completed_at"] is not None
+    assert data.get("disease_trajectory") is not None
 
     # Verify agent outputs
     assert len(data["agent_outputs"]) == 4

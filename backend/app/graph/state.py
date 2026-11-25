@@ -44,6 +44,10 @@ class ClinicalAgentState(TypedDict, total=False):
     consensus_resolution: Optional[Dict[str, Any]]
     audit_transcript: Optional[Dict[str, Any]]
 
+    # Disease Trajectory Forecasting
+    longitudinal_history: Optional[Dict[str, Any]]
+    disease_trajectory: Optional[Dict[str, Any]]
+
     # Workflow Status Tracking
     current_phase: str
     status: str
@@ -83,6 +87,8 @@ def create_initial_graph_state(
         "recalibration_result": None,
         "consensus_resolution": None,
         "audit_transcript": None,
+        "longitudinal_history": None,
+        "disease_trajectory": None,
         "agent_outputs": [],
         "errors": [],
         "warnings": [],
