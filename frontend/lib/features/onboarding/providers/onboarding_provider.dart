@@ -122,6 +122,36 @@ class OnboardingController extends Notifier<OnboardingState> {
     }
   }
 
+  /// Restores the live OB3 entry state.
+  void resetProfile() {
+    state = state.copyWith(
+      age: 30,
+      sex: null,
+      bloodType: null,
+      profileStep: 0,
+      profileDone: const <String, bool>{
+        'age': false,
+        'sex': false,
+        'blood': false,
+      },
+    );
+  }
+
+  /// Static OB3 preview: age and sex are pinned, blood type is being asked.
+  void applyProfilePreview() {
+    state = state.copyWith(
+      age: 30,
+      sex: 'Male',
+      bloodType: null,
+      profileStep: 2,
+      profileDone: const <String, bool>{
+        'age': true,
+        'sex': true,
+        'blood': false,
+      },
+    );
+  }
+
   /// Commits the currently visible profile question and advances to the first
   /// unanswered note, or to the notes-ready summary when all are complete.
   void commitProfile() {
