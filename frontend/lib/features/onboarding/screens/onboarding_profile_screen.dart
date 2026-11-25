@@ -54,6 +54,7 @@ class _OnboardingProfileScreenState
   late final AnimationController _ageController;
   final List<Timer> _timers = <Timer>[];
 
+  late OnboardingState _previewState;
   int _displayedStep = 0;
   String? _droppingKey;
   int? _pressedStepper;
@@ -64,14 +65,20 @@ class _OnboardingProfileScreenState
   void initState() {
     super.initState();
 
-    final OnboardingController controller =
-        ref.read(onboardingProvider.notifier);
-    if (widget.initialPreviewMode) {
-      controller.applyProfilePreview();
-    } else {
-      controller.resetProfile();
-    }
-    _displayedStep = ref.read(onboardingProvider).profileStep;
+    _previewState = const OnboardingState(
+      age: 30,
+      sex: 'Male',
+      bloodType: null,
+      profileStep: 2,
+      profileDone: <String, bool>{
+        'age': true,
+        'sex': true,
+        'blood': false,
+      },
+    );
+    _displayedStep = widget.initialPreviewMode
+        ? 2
+        : ref.read(onboardingProvider).profileStep;
 
     _stepController = AnimationController(
       vsync: this,
@@ -117,11 +124,36 @@ class _OnboardingProfileScreenState
     _timers.clear();
   }
 
+  OnboardingState get _activeState =>
+      widget.initialPreviewMode ? _previewState : ref.read(onboardingProvider);
+
   void _changeAge(int delta) {
-    if (delta < 0 && ref.read(onboardingProvider).age <= 18) return;
-    if (delta > 0 && ref.read(onboardingProvider).age >= 100) return;
-    ref.read(onboardingProvider.notifier).changeAge(delta);
+    final OnboardingState state = _activeState;
+    if (delta < 0 && state.age <= 18) return;
+    if (delta > 0 && state.age >= 100) return;
+
+    if (widget.initialPreviewMode) {
+      setState(() => _previewState = state.copyWith(age: state.age + delta));
+    } else {
+      ref.read(onboardingProvider.notifier).changeAge(delta);
+    }
     _ageController.forward(from: 0);
+  }
+
+  void _setSex(String value) {
+    if (widget.initialPreviewMode) {
+      setState(() => _previewState = _activeState.copyWith(sex: value));
+      return;
+    }
+    ref.read(onboardingProvider.notifier).setSex(value);
+  }
+
+  void _setBloodType(String? value) {
+    if (widget.initialPreviewMode) {
+      setState(() => _previewState = _activeState.copyWith(bloodType: value));
+      return;
+    }
+    ref.read(onboardingProvider.notifier).setBloodType(value);
   }
 
   void _setStepperPress(int? value) {
@@ -138,13 +170,18 @@ class _OnboardingProfileScreenState
     if (_transitioning) return;
     final int target = _profileKeys.indexOf(key);
     if (target < 0) return;
-    ref.read(onboardingProvider.notifier).editProfile(key);
+
+    if (widget.initialPreviewMode) {
+      setState(() => _previewState = _activeState.copyWith(profileStep: target));
+    } else {
+      ref.read(onboardingProvider.notifier).editProfile(key);
+    }
     _beginStepTransition(target);
   }
 
   void _handleCta(BuildContext context) {
     if (_transitioning) return;
-    final OnboardingState state = ref.read(onboardingProvider);
+    final OnboardingState state = _activeState;
     if (state.profileStep > 2) {
       OnboardingNavigation.next(context, RouteNames.onboardingBodyDetails);
       return;
@@ -152,6 +189,31 @@ class _OnboardingProfileScreenState
 
     final String key = _profileKeys[state.profileStep];
     if (key == 'sex' && state.sex == null) return;
+
+    if (widget.initialPreviewMode) {
+      final Map<String, bool> done = Map<String, bool>.from(state.profileDone);
+      done[key] = true;
+      final String? bloodType =
+          key == 'blood' && state.bloodType == null ? 'skip' : state.bloodType;
+
+      int target = 3;
+      for (final String candidate in _profileKeys) {
+        if (done[candidate] != true) {
+          target = _profileKeys.indexOf(candidate);
+          break;
+        }
+      }
+
+      setState(() {
+        _previewState = state.copyWith(
+          bloodType: bloodType,
+          profileDone: done,
+          profileStep: target,
+        );
+      });
+      _beginStepTransition(target, dropKey: key);
+      return;
+    }
 
     ref.read(onboardingProvider.notifier).commitProfile();
     final int target = ref.read(onboardingProvider).profileStep;
@@ -180,7 +242,9 @@ class _OnboardingProfileScreenState
 
   @override
   Widget build(BuildContext context) {
-    final OnboardingState state = ref.watch(onboardingProvider);
+    final OnboardingState liveState = ref.watch(onboardingProvider);
+    final OnboardingState state =
+        widget.initialPreviewMode ? _previewState : liveState;
     final bool finished = state.profileStep > 2;
 
     final String ctaLabel;
@@ -256,11 +320,8 @@ class _OnboardingProfileScreenState
                         pressedOption: _pressedOption,
                         onChangeAge: _changeAge,
                         onSetStepperPress: _setStepperPress,
-                        onSetSex: (String value) =>
-                            ref.read(onboardingProvider.notifier).setSex(value),
-                        onSetBlood: (String? value) => ref
-                            .read(onboardingProvider.notifier)
-                            .setBloodType(value),
+                        onSetSex: _setSex,
+                        onSetBlood: _setBloodType,
                         onSetOptionPress: _setOptionPress,
                       ),
                     ),
