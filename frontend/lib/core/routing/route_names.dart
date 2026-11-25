@@ -5,7 +5,15 @@ abstract final class RouteNames {
   static const String onboardingWelcome = '$onboardingRoot/welcome';
   static const String onboardingCareTeam = '$onboardingRoot/care-team';
   static const String onboardingProfile = '$onboardingRoot/profile';
+
+  /// OB3 is the blood-type/you introduction hosted by [onboardingProfile].
+  static const String onboardingBloodType = onboardingProfile;
+
   static const String onboardingBody = '$onboardingRoot/body';
+
+  /// OB4 is the body-details step hosted by [onboardingBody].
+  static const String onboardingBodyDetails = onboardingBody;
+
   static const String onboardingHabits = '$onboardingRoot/habits';
   static const String onboardingPath = '$onboardingRoot/path';
 
