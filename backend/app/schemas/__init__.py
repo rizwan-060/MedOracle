@@ -205,3 +205,15 @@ __all__ = [
     "TargetOrganDamageState",
 ]
 
+from app.schemas.debate_events import (
+    DebateEvent,
+    EventStatus,
+    EventType,
+)
+
+__all__.extend([
+    "DebateEvent",
+    "EventStatus",
+    "EventType",
+])
+
