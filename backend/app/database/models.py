@@ -22,7 +22,9 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
+    UniqueConstraint,
     JSON,
     String,
     Text,
@@ -258,6 +260,11 @@ class AnalysisSession(Base):
         back_populates="analysis_session",
         cascade="all, delete-orphan",
     )
+    persisted_debate_events = relationship(
+        "DebateEventRecord",
+        back_populates="analysis_session",
+        cascade="all, delete-orphan",
+    )
 
 
 class AgentOutput(Base):
@@ -410,4 +417,34 @@ class DiagnosticFeedback(Base):
     # Relationships
     user = relationship("User", back_populates="diagnostic_feedbacks")
     analysis_session = relationship("AnalysisSession")
+
+
+class DebateEventRecord(Base):
+    """Durable PostgreSQL event log for Step 12.5 live agent debate SSE streaming & replay."""
+
+    __tablename__ = "debate_events"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence_number", name="uq_debate_events_session_seq"),
+        Index("ix_debate_events_session_seq", "session_id", "sequence_number"),
+    )
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(
+        String(36), ForeignKey("analysis_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    schema_version = Column(String(20), default="1.0.0", nullable=False)
+    sequence_number = Column(Integer, nullable=False)
+    event_type = Column(String(64), nullable=False, index=True)
+    agent_role = Column(String(64), nullable=True)
+    target_agent_role = Column(String(64), nullable=True)
+    round_number = Column(Integer, nullable=True)
+    claim_id = Column(String(64), nullable=True)
+    status = Column(String(32), default="info", nullable=False)
+    evidence_references = Column(JSON, default=list, nullable=False)
+    payload = Column(JSON, default=dict, nullable=False)
+    event_metadata = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Relationship
+    analysis_session = relationship("AnalysisSession", back_populates="persisted_debate_events")
 

@@ -5,13 +5,15 @@ constructs, strictly preventing raw SQL string concatenation.
 """
 
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.cache import CacheManager
 from app.database.models import (
     AgentOutput,
     AnalysisSession,
+    DebateEventRecord,
     Doctor,
     DiagnosticFeedback,
     LabResult,
@@ -542,4 +544,89 @@ class DiagnosticFeedbackRepository:
         )
         self.db.execute(stmt)
         self.db.commit()
+
+
+class DebateEventRepository:
+    """Data access repository for durable DebateEventRecord persistence and ordered replay."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def append_event(
+        self,
+        *,
+        event_id: str,
+        session_id: str,
+        schema_version: str,
+        event_type: str,
+        status: str,
+        payload: Dict[str, Any],
+        evidence_references: List[str],
+        event_metadata: Dict[str, Any],
+        agent_role: Optional[str] = None,
+        target_agent_role: Optional[str] = None,
+        round_number: Optional[int] = None,
+        claim_id: Optional[str] = None,
+        created_at: Optional[Any] = None,
+        max_retries: int = 5,
+    ) -> DebateEventRecord:
+        """Persist an event with a strictly monotonic per-session sequence number under concurrency."""
+        for attempt in range(max_retries):
+            max_seq = self.db.scalar(
+                select(func.max(DebateEventRecord.sequence_number)).where(
+                    DebateEventRecord.session_id == session_id
+                )
+            )
+            next_seq = int(max_seq or 0) + 1
+            record = DebateEventRecord(
+                id=event_id,
+                session_id=session_id,
+                schema_version=schema_version,
+                sequence_number=next_seq,
+                event_type=event_type,
+                agent_role=agent_role,
+                target_agent_role=target_agent_role,
+                round_number=round_number,
+                claim_id=claim_id,
+                status=status,
+                evidence_references=evidence_references,
+                payload=payload,
+                event_metadata=event_metadata,
+                **({"created_at": created_at} if created_at is not None else {}),
+            )
+            self.db.add(record)
+            try:
+                self.db.commit()
+                self.db.refresh(record)
+                return record
+            except IntegrityError:
+                self.db.rollback()
+                if attempt == max_retries - 1:
+                    raise
+        raise RuntimeError("Failed to allocate unique monotonic sequence_number")
+
+    def list_events_after(
+        self,
+        session_id: str,
+        after_sequence: int = 0,
+        limit: int = 500,
+    ) -> List[DebateEventRecord]:
+        stmt = (
+            select(DebateEventRecord)
+            .where(
+                DebateEventRecord.session_id == session_id,
+                DebateEventRecord.sequence_number > after_sequence,
+            )
+            .order_by(DebateEventRecord.sequence_number.asc())
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def get_latest_sequence(self, session_id: str) -> int:
+        val = self.db.scalar(
+            select(func.max(DebateEventRecord.sequence_number)).where(
+                DebateEventRecord.session_id == session_id
+            )
+        )
+        return int(val or 0)
 
