@@ -97,15 +97,53 @@ def get_compiled_clinical_graph(include_consensus: bool = True) -> CompiledState
         return _COMPILED_SPECIALIST_GRAPH
 
 
-def run_clinical_graph(state: ClinicalAgentState, include_consensus: bool = True) -> ClinicalAgentState:
-    """Execute the clinical orchestration graph synchronously."""
-    graph = get_compiled_clinical_graph(include_consensus=include_consensus)
-    result = graph.invoke(state)
-    return result
+def run_clinical_graph(
+    state: ClinicalAgentState,
+    include_consensus: bool = True,
+    event_publisher: Optional[Any] = None,
+) -> ClinicalAgentState:
+    """Execute the clinical orchestration graph synchronously with optional live event publishing."""
+    from app.schemas.debate_events import EventType
+    from app.services.consensus.event_publisher import PublisherRegistry, safe_publish_event
+
+    session_id = state.get("session_id")
+    if event_publisher is not None and session_id:
+        PublisherRegistry.register(session_id, event_publisher)
+    try:
+        safe_publish_event(
+            session_id,
+            EventType.DEBATE_STARTED,
+            {"include_consensus": include_consensus},
+            patient_id=state.get("user_id"),
+        )
+        graph = get_compiled_clinical_graph(include_consensus=include_consensus)
+        return graph.invoke(state)
+    finally:
+        if event_publisher is not None and session_id:
+            PublisherRegistry.unregister(session_id)
 
 
-async def arun_clinical_graph(state: ClinicalAgentState, include_consensus: bool = True) -> ClinicalAgentState:
-    """Execute the clinical orchestration graph asynchronously."""
-    graph = get_compiled_clinical_graph(include_consensus=include_consensus)
-    result = await graph.ainvoke(state)
-    return result
+async def arun_clinical_graph(
+    state: ClinicalAgentState,
+    include_consensus: bool = True,
+    event_publisher: Optional[Any] = None,
+) -> ClinicalAgentState:
+    """Execute the clinical orchestration graph asynchronously with optional live event publishing."""
+    from app.schemas.debate_events import EventType
+    from app.services.consensus.event_publisher import PublisherRegistry, safe_publish_event
+
+    session_id = state.get("session_id")
+    if event_publisher is not None and session_id:
+        PublisherRegistry.register(session_id, event_publisher)
+    try:
+        safe_publish_event(
+            session_id,
+            EventType.DEBATE_STARTED,
+            {"include_consensus": include_consensus},
+            patient_id=state.get("user_id"),
+        )
+        graph = get_compiled_clinical_graph(include_consensus=include_consensus)
+        return await graph.ainvoke(state)
+    finally:
+        if event_publisher is not None and session_id:
+            PublisherRegistry.unregister(session_id)
