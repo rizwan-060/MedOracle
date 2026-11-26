@@ -6,9 +6,12 @@ Provides standalone endpoints for:
 3. Consensus Resolution & Debate Transcript (/api/v1/consensus/verdict/test) [Sub-Step 12.4]
 """
 
+import asyncio
 import logging
 import time
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import AsyncGenerator, Optional
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.agents.consensus.consensus_resolver import ConsensusResolver
@@ -402,5 +405,126 @@ def get_audit_transcript(
         )
 
     return AuditDebateTranscript.model_validate(transcript_payload)
+
+
+# =============================================================================
+# Sub-Step 12.5.2: Live Agent Debate SSE Streaming & Replay Endpoint
+# =============================================================================
+
+@router.get(
+    "/sessions/{session_id}/stream",
+    summary="Stream live and replayed multi-agent debate events via Server-Sent Events (Step 12.5)",
+)
+async def stream_debate_events(
+    session_id: str,
+    request: Request,
+    last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Stream durable, ordered DebateEvents over SSE with Last-Event-ID catch-up replay."""
+    from app.database.models import AnalysisSession, PatientProfile
+    from app.database.repositories import DebateEventRepository
+    from app.schemas.debate_events import DebateEvent, EventStatus, EventType
+    from app.services.consensus.streaming import get_live_event_hub
+
+    # Ownership check via User -> PatientProfile -> AnalysisSession
+    # Uniform 403 prevents revealing whether a guessed session_id belongs to another tenant.
+    profile = db.query(PatientProfile).filter(PatientProfile.user_id == current_user.id).first()
+    session_record = db.query(AnalysisSession).filter(AnalysisSession.id == session_id).first()
+    if (
+        session_record is None
+        or session_record.user_id != current_user.id
+        or (profile is not None and profile.user_id != session_record.user_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied or analysis session unavailable.",
+        )
+
+    # Parse Last-Event-ID safely
+    after_seq = 0
+    if last_event_id is not None:
+        try:
+            parsed = int(str(last_event_id).strip())
+            if parsed > 0:
+                after_seq = parsed
+        except (ValueError, TypeError):
+            after_seq = 0
+
+    hub = get_live_event_hub()
+    # Subscribe BEFORE reading DB history to avoid missing events during replay->live transition
+    queue = hub.subscribe(session_id)
+    repo = DebateEventRepository(db)
+    historical_records = repo.list_events_after(session_id=session_id, after_sequence=after_seq, limit=1000)
+    is_terminal_session = session_record.status in ("completed", "failed")
+
+    terminal_types = {
+        EventType.DEBATE_COMPLETED,
+        EventType.DEBATE_FAILED,
+        EventType.DEBATE_TIMED_OUT,
+    }
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        last_sent_seq = after_seq
+        try:
+            # 1. Historical catch-up replay from durable storage
+            for rec in historical_records:
+                if await request.is_disconnected():
+                    return
+                ev = DebateEvent(
+                    event_id=rec.id,
+                    schema_version=rec.schema_version,
+                    session_id=rec.session_id,
+                    patient_id=current_user.id,
+                    sequence_number=rec.sequence_number,
+                    event_type=EventType(rec.event_type),
+                    timestamp=rec.created_at,
+                    agent_role=rec.agent_role,
+                    target_agent_role=rec.target_agent_role,
+                    round_number=rec.round_number,
+                    claim_id=rec.claim_id,
+                    evidence_references=rec.evidence_references or [],
+                    status=EventStatus(rec.status),
+                    payload=rec.payload or {},
+                    metadata=rec.event_metadata or {},
+                )
+                last_sent_seq = ev.sequence_number
+                yield ev.to_sse_frame()
+                if ev.event_type in terminal_types:
+                    return
+
+            if is_terminal_session:
+                return
+
+            # 2. Live streaming with deduplication across replay->live handoff
+            while True:
+                if await request.is_disconnected():
+                    return
+                try:
+                    live_ev: DebateEvent = await asyncio.wait_for(queue.get(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+
+                if live_ev.sequence_number <= last_sent_seq:
+                    continue
+                last_sent_seq = live_ev.sequence_number
+                yield live_ev.to_sse_frame()
+                if live_ev.event_type in terminal_types:
+                    return
+        except asyncio.CancelledError:
+            return
+        finally:
+            hub.unsubscribe(session_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
