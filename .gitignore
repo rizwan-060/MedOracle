@@ -77,12 +77,16 @@ dev_docs/*
 !backend/**/README.md
 
 # Academic proposals and submission files
+*.doc
 *.docx
 *Proposal*
 *proposal*
 docs/*Proposal*
 docs/*proposal*
+docs/*.doc
 docs/*.docx
+docs/reports/*.doc
+docs/reports/*.docx
 docs/*.pdf
 
 # Feedback & active learning buffer
