@@ -117,15 +117,17 @@ class _OnboardingCareTeamScreenState extends State<OnboardingCareTeamScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                _CareTeamStage(
-                  elapsedMs: elapsedMs,
-                  coreActive: coreActive,
-                  opacities: opacities,
-                  offsets: offsets,
-                  arrivals: arrivals,
-                  bobs: bobs,
-                  selected: _selectedTarget,
-                  onSelect: _select,
+                Center(
+                  child: _CareTeamStage(
+                    elapsedMs: elapsedMs,
+                    coreActive: coreActive,
+                    opacities: opacities,
+                    offsets: offsets,
+                    arrivals: arrivals,
+                    bobs: bobs,
+                    selected: _selectedTarget,
+                    onSelect: _select,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _InfoCard(selected: _selectedTarget),
