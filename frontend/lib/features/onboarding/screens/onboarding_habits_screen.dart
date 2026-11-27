@@ -78,6 +78,8 @@ class OnboardingHabitsScreen extends ConsumerWidget {
       step: 5,
       title: 'Your daily habits',
       subtitle: 'Tap the choice that fits you best.',
+      backgroundColor: AppColors.authInputSurface,
+      hardCtaShadow: true,
       ctaLabel: step == 4 ? 'See my path' : 'Next question',
       ctaEnabled: answered,
       onCta: () {
