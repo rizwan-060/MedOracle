@@ -55,7 +55,7 @@ class OnboardingShell extends StatelessWidget {
           children: <Widget>[
             Container(
               height: 207,
-              padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 21),
               decoration: BoxDecoration(
                 color: AppColors.headerText,
                 borderRadius: const BorderRadius.vertical(
@@ -82,7 +82,7 @@ class OnboardingShell extends StatelessWidget {
                       const SizedBox(width: 44),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
                   Text(
                     title,
                     style: OnboardingType.serif(
@@ -92,7 +92,7 @@ class OnboardingShell extends StatelessWidget {
                       height: 28 / 24,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
                     style: OnboardingType.sans(
