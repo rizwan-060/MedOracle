@@ -105,23 +105,28 @@ class _OnboardingPathScreenState extends State<OnboardingPathScreen>
         context,
         RouteNames.onboardingHabits,
       ),
-      child: SingleChildScrollView(
-        // OnboardingShell supplies the horizontal half of the requested
-        // EdgeInsets.all(24); this supplies the vertical half.
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (BuildContext context, Widget? child) {
-              return Center(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _replay,
-                  child: SizedBox(
-                    width: 280,
-                    height: 436,
-                    child: Stack(
-                      children: <Widget>[
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return SingleChildScrollView(
+            // OnboardingShell supplies the horizontal half of the requested
+            // EdgeInsets.all(24); this supplies the vertical half.
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (BuildContext context, Widget? child) {
+                    return Center(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _replay,
+                        child: SizedBox(
+                          width: 280,
+                          height: 436,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: <Widget>[
                         Positioned.fill(
                           child: CustomPaint(
                             size: const Size(280, 436),
@@ -169,6 +174,9 @@ class _OnboardingPathScreenState extends State<OnboardingPathScreen>
             },
           ),
         ),
+      ),
+    );
+        },
       ),
     );
   }
