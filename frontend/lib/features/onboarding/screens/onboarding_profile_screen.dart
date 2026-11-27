@@ -42,7 +42,7 @@ class OnboardingProfileScreen extends ConsumerStatefulWidget {
 
 class _OnboardingProfileScreenState
     extends ConsumerState<OnboardingProfileScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const int _questionOutMs = 280;
   static const int _questionInMs = 550;
   static const double _questionOutEnd =
