@@ -193,3 +193,4 @@ class DebateEvent(BaseModel):
         """Format event as a standard Server-Sent Events (SSE) wire frame."""
         data_json = json.dumps(self.model_dump(mode="json"), separators=(",", ":"), default=str)
         return f"id: {self.sequence_number}\nevent: {self.event_type.value}\ndata: {data_json}\n\n"
+

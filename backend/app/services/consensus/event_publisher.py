@@ -250,3 +250,4 @@ def safe_publish_event(
             exc,
         )
         return None
+

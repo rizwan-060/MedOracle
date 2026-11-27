@@ -165,3 +165,4 @@ def test_langgraph_concordant_session_emits_no_fabricated_contradictions():
     assert EventType.CONTRADICTION_DETECTED not in types
     assert EventType.CHALLENGE_SUBMITTED not in types
     assert EventType.DEBATE_COMPLETED in types
+
