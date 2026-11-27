@@ -20,6 +20,9 @@ class OnboardingShell extends StatelessWidget {
     required this.child,
     this.onBack,
     this.ctaEnabled = true,
+    this.backgroundColor = AppColors.canvasBackground,
+    this.contentHorizontalPadding = 20,
+    this.hardCtaShadow = false,
   });
 
   final int step;
@@ -33,13 +36,17 @@ class OnboardingShell extends StatelessWidget {
   final VoidCallback? onBack;
   final bool ctaEnabled;
 
+  /// Optional per-step visual overrides. Defaults match the shared chrome.
+  final Color backgroundColor;
+  final double contentHorizontalPadding;
+  final bool hardCtaShadow;
+
   @override
   Widget build(BuildContext context) {
-    final double topInset = MediaQuery.paddingOf(context).top;
     final double bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: AppColors.canvasBackground,
+      backgroundColor: backgroundColor,
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         bottom: false,
@@ -47,7 +54,8 @@ class OnboardingShell extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Container(
-              padding: EdgeInsets.fromLTRB(20, topInset + 28, 20, 28),
+              height: 207,
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
               decoration: BoxDecoration(
                 color: AppColors.headerText,
                 borderRadius: const BorderRadius.vertical(
@@ -99,7 +107,9 @@ class OnboardingShell extends StatelessWidget {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.symmetric(
+                  horizontal: contentHorizontalPadding,
+                ),
                 child: child,
               ),
             ),
@@ -109,6 +119,7 @@ class OnboardingShell extends StatelessWidget {
                 label: ctaLabel,
                 onPressed: onCta,
                 enabled: ctaEnabled,
+                hardShadow: hardCtaShadow,
               ),
             ),
           ],
