@@ -142,6 +142,17 @@ abstract final class AppColors {
   static const Color onboardingPinHighlight = Color(0xFFFF8A80);
   static const Color onboardingPinMid = Color(0xFFD93025);
   static const Color onboardingPinDeep = Color(0xFF9B1C14);
+  static const Color onboardingBmiAbove = Color(0xFF8A5A1F);
+  static const Color onboardingBmiHealthy = Color(0xFF3F7A66);
+  static const Color onboardingCtaHardShadow = Color(0xFF8A3F27);
+  static const Color onboardingRedMargin = Color(0xFFC44536);
+  static const Color onboardingParchment = Color(0xFFF2EBDB);
+  static const Color onboardingParchmentLight = Color(0xFFF7F1E4);
+  static const Color onboardingFoldCrease = Color(0xFF78643C);
+  static const Color onboardingTickGreen = Color(0xFF3B8B5A);
+  static const Color onboardingPaperInk = Color(0xFF1E293B);
+  static const Color onboardingPaperStatus = Color(0xFF64748B);
+  static const Color onboardingPaperShadowInk = Color(0xFF1F2D3D);
 
   /// White copy on the slate hero header.
   static const Color authOnSlate = Color(0xFFFFFFFF);

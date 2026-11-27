@@ -195,13 +195,25 @@ class OnboardingController extends Notifier<OnboardingState> {
   }
 
   void changeHeightFeet(int delta) {
-    final int next = (state.heightFt + delta).clamp(4, 7);
+    final int next = (state.heightFt + delta).clamp(3, 7);
+    if (next == state.heightFt) return;
     state = state.copyWith(heightFt: next);
   }
 
   void changeHeightInches(int delta) {
-    final int next = (state.heightIn + delta).clamp(0, 11);
-    state = state.copyWith(heightIn: next);
+    if (delta > 0 && state.heightFt == 7 && state.heightIn == 11) return;
+    if (delta < 0 && state.heightFt == 3 && state.heightIn == 0) return;
+
+    int feet = state.heightFt;
+    int inches = state.heightIn + delta;
+    if (inches > 11) {
+      inches = 0;
+      feet += 1;
+    } else if (inches < 0) {
+      inches = 11;
+      feet -= 1;
+    }
+    state = state.copyWith(heightFt: feet, heightIn: inches);
   }
 
   void setWeight(String value) {
