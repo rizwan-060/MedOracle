@@ -79,7 +79,6 @@ class OnboardingHabitsScreen extends ConsumerWidget {
       title: 'Your daily habits',
       subtitle: 'Tap the choice that fits you best.',
       backgroundColor: AppColors.authInputSurface,
-      hardCtaShadow: true,
       ctaLabel: step == 4 ? 'See my path' : 'Next question',
       ctaEnabled: answered,
       onCta: () {
@@ -90,22 +89,32 @@ class OnboardingHabitsScreen extends ConsumerWidget {
         }
       },
       onBack: step == 0
-          ? null
+          ? () => OnboardingNavigation.back(
+                context,
+                RouteNames.onboardingBody,
+              )
           : () => controller.setHabitsStep(step - 1),
-      child: SingleChildScrollView(
-        child: Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 420),
-            child: _HabitQuestionCard(
-              key: ValueKey<int>(step),
-              question: question,
-              selected: selected,
-              sleep: state.sleep,
-              onPick: (int choice) => pick(step, choice),
-              onSleepChange: controller.changeSleep,
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 420),
+                  child: _HabitQuestionCard(
+                    key: ValueKey<int>(step),
+                    question: question,
+                    selected: selected,
+                    sleep: state.sleep,
+                    onPick: (int choice) => pick(step, choice),
+                    onSleepChange: controller.changeSleep,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -140,7 +149,7 @@ class _Question {
   final IconData icon;
 }
 
-class _HabitQuestionCard extends StatelessWidget {
+class _HabitQuestionCard extends StatefulWidget {
   const _HabitQuestionCard({
     super.key,
     required this.question,
@@ -157,32 +166,51 @@ class _HabitQuestionCard extends StatelessWidget {
   final ValueChanged<double> onSleepChange;
 
   @override
+  State<_HabitQuestionCard> createState() => _HabitQuestionCardState();
+}
+
+class _HabitQuestionCardState extends State<_HabitQuestionCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _HabitQuestionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected != null && widget.selected != oldWidget.selected) {
+      _pulseController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        const SizedBox(height: 24),
         Center(
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: AppColors.secondarySurface,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.headerText.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Icon(
-              question.icon,
-              size: 30,
-              color: AppColors.headerText,
-            ),
+          child: _IconPulseFeedback(
+            controller: _pulseController,
+            icon: widget.question.icon,
           ),
         ),
         const SizedBox(height: 24),
         Text(
-          question.title,
+          widget.question.title,
           textAlign: TextAlign.center,
           style: OnboardingType.serif(
             22,
@@ -193,7 +221,7 @@ class _HabitQuestionCard extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          question.hint,
+          widget.question.hint,
           textAlign: TextAlign.center,
           style: OnboardingType.sans(
             14,
@@ -203,15 +231,87 @@ class _HabitQuestionCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 32),
-        if (question.options.isEmpty)
-          _SleepStepper(sleep: sleep, onChanged: onSleepChange)
+        if (widget.question.options.isEmpty)
+          _SleepStepper(sleep: widget.sleep, onChanged: widget.onSleepChange)
         else
           _SegmentedOptions(
-            options: question.options,
-            selected: selected,
-            onPick: onPick,
+            options: widget.question.options,
+            selected: widget.selected,
+            onPick: widget.onPick,
           ),
       ],
+    );
+  }
+}
+
+class _IconPulseFeedback extends StatelessWidget {
+  const _IconPulseFeedback({required this.controller, required this.icon});
+
+  final AnimationController controller;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          for (int layer = 0; layer < 3; layer++)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: controller,
+                  builder: (BuildContext context, Widget? child) {
+                    final double start = layer * 0.12;
+                    if (controller.value <= 0 || controller.value < start) {
+                      return const SizedBox.shrink();
+                    }
+                    final double progress =
+                        ((controller.value - start) / (1 - start))
+                            .clamp(0.0, 1.0)
+                            .toDouble();
+                    final double eased = Curves.easeOut.transform(progress);
+                    return Opacity(
+                      opacity: (1 - progress) * 0.42,
+                      child: Transform.scale(
+                        scale: 0.82 + 0.55 * eased,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.headerText.withValues(
+                                alpha: 0.45,
+                              ),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.secondarySurface,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.headerText.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Icon(
+              icon,
+              size: 30,
+              color: AppColors.headerText,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -250,20 +350,22 @@ class _SegmentedOptions extends StatelessWidget {
                 top: 2,
                 width: segmentWidth,
                 height: 44,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 160),
-                  opacity: selected == null ? 0 : 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.cardSurface,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: AppColors.headerText.withValues(alpha: 0.18),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    opacity: selected == null ? 0 : 1,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: AppColors.headerText.withValues(alpha: 0.18),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -275,19 +377,22 @@ class _SegmentedOptions extends StatelessWidget {
                       button: true,
                       selected: selected == i,
                       child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => onPick(i),
-                        child: Center(
-                          child: Text(
-                            options[i],
-                            textAlign: TextAlign.center,
-                            style: OnboardingType.sans(
-                              13,
-                              selected == i
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              selected == i
-                                  ? AppColors.headerText
-                                  : AppColors.onboardingMutedInk,
+                        child: SizedBox.expand(
+                          child: Center(
+                            child: Text(
+                              options[i],
+                              textAlign: TextAlign.center,
+                              style: OnboardingType.sans(
+                                13,
+                                selected == i
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                selected == i
+                                    ? AppColors.headerText
+                                    : AppColors.onboardingMutedInk,
+                              ),
                             ),
                           ),
                         ),
