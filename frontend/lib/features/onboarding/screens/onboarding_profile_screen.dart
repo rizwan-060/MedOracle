@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -53,6 +54,7 @@ class _OnboardingProfileScreenState
   late final AnimationController _noteController;
   late final AnimationController _ageController;
   final List<Timer> _timers = <Timer>[];
+  AudioPlayer? _pinPlayer;
 
   late OnboardingState _previewState;
   int _displayedStep = 0;
@@ -114,6 +116,11 @@ class _OnboardingProfileScreenState
     _stepController.dispose();
     _noteController.dispose();
     _ageController.dispose();
+    final AudioPlayer? pinPlayer = _pinPlayer;
+    _pinPlayer = null;
+    if (pinPlayer != null) {
+      unawaited(pinPlayer.dispose().catchError((Object _) {}));
+    }
     super.dispose();
   }
 
@@ -122,6 +129,19 @@ class _OnboardingProfileScreenState
       timer.cancel();
     }
     _timers.clear();
+  }
+
+  void _playPinSound() {
+    try {
+      _pinPlayer ??= AudioPlayer();
+      unawaited(
+        _pinPlayer!
+            .play(AssetSource('audio/sticky_note_place.wav'))
+            .catchError((Object _) {}),
+      );
+    } catch (_) {
+      // Audio is best-effort; a pin must never block the question flow.
+    }
   }
 
   OnboardingState get _activeState =>
@@ -227,6 +247,7 @@ class _OnboardingProfileScreenState
 
     if (dropKey != null) {
       setState(() => _droppingKey = dropKey);
+      _playPinSound();
       _noteController.forward(from: 0);
     }
 
