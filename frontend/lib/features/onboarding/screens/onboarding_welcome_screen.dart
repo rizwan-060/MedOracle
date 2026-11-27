@@ -208,49 +208,61 @@ class _WelcomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        WelcomeIllustration(painter: data.painter),
-        const SizedBox(height: 16),
-        Text(
-          data.title,
-          style: OnboardingType.serif(
-            23,
-            FontWeight.w600,
-            AppColors.deepInk,
-            height: 28 / 23,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                WelcomeIllustration(painter: data.painter),
+                const SizedBox(height: 16),
+                Text(
+                  data.title,
+                  style: OnboardingType.serif(
+                    23,
+                    FontWeight.w600,
+                    AppColors.deepInk,
+                    height: 28 / 23,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  data.subtitle,
+                  style: OnboardingType.sans(
+                    15,
+                    FontWeight.w500,
+                    AppColors.headerText,
+                    height: 22 / 15,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  data.body,
+                  style: OnboardingType.sans(
+                    14.5,
+                    FontWeight.w300,
+                    AppColors.deepInk.withValues(alpha: 0.8),
+                    height: 22 / 14.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: data.pills
+                      .map((String label) => _Pill(label: label))
+                      .toList(),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          data.subtitle,
-          style: OnboardingType.sans(
-            15,
-            FontWeight.w500,
-            AppColors.headerText,
-            height: 22 / 15,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          data.body,
-          style: OnboardingType.sans(
-            14.5,
-            FontWeight.w300,
-            AppColors.deepInk.withValues(alpha: 0.8),
-            height: 22 / 14.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: data.pills
-              .map((String label) => _Pill(label: label))
-              .toList(),
-        ),
-      ],
+        );
+      },
     );
   }
 }
