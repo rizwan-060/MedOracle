@@ -89,6 +89,29 @@ abstract final class AppColors {
   /// Canonical terracotta accent for the intake flow.
   static const Color terraCotta = authCta;
 
+  //
+  // ---------------------------------------------------------------------------
+  // Assessment Intake Reference Tokens
+  // ---------------------------------------------------------------------------
+  //
+
+  static const Color intakeSlateDark = Color(0xFF3A5B74);
+  static const Color intakeSlateDarkest = Color(0xFF2B4A60);
+  static const Color intakeButtonLine = Color(0xFF557C93);
+  static const Color intakeMistFill = Color(0xFFE8EFF4);
+  static const Color intakeMistBorder = Color(0xFFC3D3DE);
+  static const Color intakeSageFill = Color(0xFFDCE6E2);
+  static const Color intakeSageBorder = Color(0xFFBCCDC6);
+  static const Color intakeSandFill = Color(0xFFF3EEE4);
+  static const Color intakeSandBorder = Color(0xFFE0D6C3);
+  static const Color intakeInk = Color(0xFF1E252B);
+  static const Color intakeLine = Color(0xFFD5CFC4);
+  static const Color intakeAutosaveInk = Color(0xFFF0F5F8);
+  static const Color intakeMutedInk = Color(0xFF5E7382);
+  static const Color intakeButtonInk = Color(0xFF3F6479);
+  static const Color intakeFanFill = Color(0xFFDCE8EF);
+  static const Color intakeAllergyIcon = Color(0xFF3A6A5A);
+
   /// Deep ink used for values typed into authentication fields.
   static const Color authInk = Color(0xFF1E2A33);
 
