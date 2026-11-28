@@ -8,8 +8,8 @@ class ClinicalStatusState {
   const ClinicalStatusState({
     this.phase = ClinicalStatusPhase.empty,
     this.conditions = const <String>[],
-    this.surgeries = const <String>['Appendectomy'],
-    this.allergies = const <String>['Penicillin', 'Latex'],
+    this.surgeries = const <String>[],
+    this.allergies = const <String>[],
     this.conditionQuery = '',
     this.notes = '',
   });
@@ -80,14 +80,13 @@ class ClinicalStatusController extends Notifier<ClinicalStatusState> {
 
   /// Returns from the summary to the editable "adding" state.
   void editConditions() {
-    if (state.conditions.isEmpty) return;
     state = state.copyWith(phase: ClinicalStatusPhase.adding);
   }
 
-  /// Clears all conditions (used by "I don't have any").
+  /// Completes the flow with zero conditions ("I don't have any").
   void clearConditions() {
     state = state.copyWith(
-      phase: ClinicalStatusPhase.empty,
+      phase: ClinicalStatusPhase.done,
       conditions: const <String>[],
       conditionQuery: '',
     );
