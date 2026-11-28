@@ -111,6 +111,14 @@ abstract final class AppColors {
   static const Color intakeButtonInk = Color(0xFF3F6479);
   static const Color intakeFanFill = Color(0xFFDCE8EF);
   static const Color intakeAllergyIcon = Color(0xFF3A6A5A);
+  static const Color intakeDrawerSurface = Color(0xFF6A91A8);
+  static const Color intakeDrawerBorder = Color(0xFF8FB4C8);
+  static const Color intakeCardInk = Color(0xFF3A444C);
+  static const Color intakeGhostFill = Color(0xFFEAF1F6);
+  static const Color intakeGhostDeepFill = Color(0xFFD6E3EC);
+  static const Color intakeRowFill = Color(0xFFF3EFEA);
+  static const Color intakeRowBorder = Color(0xFFB7CBD8);
+  static const Color intakeSaveButton = Color(0xFFC84C27);
 
   /// Deep ink used for values typed into authentication fields.
   static const Color authInk = Color(0xFF1E2A33);
